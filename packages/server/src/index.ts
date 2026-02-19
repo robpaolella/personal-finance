@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 import { db, sqlite } from './db/index.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
+import accountRoutes from './routes/accounts.js';
+import categoryRoutes from './routes/categories.js';
+import userRoutes from './routes/users.js';
 
 dotenv.config();
 
@@ -22,6 +25,9 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/accounts', accountRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/users', userRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
