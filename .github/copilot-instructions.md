@@ -80,3 +80,39 @@ Examples:
 - Never delete data — use soft deletes (is_active flags) where appropriate
 - All monetary values stored as numeric (not text)
 - Dates stored as ISO strings (YYYY-MM-DD)
+
+## Project Learnings
+
+This is a living document. You MUST maintain this section throughout the life of the project. It captures hard-won lessons — things that broke, things that were non-obvious, decisions that were made and why — so we never repeat mistakes or lose context.
+
+### Rules for Maintaining Learnings
+
+1. **When to add a learning:**
+   - You encounter a bug or error that took more than a trivial fix
+   - A library or API behaves differently than expected
+   - You discover a compatibility issue between dependencies
+   - A design decision is made that future work needs to respect
+   - I (the developer) tell you something to remember — if I say "remember this", "note this", "save this for later", or anything similar, add it here immediately
+   - You try an approach that fails and switch to a different one
+   - You find that something in these instructions needs clarification based on real usage
+
+2. **Format for each learning:**
+   ```
+   ### [SHORT TITLE] (YYYY-MM-DD)
+   **Context:** What we were doing when this came up
+   **Problem:** What went wrong or what was non-obvious
+   **Resolution:** What we did to fix it / what the correct approach is
+   **Rule going forward:** The specific thing to always/never do
+   ```
+
+3. **When to commit learnings:**
+   - Add the learning to this file as part of the same commit where you fix the issue, OR
+   - If I provide a learning verbally, add it and commit immediately: `docs: add learning — {short title}`
+
+4. **Never delete learnings.** They are append-only. If a learning becomes outdated, mark it as `[SUPERSEDED]` with a note pointing to the newer learning, but keep the original.
+
+5. **Reference learnings proactively.** Before starting work on any task, scan this section for relevant learnings. If a learning applies to what you're about to do, follow it without being asked.
+
+### Learnings Log
+
+_(Entries will be added here as the project progresses)_
