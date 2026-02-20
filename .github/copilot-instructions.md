@@ -211,3 +211,15 @@ Form Input → Storage → Display:
 **Problem:** Some institutions format negative amounts as (123.45) instead of -123.45
 **Resolution:** Added parsing for parenthesized amounts, stripping $, commas, and whitespace before numeric conversion
 **Rule going forward:** Always normalize amount strings before parsing — handle parentheses, currency symbols, commas, and whitespace.
+
+### Reusable Confirmation Pattern (2026-02-20)
+**Context:** Delete actions across the app had inconsistent confirmation UX
+**Problem:** Some used the inline "Confirm Delete?" pattern, others required double-click with no visual feedback, one had no confirmation at all
+**Resolution:** Extracted a reusable `<ConfirmDeleteButton>` component (in `components/ConfirmDeleteButton.tsx`) with props for onConfirm, label, confirmLabel, and timeout (default 3s). Applied consistently across SettingsPage, TransactionsPage, and NetWorthPage.
+**Rule going forward:** All destructive actions must use the shared ConfirmDeleteButton component. Never implement delete confirmation ad-hoc.
+
+### Notification Strategy (2026-02-20)
+**Context:** Some actions showed both inline notifications and toasts simultaneously
+**Problem:** Redundant and cluttered — user sees the same message twice in different places
+**Resolution:** Established clear rules: toasts for action results (success/failure), inline for validation errors and constraint messages, never both. Removed duplicate setBulkNotification + addToast calls from TransactionsPage and duplicate setNotification + addToast from ImportPage.
+**Rule going forward:** One notification per action, maximum. Toasts for outcomes, inline for input problems. Never use both for the same action.
