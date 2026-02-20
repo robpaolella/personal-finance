@@ -93,7 +93,19 @@ function TransactionForm({
   const [description, setDescription] = useState(transaction?.description ?? '');
   const [note, setNote] = useState(transaction?.note ?? '');
   const [categoryId, setCategoryId] = useState<number>(transaction?.category.id ?? 0);
-  const [amount, setAmount] = useState(transaction ? transaction.amount.toString() : '');
+  // Show user-facing amount: for income, negate stored value (stored -5000 → show 5000)
+  // For reversals (positive+income or negative+expense), show as negative to indicate reversal
+  const [amount, setAmount] = useState(() => {
+    if (!transaction) return '';
+    const catType = transaction.category.type;
+    const stored = transaction.amount;
+    if (catType === 'income') {
+      // Regular income is stored negative → show positive; reversal is stored positive → show negative
+      return (-stored).toString();
+    }
+    // Regular expense is stored positive → show positive; refund is stored negative → show negative
+    return stored.toString();
+  });
   const [txType, setTxType] = useState<'expense' | 'income'>(
     transaction?.category.type === 'income' ? 'income' : 'expense'
   );
@@ -182,11 +194,13 @@ function TransactionForm({
       return;
     }
 
-    // Sign logic: explicit negative takes priority, otherwise toggle determines sign
+    // Sign logic: explicit negative takes priority and reverses the default
     let finalAmount: number;
     if (parsedAmount < 0) {
-      // User explicitly typed a negative number — store as-is
-      finalAmount = parsedAmount;
+      // User explicitly typed a negative number — reverse the default sign
+      // For income: default is negative, so reversed = positive (income reversal)
+      // For expense: default is positive, so reversed = negative (refund)
+      finalAmount = txType === 'income' ? Math.abs(parsedAmount) : parsedAmount;
     } else {
       // Toggle determines sign
       finalAmount = txType === 'income' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
