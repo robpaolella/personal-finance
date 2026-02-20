@@ -14,6 +14,7 @@ import reportRoutes from './routes/reports.js';
 import balanceRoutes from './routes/balances.js';
 import assetRoutes from './routes/assets.js';
 import networthRoutes from './routes/networth.js';
+import importRoutes from './routes/import.js';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/balances', balanceRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/networth', networthRoutes);
+app.use('/api/import', importRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
