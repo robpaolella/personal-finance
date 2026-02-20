@@ -8,6 +8,7 @@ import accountRoutes from './routes/accounts.js';
 import categoryRoutes from './routes/categories.js';
 import userRoutes from './routes/users.js';
 import transactionRoutes from './routes/transactions.js';
+import dashboardRoutes from './routes/dashboard.js';
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use('/api/accounts', accountRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
