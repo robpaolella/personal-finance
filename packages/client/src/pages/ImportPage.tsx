@@ -72,13 +72,20 @@ export default function ImportPage() {
     const formData = new FormData();
     formData.append('file', f);
 
-    const res = await apiFetch<{ data: ParseResult }>('/import/parse', {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const res = await apiFetch<{ data: ParseResult }>('/import/parse', {
+        method: 'POST',
+        body: formData,
+      });
 
-    setParseResult(res.data);
-    setMapping(res.data.suggestedMapping);
+      setParseResult(res.data);
+      setMapping(res.data.suggestedMapping);
+    } catch (err) {
+      console.error('Failed to parse CSV:', err);
+      alert('Failed to parse CSV file. Check console for details.');
+      setFile(null);
+      return;
+    }
 
     // Store all rows (we'll need them for step 3)
     // Re-parse locally to get all rows

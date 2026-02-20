@@ -24,7 +24,8 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use((req, res, next) => {
   // Skip JSON body parsing for multipart file uploads
-  if (req.path.startsWith('/api/import/parse')) return next();
+  const ct = req.headers['content-type'] || '';
+  if (ct.includes('multipart/form-data')) return next();
   express.json()(req, res, next);
 });
 
