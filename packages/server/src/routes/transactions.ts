@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { transactions, accounts, categories } from '../db/schema.js';
-import { eq, and, gte, lte, like, or, sql, desc, asc } from 'drizzle-orm';
+import { eq, and, gte, lte, like, or, sql, desc, asc, inArray } from 'drizzle-orm';
 
 const router = Router();
 
@@ -259,6 +259,81 @@ router.delete('/:id', (req: Request, res: Response) => {
   } catch (err) {
     console.error('DELETE /transactions/:id error:', err);
     res.status(500).json({ error: 'Failed to delete transaction' });
+  }
+});
+
+// POST /api/transactions/bulk-update
+router.post('/bulk-update', (req: Request, res: Response) => {
+  try {
+    const { ids, updates } = req.body as {
+      ids: number[];
+      updates: { date?: string; accountId?: number; categoryId?: number; description?: { find: string; replace: string } };
+    };
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ error: 'ids array is required' });
+      return;
+    }
+
+    let affected = 0;
+
+    // Handle description find & replace separately (needs per-row logic)
+    if (updates.description) {
+      const { find, replace } = updates.description;
+      const rows = db.select({ id: transactions.id, description: transactions.description })
+        .from(transactions)
+        .where(inArray(transactions.id, ids))
+        .all();
+      for (const row of rows) {
+        if (row.description.includes(find)) {
+          db.update(transactions)
+            .set({ description: row.description.replaceAll(find, replace) })
+            .where(eq(transactions.id, row.id))
+            .run();
+          affected++;
+        }
+      }
+    }
+
+    // Handle simple field updates
+    const setFields: Record<string, unknown> = {};
+    if (updates.date) setFields.date = updates.date;
+    if (updates.accountId) setFields.account_id = updates.accountId;
+    if (updates.categoryId) setFields.category_id = updates.categoryId;
+
+    if (Object.keys(setFields).length > 0) {
+      const result = db.update(transactions)
+        .set(setFields)
+        .where(inArray(transactions.id, ids))
+        .run();
+      affected = result.changes;
+    }
+
+    res.json({ data: { affected } });
+  } catch (err) {
+    console.error('POST /transactions/bulk-update error:', err);
+    res.status(500).json({ error: 'Bulk update failed' });
+  }
+});
+
+// POST /api/transactions/bulk-delete
+router.post('/bulk-delete', (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body as { ids: number[] };
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ error: 'ids array is required' });
+      return;
+    }
+
+    const result = db.delete(transactions)
+      .where(inArray(transactions.id, ids))
+      .run();
+
+    res.json({ data: { affected: result.changes } });
+  } catch (err) {
+    console.error('POST /transactions/bulk-delete error:', err);
+    res.status(500).json({ error: 'Bulk delete failed' });
   }
 });
 
