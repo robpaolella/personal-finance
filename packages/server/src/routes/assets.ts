@@ -31,7 +31,7 @@ router.get('/', (_req: Request, res: Response) => {
 // GET /api/assets/:id
 router.get('/:id', (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const asset = db.select().from(assets).where(eq(assets.id, id)).get();
     if (!asset) {
       res.status(404).json({ error: 'Asset not found' });
@@ -72,7 +72,7 @@ router.post('/', (req: Request, res: Response) => {
 // PUT /api/assets/:id
 router.put('/:id', (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const existing = db.select().from(assets).where(eq(assets.id, id)).get();
     if (!existing) {
       res.status(404).json({ error: 'Asset not found' });
@@ -98,7 +98,7 @@ router.put('/:id', (req: Request, res: Response) => {
 // DELETE /api/assets/:id
 router.delete('/:id', (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const existing = db.select().from(assets).where(eq(assets.id, id)).get();
     if (!existing) {
       res.status(404).json({ error: 'Asset not found' });

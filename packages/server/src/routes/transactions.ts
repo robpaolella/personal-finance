@@ -143,7 +143,7 @@ router.get('/summary', (req: Request, res: Response) => {
 // GET /api/transactions/:id — single transaction
 router.get('/:id', (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const rows = db
       .select({
         id: transactions.id,
@@ -218,7 +218,7 @@ router.post('/', (req: Request, res: Response) => {
 // PUT /api/transactions/:id — update
 router.put('/:id', (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const { accountId, date, description, note, categoryId, amount } = req.body;
 
     const existing = db.select().from(transactions).where(eq(transactions.id, id)).all();
@@ -248,7 +248,7 @@ router.put('/:id', (req: Request, res: Response) => {
 // DELETE /api/transactions/:id — delete
 router.delete('/:id', (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const existing = db.select().from(transactions).where(eq(transactions.id, id)).all();
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Transaction not found' });

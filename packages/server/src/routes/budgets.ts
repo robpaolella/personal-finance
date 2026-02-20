@@ -78,7 +78,7 @@ router.post('/', (req: Request, res: Response) => {
 // PUT /api/budgets/:id
 router.put('/:id', (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const { amount } = req.body;
     if (amount == null) {
       res.status(400).json({ error: 'amount is required' });
@@ -102,7 +102,7 @@ router.put('/:id', (req: Request, res: Response) => {
 // DELETE /api/budgets/:id
 router.delete('/:id', (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const existing = db.select().from(budgets).where(eq(budgets.id, id)).get();
     if (!existing) {
       res.status(404).json({ error: 'Budget not found' });
