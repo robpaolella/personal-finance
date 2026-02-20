@@ -110,7 +110,7 @@ export default function BudgetPage() {
   };
 
   if (!data) {
-    return <div className="text-[#94a3b8] text-[13px] py-8">Loading budget...</div>;
+    return <div className="text-[var(--text-muted)] text-[13px] py-8">Loading budget...</div>;
   }
 
   const { income, expenseGroups, totals } = data;
@@ -122,24 +122,24 @@ export default function BudgetPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-[22px] font-bold text-[#0f172a] m-0">Monthly Budget</h1>
-          <p className="text-[#64748b] text-[13px] mt-1">{monthLabel(month)}</p>
+          <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Monthly Budget</h1>
+          <p className="text-[var(--text-secondary)] text-[13px] mt-1">{monthLabel(month)}</p>
         </div>
         <div className="flex gap-3 items-center">
           <OwnerFilter value={owner} onChange={setOwner} />
           <div className="flex gap-2 items-center">
             <button
               onClick={() => setMonth(prevMonth(month))}
-              className="text-[12px] text-[#334155] bg-[#f1f5f9] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[#e2e8f0]"
+              className="text-[12px] text-[var(--bg-secondary-btn-text)] bg-[var(--bg-secondary-btn)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
             >
               ← {shortMonth(prevMonth(month))}
             </button>
-            <span className="text-[13px] font-semibold text-[#0f172a] px-2">
+            <span className="text-[13px] font-semibold text-[var(--text-primary)] px-2">
               {shortMonth(month)} {month.getFullYear()}
             </span>
             <button
               onClick={() => setMonth(nextMonth(month))}
-              className="text-[12px] text-[#334155] bg-[#f1f5f9] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[#e2e8f0]"
+              className="text-[12px] text-[var(--bg-secondary-btn-text)] bg-[var(--bg-secondary-btn)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
             >
               {shortMonth(nextMonth(month))} →
             </button>
@@ -149,7 +149,7 @@ export default function BudgetPage() {
 
       {/* Owner Info Bar */}
       {owner !== 'All' && (
-        <div className="bg-[#eff6ff] border border-[#bfdbfe] rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
+        <div className="bg-[var(--badge-blue-bg)] border border-[#bfdbfe] rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
           </svg>
@@ -180,15 +180,15 @@ export default function BudgetPage() {
       {/* Two Column: Income + Expenses */}
       <div className="grid grid-cols-2 gap-5">
         {/* Income */}
-        <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
           <table className="w-full border-collapse mt-2">
             <thead>
               <tr>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Category</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-right">Budget</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-right">Actual</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-right">Diff</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Budget</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Actual</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Diff</th>
               </tr>
             </thead>
             <tbody>
@@ -196,8 +196,8 @@ export default function BudgetPage() {
                 const diff = r.actual - r.budgeted;
                 const isEditing = editingCell?.categoryId === r.categoryId;
                 return (
-                  <tr key={r.categoryId} className="border-b border-[#f1f5f9]">
-                    <td className="px-2.5 py-2 text-[13px] font-medium text-[#0f172a]">{r.subName}</td>
+                  <tr key={r.categoryId} className="border-b border-[var(--table-row-border)]">
+                    <td className="px-2.5 py-2 text-[13px] font-medium text-[var(--text-primary)]">{r.subName}</td>
                     <td className="px-2.5 py-2 text-right font-mono text-[12px]">
                       {isEditing ? (
                         <input
@@ -214,17 +214,17 @@ export default function BudgetPage() {
                       ) : (
                         <span
                           onClick={() => setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
-                          className="cursor-pointer hover:bg-[#f1f5f9] rounded px-1.5 py-0.5 -mx-1.5 text-[#475569]"
+                          className="cursor-pointer hover:bg-[var(--bg-hover)] rounded px-1.5 py-0.5 -mx-1.5 text-[var(--text-body)]"
                         >
                           {r.budgeted > 0 ? fmt(r.budgeted) : '—'}
                         </span>
                       )}
                     </td>
-                    <td className="px-2.5 py-2 text-right font-mono text-[12px] font-semibold text-[#0f172a]">
+                    <td className="px-2.5 py-2 text-right font-mono text-[12px] font-semibold text-[var(--text-primary)]">
                       {r.actual > 0 ? fmt(r.actual) : '—'}
                     </td>
                     <td className={`px-2.5 py-2 text-right font-mono text-[12px] ${
-                      (r.budgeted > 0 || r.actual > 0) ? (diff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]') : 'text-[#94a3b8]'
+                      (r.budgeted > 0 || r.actual > 0) ? (diff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]') : 'text-[var(--text-muted)]'
                     }`}>
                       {(r.budgeted > 0 || r.actual > 0) ? `${diff >= 0 ? '+' : ''}${fmt(diff)}` : '—'}
                     </td>
@@ -232,10 +232,10 @@ export default function BudgetPage() {
                 );
               })}
               {/* Total Row */}
-              <tr className="bg-[#f8fafc]">
-                <td className="px-2.5 py-2 text-[13px] font-bold text-[#0f172a]">Total</td>
-                <td className="px-2.5 py-2 text-right font-mono font-bold text-[#0f172a]">{fmt(totals.budgetedIncome)}</td>
-                <td className="px-2.5 py-2 text-right font-mono font-bold text-[#0f172a]">{fmt(totals.actualIncome)}</td>
+              <tr className="bg-[var(--bg-hover)]">
+                <td className="px-2.5 py-2 text-[13px] font-bold text-[var(--text-primary)]">Total</td>
+                <td className="px-2.5 py-2 text-right font-mono font-bold text-[var(--text-primary)]">{fmt(totals.budgetedIncome)}</td>
+                <td className="px-2.5 py-2 text-right font-mono font-bold text-[var(--text-primary)]">{fmt(totals.actualIncome)}</td>
                 <td className={`px-2.5 py-2 text-right font-mono font-bold ${incDiff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
                   {incDiff >= 0 ? '+' : ''}{fmt(incDiff)}
                 </td>
@@ -245,7 +245,7 @@ export default function BudgetPage() {
         </div>
 
         {/* Expenses */}
-        <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
           <h3 className="text-[14px] font-bold text-[#f97316] m-0">Expenses</h3>
           <div className="max-h-[460px] overflow-y-auto mt-2">
             {expenseGroups.map((g) => {
@@ -256,11 +256,11 @@ export default function BudgetPage() {
                 <div key={g.groupName} className="mb-3.5">
                   {/* Group Header */}
                   <div className="flex justify-between py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
-                    <span className="font-bold text-[12px] text-[#334155] uppercase tracking-[0.05em] flex items-center gap-1.5">
+                    <span className="font-bold text-[12px] text-[var(--bg-secondary-btn-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
                       {g.groupName}
                     </span>
-                    <span className={`font-semibold text-[12px] font-mono ${gBudgeted > 0 && gActual > gBudgeted ? 'text-[#ef4444]' : 'text-[#64748b]'}`}>
+                    <span className={`font-semibold text-[12px] font-mono ${gBudgeted > 0 && gActual > gBudgeted ? 'text-[#ef4444]' : 'text-[var(--text-secondary)]'}`}>
                       {gActual > 0 ? fmt(gActual) : '—'} / {gBudgeted > 0 ? fmt(gBudgeted) : '—'}
                     </span>
                   </div>
@@ -271,14 +271,14 @@ export default function BudgetPage() {
                     const isEditing = editingCell?.categoryId === sub.categoryId;
                     return (
                       <div key={sub.categoryId} className="flex items-center py-1 pl-3.5 gap-2">
-                        <span className="flex-1 text-[12px] text-[#475569]">{sub.subName}</span>
-                        <div className="w-[50px] h-1 bg-[#f1f5f9] rounded-sm overflow-hidden">
+                        <span className="flex-1 text-[12px] text-[var(--text-body)]">{sub.subName}</span>
+                        <div className="w-[50px] h-1 bg-[var(--progress-track)] rounded-sm overflow-hidden">
                           <div className="h-full rounded-sm" style={{
                             width: `${pct}%`,
                             background: sub.budgeted > 0 && sub.actual > sub.budgeted ? '#ef4444' : color,
                           }} />
                         </div>
-                        <span className="w-[60px] text-right text-[11px] font-mono text-[#64748b]">
+                        <span className="w-[60px] text-right text-[11px] font-mono text-[var(--text-secondary)]">
                           {sub.actual > 0 ? fmt(sub.actual) : '—'}
                         </span>
                         {isEditing ? (
@@ -296,7 +296,7 @@ export default function BudgetPage() {
                         ) : (
                           <span
                             onClick={() => setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                            className={`w-[60px] text-right text-[11px] font-mono cursor-pointer hover:bg-[#f1f5f9] rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[#94a3b8]'}`}
+                            className={`w-[60px] text-right text-[11px] font-mono cursor-pointer hover:bg-[var(--bg-hover)] rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
                           >
                             {sub.budgeted > 0 ? fmt(sub.budgeted) : ''}
                           </span>

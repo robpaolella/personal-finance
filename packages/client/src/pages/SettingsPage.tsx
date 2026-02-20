@@ -50,7 +50,7 @@ interface GroupedCategory {
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[var(--bg-card)] rounded-xl p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -97,44 +97,44 @@ function AccountForm({
 
   return (
     <Modal onClose={onClose}>
-      <h3 className="text-[15px] font-bold text-[#0f172a] mb-4">
+      <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
         {account ? 'Edit Account' : 'Add Account'}
       </h3>
       {error && (
-        <div className="bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
+        <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-2 text-[#991b1b] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
+          <button onClick={() => setError(null)} className="ml-2 text-[var(--error-text)] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
         </div>
       )}
       <div className="flex flex-col gap-3">
         <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Account Name</label>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Account Name</label>
           <input value={name} onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none" />
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Last Four (optional)</label>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Last Four (optional)</label>
           <input value={lastFour} onChange={(e) => setLastFour(e.target.value)}
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none" maxLength={5} />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none" maxLength={5} />
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Type</label>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Type</label>
           <select value={type} onChange={(e) => { setType(e.target.value); setClassification(classificationForType(e.target.value)); }}
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none capitalize">
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none capitalize">
             {ACCOUNT_TYPES.map((t) => <option key={t} value={t} className="capitalize">{t}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Classification</label>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Classification</label>
           <select value={classification} onChange={(e) => setClassification(e.target.value)}
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none capitalize">
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none capitalize">
             {CLASSIFICATIONS.map((c) => <option key={c} value={c} className="capitalize">{c}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Owner</label>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Owner</label>
           <select value={owner} onChange={(e) => setOwner(e.target.value)}
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none">
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none">
             {owners.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
@@ -144,22 +144,22 @@ function AccountForm({
           <div className="mr-auto flex items-center gap-2">
             <button onClick={handleDeleteClick}
               className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer ${
-                confirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[#fef2f2] text-[#ef4444]'
+                confirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[var(--error-bg)] text-[#ef4444]'
               }`}>
               {confirmDelete ? 'Confirm Delete?' : 'Delete'}
             </button>
             {confirmDelete && (
               <button onClick={() => setConfirmDelete(false)}
-                className="text-[12px] text-[#64748b] bg-transparent border-none cursor-pointer underline">Cancel</button>
+                className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer underline">Cancel</button>
             )}
           </div>
         )}
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#f1f5f9] text-[#64748b] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
           Cancel
         </button>
         <button onClick={() => onSave({ name, lastFour: lastFour || null, type, classification, owner })}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#0f172a] text-white border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer">
           Save
         </button>
       </div>
@@ -206,23 +206,23 @@ function CategoryForm({
 
   return (
     <Modal onClose={onClose}>
-      <h3 className="text-[15px] font-bold text-[#0f172a] mb-4">
+      <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
         {category ? 'Edit Category' : 'Add Category'}
       </h3>
       {error && (
-        <div className="bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
+        <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-2 text-[#991b1b] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
+          <button onClick={() => setError(null)} className="ml-2 text-[var(--error-text)] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
         </div>
       )}
       <div className="flex flex-col gap-3">
         <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Type</label>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Type</label>
           <div className="flex gap-2">
             {['income', 'expense'].map((t) => (
               <button key={t} onClick={() => setCatType(t)}
                 className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
-                  catType === t ? 'bg-[#0f172a] text-white' : 'bg-[#f1f5f9] text-[#64748b]'
+                  catType === t ? 'bg-[var(--bg-primary-btn)] text-white' : 'bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)]'
                 }`}>
                 {t}
               </button>
@@ -230,20 +230,20 @@ function CategoryForm({
           </div>
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Group Name</label>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Group Name</label>
           <input value={groupName} onChange={(e) => setGroupName(e.target.value)} list="group-list"
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none" />
           <datalist id="group-list">
             {existingGroups.map((g) => <option key={g} value={g} />)}
           </datalist>
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Sub-Category Name</label>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Sub-Category Name</label>
           <input value={subName} onChange={(e) => setSubName(e.target.value)}
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none" />
         </div>
         {catType === 'expense' && (
-          <label className="flex items-center gap-2 text-[13px] text-[#475569]">
+          <label className="flex items-center gap-2 text-[13px] text-[var(--text-body)]">
             <input type="checkbox" checked={isDeductible} onChange={(e) => setIsDeductible(e.target.checked)} />
             Tax deductible
           </label>
@@ -254,22 +254,22 @@ function CategoryForm({
           <div className="mr-auto flex items-center gap-2">
             <button onClick={handleDeleteClick}
               className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer ${
-                confirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[#fef2f2] text-[#ef4444]'
+                confirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[var(--error-bg)] text-[#ef4444]'
               }`}>
               {confirmDelete ? 'Confirm Delete?' : 'Delete'}
             </button>
             {confirmDelete && (
               <button onClick={() => setConfirmDelete(false)}
-                className="text-[12px] text-[#64748b] bg-transparent border-none cursor-pointer underline">Cancel</button>
+                className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer underline">Cancel</button>
             )}
           </div>
         )}
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#f1f5f9] text-[#64748b] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
           Cancel
         </button>
         <button onClick={() => onSave({ groupName, subName, type: catType, isDeductible })}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#0f172a] text-white border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer">
           Save
         </button>
       </div>
@@ -366,36 +366,36 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <h1 className="text-[22px] font-bold text-[#0f172a] mb-6">Settings</h1>
+      <h1 className="text-[22px] font-bold text-[var(--text-primary)] mb-6">Settings</h1>
 
       <div className="grid grid-cols-2 gap-5">
         {/* Accounts */}
-        <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <h3 className="text-[14px] font-bold text-[#0f172a] mb-1">Accounts</h3>
-          <p className="text-[13px] text-[#64748b] mb-3">Each account has an owner and classification for filtering and net worth.</p>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+          <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Accounts</h3>
+          <p className="text-[13px] text-[var(--text-secondary)] mb-3">Each account has an owner and classification for filtering and net worth.</p>
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Account</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Owner</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Type</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Class</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Owner</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Type</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Class</th>
               </tr>
             </thead>
             <tbody>
               {accounts.map((a) => (
                 <tr key={a.id}
                   onClick={() => setEditingAccount(a)}
-                  className="border-b border-[#f1f5f9] cursor-pointer hover:bg-[#f8fafc]">
-                  <td className="px-2.5 py-2 text-[13px] text-[#475569] font-medium">
-                    {a.name} {a.last_four && <span className="text-[#94a3b8] text-[11px]">({a.last_four})</span>}
+                  className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)]">
+                  <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
+                    {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
                   </td>
                   <td className="px-2.5 py-2">
                     <span className={`text-[11px] px-2 py-0.5 rounded-md ${
                       a.owner === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
                     }`}>{a.owner}</span>
                   </td>
-                  <td className="px-2.5 py-2 text-[12px] text-[#64748b] capitalize">{a.type}</td>
+                  <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] capitalize">{a.type}</td>
                   <td className="px-2.5 py-2">
                     <span className={`text-[11px] px-2 py-0.5 rounded-md capitalize ${
                       a.classification === 'liquid' ? 'bg-[#d1fae5] text-[#059669]' :
@@ -408,30 +408,30 @@ export default function SettingsPage() {
             </tbody>
           </table>
           <button onClick={() => setEditingAccount('new')}
-            className="w-full mt-3 py-2 bg-[#f1f5f9] text-[#334155] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5">
+            className="w-full mt-3 py-2 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Account
           </button>
         </div>
 
         {/* Categories */}
-        <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <h3 className="text-[14px] font-bold text-[#0f172a] mb-1">Categories</h3>
-          <p className="text-[13px] text-[#64748b] mb-3">Parent categories group sub-categories for budgets and reports.</p>
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+          <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Categories</h3>
+          <p className="text-[13px] text-[var(--text-secondary)] mb-3">Parent categories group sub-categories for budgets and reports.</p>
           <div className="max-h-[400px] overflow-y-auto">
             {allGroups.map((g) => {
               const color = CATEGORY_COLORS[g.group] || '#94a3b8';
               return (
                 <div key={`${g.type}:${g.group}`} className="mb-2">
                   <div className="flex justify-between items-center py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
-                    <span className="font-bold text-[12px] text-[#334155] flex items-center gap-1.5">
+                    <span className="font-bold text-[12px] text-[var(--bg-secondary-btn-text)] flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-sm" style={{ background: color }} />{g.group}
                     </span>
-                    <span className="text-[11px] text-[#94a3b8]">{g.subs.length} subs</span>
+                    <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
                   </div>
                   {g.subs.map((s) => (
                     <div key={s.id} onClick={() => setEditingCategory(s)}
-                      className="flex justify-between py-1 pl-[18px] text-[12px] text-[#64748b] cursor-pointer hover:text-[#334155]">
+                      className="flex justify-between py-1 pl-[18px] text-[12px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--bg-secondary-btn-text)]">
                       <span>{s.sub_name}</span>
                     </div>
                   ))}
@@ -440,7 +440,7 @@ export default function SettingsPage() {
             })}
           </div>
           <button onClick={() => setEditingCategory('new')}
-            className="w-full mt-3 py-2 bg-[#f1f5f9] text-[#334155] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5">
+            className="w-full mt-3 py-2 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Category
           </button>

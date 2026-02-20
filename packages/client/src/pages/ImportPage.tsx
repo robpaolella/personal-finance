@@ -314,16 +314,16 @@ export default function ImportPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-[22px] font-bold text-[#0f172a] m-0">Import Transactions</h1>
-        <p className="text-[#64748b] text-[13px] mt-1">Import CSV from your bank, credit card, or Venmo</p>
+        <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Import Transactions</h1>
+        <p className="text-[var(--text-secondary)] text-[13px] mt-1">Import CSV from your bank, credit card, or Venmo</p>
       </div>
 
       {/* Step Indicator */}
       <div className="flex gap-1 mb-6">
         {STEPS.map((s, i) => (
           <div key={s} className="flex-1 text-center">
-            <div className={`h-[3px] rounded-sm mb-1.5 ${i <= step ? 'bg-[#3b82f6]' : 'bg-[#e2e8f0]'}`} />
-            <span className={`text-[11px] ${i === step ? 'text-[#3b82f6] font-bold' : i < step ? 'text-[#3b82f6]' : 'text-[#94a3b8]'}`}>
+            <div className={`h-[3px] rounded-sm mb-1.5 ${i <= step ? 'bg-[#3b82f6]' : 'bg-[var(--table-border)]'}`} />
+            <span className={`text-[11px] ${i === step ? 'text-[var(--badge-blue-text)] font-bold' : i < step ? 'text-[var(--badge-blue-text)]' : 'text-[var(--text-muted)]'}`}>
               {s}
             </span>
           </div>
@@ -333,11 +333,11 @@ export default function ImportPage() {
       {/* Inline notification banner */}
       {notification && (
         <div className={`rounded-lg p-3 text-[13px] mb-4 flex items-center justify-between border ${
-          notification.type === 'error' ? 'bg-[#fef2f2] border-[#fecaca] text-[#991b1b]' : 'bg-[#f0fdf4] border-[#bbf7d0] text-[#166534]'
+          notification.type === 'error' ? 'bg-[var(--error-bg)] border-[var(--error-border)] text-[var(--error-text)]' : 'bg-[#f0fdf4] border-[#bbf7d0] text-[#166534]'
         }`}>
           <span>{notification.message}</span>
           <button onClick={() => setNotification(null)} className={`ml-2 bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none ${
-            notification.type === 'error' ? 'text-[#991b1b]' : 'text-[#166534]'
+            notification.type === 'error' ? 'text-[var(--error-text)]' : 'text-[#166534]'
           }`}>×</button>
         </div>
       )}
@@ -347,7 +347,7 @@ export default function ImportPage() {
         <div>
           {/* Account selector */}
           <div className="mb-4">
-            <label className="text-[12px] text-[#64748b] font-medium block mb-1">Import to Account</label>
+            <label className="text-[12px] text-[var(--text-secondary)] font-medium block mb-1">Import to Account</label>
             <select
               value={selectedAccountId}
               onChange={(e) => {
@@ -358,7 +358,7 @@ export default function ImportPage() {
                   setSignConvention(acct?.type === 'credit' ? 'credit' : 'bank');
                 }
               }}
-              className="border border-[#e2e8f0] rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px] outline-none w-[300px]"
+              className="border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-3 py-2 text-[13px] outline-none w-[300px]"
             >
               <option value="">Select an account...</option>
               {accounts.map((a) => (
@@ -371,20 +371,20 @@ export default function ImportPage() {
 
           {/* Drop zone */}
           <div
-            className="bg-white rounded-xl border border-[#e8ecf1] p-10 text-center shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+            className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-10 text-center shadow-[var(--card-shadow)]"
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
           >
-            <div className={`border-2 border-dashed rounded-2xl py-12 px-6 ${dragOver ? 'border-[#3b82f6] bg-[#eff6ff]' : 'border-[#cbd5e1] bg-[#fafbfc]'}`}>
-              <div className={`mb-3 ${dragOver ? 'text-[#3b82f6]' : 'text-[#94a3b8]'}`}>
+            <div className={`border-2 border-dashed rounded-2xl py-12 px-6 ${dragOver ? 'border-[#3b82f6] bg-[var(--info-bg)]' : 'border-[#cbd5e1] bg-[#fafbfc]'}`}>
+              <div className={`mb-3 ${dragOver ? 'text-[var(--badge-blue-text)]' : 'text-[var(--text-muted)]'}`}>
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mx-auto">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
               </div>
-              <p className="font-semibold text-[#334155] text-[15px] mb-1">Drop your CSV file here</p>
-              <p className="text-[#94a3b8] text-[13px]">
-                or <span className="text-[#3b82f6] cursor-pointer font-medium" onClick={() => fileInputRef.current?.click()}>browse files</span>
+              <p className="font-semibold text-[var(--bg-secondary-btn-text)] text-[15px] mb-1">Drop your CSV file here</p>
+              <p className="text-[var(--text-muted)] text-[13px]">
+                or <span className="text-[var(--badge-blue-text)] cursor-pointer font-medium" onClick={() => fileInputRef.current?.click()}>browse files</span>
               </p>
               <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -392,7 +392,7 @@ export default function ImportPage() {
               }} />
               <div className="flex gap-2 justify-center mt-4">
                 {['Chase', 'Venmo', 'Generic CSV'].map((t) => (
-                  <span key={t} className="text-[11px] px-2.5 py-0.5 bg-[#f1f5f9] rounded-full text-[#64748b]">{t}</span>
+                  <span key={t} className="text-[11px] px-2.5 py-0.5 bg-[var(--bg-secondary-btn)] rounded-full text-[var(--text-secondary)]">{t}</span>
                 ))}
               </div>
             </div>
@@ -402,17 +402,17 @@ export default function ImportPage() {
 
       {/* Step 2: Map Columns */}
       {step === 1 && parseResult && (
-        <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <p className="font-semibold text-[#0f172a] m-0">{file?.name}</p>
-              <p className="text-[12px] text-[#64748b] mt-1 m-0">
+              <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
+              <p className="text-[12px] text-[var(--text-secondary)] mt-1 m-0">
                 Account: {accounts.find((a) => a.id === selectedAccountId)?.name} · {parseResult.totalRows} transactions · Format: {parseResult.detectedFormat}
               </p>
             </div>
             <button
               onClick={handleAutoCategorize}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#0f172a] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
@@ -422,16 +422,16 @@ export default function ImportPage() {
           </div>
 
           {/* Column mapping */}
-          <div className="bg-[#f8fafc] rounded-lg p-4 mb-4">
-            <p className="text-[12px] font-medium text-[#475569] m-0 mb-2">Column Mapping</p>
+          <div className="bg-[var(--bg-input)] rounded-lg p-4 mb-4">
+            <p className="text-[12px] font-medium text-[var(--text-body)] m-0 mb-2">Column Mapping</p>
             <div className="flex gap-4">
               {(['date', 'description', 'amount'] as const).map((field) => (
                 <div key={field} className="flex-1">
-                  <label className="text-[11px] text-[#64748b] block mb-1 capitalize">{field}</label>
+                  <label className="text-[11px] text-[var(--text-secondary)] block mb-1 capitalize">{field}</label>
                   <select
                     value={mapping[field]}
                     onChange={(e) => setMapping({ ...mapping, [field]: parseInt(e.target.value) })}
-                    className="w-full border border-[#e2e8f0] rounded-md bg-white px-2 py-1.5 text-[12px] outline-none"
+                    className="w-full border border-[var(--table-border)] rounded-md bg-[var(--bg-card)] px-2 py-1.5 text-[12px] outline-none"
                   >
                     {parseResult.headers.map((h, i) => (
                       <option key={i} value={i}>{h}</option>
@@ -444,16 +444,16 @@ export default function ImportPage() {
 
           {/* Venmo-specific mapping */}
           {(parseResult.detectedFormat === 'venmo' || accounts.find(a => a.id === selectedAccountId)?.type === 'venmo') && (
-            <div className="bg-[#f8fafc] rounded-lg p-4 mb-4">
-              <p className="text-[12px] font-medium text-[#475569] m-0 mb-2">Venmo Column Mapping</p>
+            <div className="bg-[var(--bg-input)] rounded-lg p-4 mb-4">
+              <p className="text-[12px] font-medium text-[var(--text-body)] m-0 mb-2">Venmo Column Mapping</p>
               <div className="flex gap-4">
                 {(['from', 'to', 'note'] as const).map((field) => (
                   <div key={field} className="flex-1">
-                    <label className="text-[11px] text-[#64748b] block mb-1 capitalize">{field === 'from' ? 'From' : field === 'to' ? 'To' : 'Note'}</label>
+                    <label className="text-[11px] text-[var(--text-secondary)] block mb-1 capitalize">{field === 'from' ? 'From' : field === 'to' ? 'To' : 'Note'}</label>
                     <select
                       value={venmoMapping[field]}
                       onChange={(e) => setVenmoMapping({ ...venmoMapping, [field]: parseInt(e.target.value) })}
-                      className="w-full border border-[#e2e8f0] rounded-md bg-white px-2 py-1.5 text-[12px] outline-none"
+                      className="w-full border border-[var(--table-border)] rounded-md bg-[var(--bg-card)] px-2 py-1.5 text-[12px] outline-none"
                     >
                       <option value={-1}>— Not mapped —</option>
                       {parseResult.headers.map((h, i) => (
@@ -467,42 +467,42 @@ export default function ImportPage() {
           )}
 
           {/* Sign convention */}
-          <div className="bg-[#f8fafc] rounded-lg p-4 mb-4">
-            <p className="text-[12px] font-medium text-[#475569] m-0 mb-2">Amount Sign Convention</p>
+          <div className="bg-[var(--bg-input)] rounded-lg p-4 mb-4">
+            <p className="text-[12px] font-medium text-[var(--text-body)] m-0 mb-2">Amount Sign Convention</p>
             <div className="flex gap-2">
               <button
                 onClick={() => setSignConvention('bank')}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'bank' ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-[#475569] border-[#e2e8f0]'}`}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'bank' ? 'bg-[var(--bg-primary-btn)] text-white border-[var(--bg-primary-btn)]' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'}`}
               >
                 Positive = money in, Negative = money out
               </button>
               <button
                 onClick={() => setSignConvention('credit')}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'credit' ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-[#475569] border-[#e2e8f0]'}`}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'credit' ? 'bg-[var(--bg-primary-btn)] text-white border-[var(--bg-primary-btn)]' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'}`}
               >
                 Positive = money out, Negative = money in
               </button>
             </div>
-            <p className="text-[11px] text-[#94a3b8] m-0 mt-1.5">
+            <p className="text-[11px] text-[var(--text-muted)] m-0 mt-1.5">
               {signConvention === 'bank' ? 'Standard for bank accounts (checking, savings)' : 'Standard for credit card statements'}
             </p>
           </div>
 
           {/* Sample preview */}
-          <p className="text-[11px] text-[#94a3b8] m-0 mb-2">Preview (first 5 rows)</p>
+          <p className="text-[11px] text-[var(--text-muted)] m-0 mb-2">Preview (first 5 rows)</p>
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr>
                 {parseResult.headers.map((h, i) => (
-                  <th key={i} className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2 py-1.5 border-b border-[#e2e8f0] text-left">{h}</th>
+                  <th key={i} className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1.5 border-b border-[var(--table-border)] text-left">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {parseResult.sampleRows.map((row, i) => (
-                <tr key={i} className="border-b border-[#f1f5f9]">
+                <tr key={i} className="border-b border-[var(--table-row-border)]">
                   {row.map((cell, j) => (
-                    <td key={j} className="px-2 py-1.5 text-[#475569] font-mono text-[11px]">{cell}</td>
+                    <td key={j} className="px-2 py-1.5 text-[var(--text-body)] font-mono text-[11px]">{cell}</td>
                   ))}
                 </tr>
               ))}
@@ -513,16 +513,16 @@ export default function ImportPage() {
 
       {/* Step 3: Review & Categorize */}
       {step === 2 && (
-        <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-[#eff6ff] rounded-lg text-[11px] text-[#3b82f6] font-semibold">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-[var(--badge-blue-bg)] rounded-lg text-[11px] text-[var(--badge-blue-text)] font-semibold">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
                 </svg>
                 AI-categorized
               </span>
-              <span className="text-[12px] text-[#64748b]">Click any category to change it</span>
+              <span className="text-[12px] text-[var(--text-secondary)]">Click any category to change it</span>
             </div>
             <button
               onClick={handleImport}
@@ -545,7 +545,7 @@ export default function ImportPage() {
             </colgroup>
             <thead>
               <tr>
-                <th className="px-2 py-2 border-b-2 border-[#e2e8f0]">
+                <th className="px-2 py-2 border-b-2 border-[var(--table-border)]">
                   <input type="checkbox"
                     checked={selectedImportRows.size === categorizedRows.length && categorizedRows.length > 0}
                     onChange={() => {
@@ -554,19 +554,19 @@ export default function ImportPage() {
                     }}
                     className="cursor-pointer" />
                 </th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Date</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Description</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-right">Amount</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Category</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Sub-Category</th>
-                <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-center">Conf.</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-center">Conf.</th>
               </tr>
             </thead>
             <tbody>
               {categorizedRows.map((r, i) => {
                 const subCats = r.groupName === 'Income' ? incomeCats : (catGroups.get(r.groupName || '') || []);
                 return (
-                <tr key={i} className={`border-b border-[#f1f5f9] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${r.confidence < 0.5 && selectedImportRows.has(i) ? 'bg-[#fffbeb]' : ''}`}>
+                <tr key={i} className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${r.confidence < 0.5 && selectedImportRows.has(i) ? 'bg-[#fffbeb]' : ''}`}>
                   <td className="px-2 py-2 text-center">
                     <input type="checkbox" checked={selectedImportRows.has(i)}
                       onChange={() => {
@@ -578,14 +578,14 @@ export default function ImportPage() {
                       }}
                       className="cursor-pointer" />
                   </td>
-                  <td className="px-2.5 py-2 font-mono text-[12px] text-[#475569] truncate">{r.date}</td>
-                  <td className="px-2.5 py-2 font-medium text-[#0f172a] truncate">{r.description}</td>
-                  <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[#0f172a]'}`}>
+                  <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)] truncate">{r.date}</td>
+                  <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate">{r.description}</td>
+                  <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
                     {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
                   </td>
                   <td className="px-2.5 py-1.5">
                     <select
-                      className="w-full text-[11px] border border-[#e2e8f0] rounded-md px-1.5 py-1 outline-none bg-white"
+                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)]"
                       value={r.groupName || ''}
                       onChange={(e) => updateRowGroup(i, e.target.value)}
                     >
@@ -595,7 +595,7 @@ export default function ImportPage() {
                   </td>
                   <td className="px-2.5 py-1.5">
                     <select
-                      className="w-full text-[11px] border border-[#e2e8f0] rounded-md px-1.5 py-1 outline-none bg-white"
+                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)]"
                       value={r.categoryId || ''}
                       onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
                     >
@@ -621,13 +621,13 @@ export default function ImportPage() {
       {/* Account selection modal */}
       {showAccountModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl border border-[#e8ecf1] p-6 shadow-lg w-[420px]">
-            <h2 className="text-[16px] font-bold text-[#0f172a] m-0 mb-1">Select Account</h2>
-            <p className="text-[13px] text-[#64748b] m-0 mb-4">Which account is this import for?</p>
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-6 shadow-lg w-[420px]">
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0 mb-1">Select Account</h2>
+            <p className="text-[13px] text-[var(--text-secondary)] m-0 mb-4">Which account is this import for?</p>
             <select
               value={modalAccountId}
               onChange={(e) => setModalAccountId(e.target.value ? parseInt(e.target.value) : '')}
-              className="w-full border border-[#e2e8f0] rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px] outline-none mb-4"
+              className="w-full border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-3 py-2 text-[13px] outline-none mb-4"
             >
               <option value="">Select an account...</option>
               {accounts.map((a) => (
@@ -637,13 +637,13 @@ export default function ImportPage() {
               ))}
             </select>
             <div className="flex justify-end gap-2">
-              <button onClick={handleAccountModalCancel} className="px-4 py-2 text-[13px] font-medium text-[#475569] bg-[#f1f5f9] rounded-lg border-none cursor-pointer">
+              <button onClick={handleAccountModalCancel} className="px-4 py-2 text-[13px] font-medium text-[var(--text-body)] bg-[var(--bg-secondary-btn)] rounded-lg border-none cursor-pointer">
                 Cancel
               </button>
               <button
                 onClick={handleAccountModalContinue}
                 disabled={!modalAccountId}
-                className="px-4 py-2 text-[13px] font-semibold text-white bg-[#0f172a] rounded-lg border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-[13px] font-semibold text-white bg-[var(--bg-primary-btn)] rounded-lg border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue
               </button>

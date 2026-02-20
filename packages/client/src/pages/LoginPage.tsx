@@ -32,7 +32,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center font-sans">
+    <div className="min-h-screen bg-[var(--bg-sidebar)] flex items-center justify-center font-sans">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-10">
@@ -45,26 +45,26 @@ export default function LoginPage() {
         {/* Form Card */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-xl p-8 shadow-lg"
+          className="bg-[var(--bg-card)] rounded-xl p-8 shadow-lg"
         >
-          <h2 className="text-lg font-bold text-[#0f172a] mb-1">Sign in</h2>
-          <p className="text-sm text-[#64748b] mb-6">Enter your credentials to continue</p>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">Sign in</h2>
+          <p className="text-sm text-[var(--text-secondary)] mb-6">Enter your credentials to continue</p>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2.5 mb-4">
+            <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] text-sm rounded-lg px-4 py-2.5 mb-4">
               {error}
             </div>
           )}
 
           <div className="mb-4">
-            <label className="block text-xs font-medium text-[#64748b] mb-1.5 uppercase tracking-wide">
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wide">
               Username
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2.5 border border-[#e2e8f0] rounded-lg text-sm bg-[#f8fafc] outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]"
+              className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]"
               placeholder="Enter username"
               required
               autoFocus
@@ -72,14 +72,14 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-6">
-            <label className="block text-xs font-medium text-[#64748b] mb-1.5 uppercase tracking-wide">
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wide">
               Password
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2.5 border border-[#e2e8f0] rounded-lg text-sm bg-[#f8fafc] outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]"
+              className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]"
               placeholder="Enter password"
               required
             />
@@ -88,7 +88,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-[#0f172a] text-white rounded-lg text-sm font-semibold hover:bg-[#1e293b] transition-colors disabled:opacity-60"
+            className="w-full py-2.5 bg-[var(--bg-primary-btn)] text-[var(--bg-primary-btn-text)] rounded-lg text-sm font-semibold hover:opacity-90 transition-colors disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">

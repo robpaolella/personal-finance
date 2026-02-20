@@ -88,10 +88,10 @@ export default function ReportsPage() {
   const isYTD = year === currentYear;
 
   if (!data) {
-    return <div className="text-[#94a3b8] text-[13px] py-8">Loading report...</div>;
+    return <div className="text-[var(--text-muted)] text-[13px] py-8">Loading report...</div>;
   }
 
-  const thCls = "text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-1.5 py-2 border-b-2 border-[#e2e8f0]";
+  const thCls = "text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-1.5 py-2 border-b-2 border-[var(--table-border)]";
   const tdCls = "px-1.5 py-2 font-mono text-[11px]";
 
   return (
@@ -99,15 +99,15 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-[22px] font-bold text-[#0f172a] m-0">Annual Report</h1>
-          <p className="text-[#64748b] text-[13px] mt-1">{year} {isYTD ? 'Year-to-Date' : 'Full Year'}</p>
+          <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Annual Report</h1>
+          <p className="text-[var(--text-secondary)] text-[13px] mt-1">{year} {isYTD ? 'Year-to-Date' : 'Full Year'}</p>
         </div>
         <div className="flex gap-3 items-center">
           <OwnerFilter value={owner} onChange={setOwner} />
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="border border-[#e2e8f0] rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px] font-semibold text-[#0f172a] outline-none cursor-pointer"
+            className="border border-[var(--table-border)] rounded-lg bg-[var(--bg-hover)] px-3 py-2 text-[13px] font-semibold text-[var(--text-primary)] outline-none cursor-pointer"
           >
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -138,14 +138,14 @@ export default function ReportsPage() {
       </div>
 
       {/* Monthly Breakdown Table */}
-      <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] overflow-x-auto">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] overflow-x-auto">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-[14px] font-bold text-[#0f172a] m-0">Monthly Breakdown</h3>
-            <p className="text-[11px] text-[#94a3b8] mt-0.5 mb-3">Click rows to expand into categories → sub-categories</p>
+            <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Monthly Breakdown</h3>
+            <p className="text-[11px] text-[var(--text-muted)] mt-0.5 mb-3">Click rows to expand into categories → sub-categories</p>
           </div>
           <button onClick={isAnyExpanded ? collapseAll : expandAll}
-            className="text-[12px] text-[#64748b] bg-transparent border-none cursor-pointer hover:text-[#334155]">
+            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer hover:text-[#334155]">
             {isAnyExpanded ? 'Collapse All' : 'Expand All'}
           </button>
         </div>
@@ -180,10 +180,10 @@ export default function ReportsPage() {
 
             {/* Expanded income categories */}
             {expandIncome && Object.entries(data.incomeByCategory).map(([cat, vals]) => (
-              <tr key={cat} className="border-b border-[#f1f5f9]">
-                <td className="px-2.5 py-2 text-[12px] text-[#64748b]" style={{ paddingLeft: 36 }}>{cat}</td>
+              <tr key={cat} className="border-b border-[var(--table-row-border)]">
+                <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)]" style={{ paddingLeft: 36 }}>{cat}</td>
                 {vals.map((v, i) => (
-                  <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[#64748b]' : 'text-[#e2e8f0]'}`}>
+                  <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--table-border)]'}`}>
                     {v > 0 ? fmtShort(v) : '—'}
                   </td>
                 ))}
@@ -219,7 +219,7 @@ export default function ReportsPage() {
                 <Fragment key={group}>
                   <tr
                     className="cursor-pointer"
-                    style={{ background: '#fafafa', borderBottom: '1px solid #f1f5f9' }}
+                    style={{ background: '#fafafa', borderBottom: '1px solid var(--table-row-border)' }}
                     onClick={() => toggleGroup(group)}
                   >
                     <td className="px-2.5 py-2 font-semibold text-[12px] text-[#334155]" style={{ paddingLeft: 28 }}>
@@ -230,21 +230,21 @@ export default function ReportsPage() {
                       </span>
                     </td>
                     {gMonthly.map((v, i) => (
-                      <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[#475569]' : 'text-[#e2e8f0]'}`}>
+                      <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-body)]' : 'text-[var(--table-border)]'}`}>
                         {v > 0 ? fmtShort(v) : '—'}
                       </td>
                     ))}
                     <td className={`${tdCls} text-right text-[12px] font-semibold`}>{fmtShort(sum(gMonthly))}</td>
                   </tr>
                   {isOpen && Object.entries(subs).map(([sub, vals]) => (
-                    <tr key={sub} className="border-b border-[#f8fafc]">
-                      <td className="px-2.5 py-2 text-[11px] text-[#94a3b8]" style={{ paddingLeft: 52 }}>{sub}</td>
+                    <tr key={sub} className="border-b border-[var(--bg-hover)]">
+                      <td className="px-2.5 py-2 text-[11px] text-[var(--text-muted)]" style={{ paddingLeft: 52 }}>{sub}</td>
                       {vals.map((v, i) => (
-                        <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[#94a3b8]' : 'text-[#e8ecf1]'}`}>
+                        <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-muted)]' : 'text-[var(--table-border)]'}`}>
                           {v > 0 ? fmtShort(v) : '—'}
                         </td>
                       ))}
-                      <td className={`${tdCls} text-right text-[11px] text-[#64748b]`}>{fmtShort(sum(vals))}</td>
+                      <td className={`${tdCls} text-right text-[11px] text-[var(--text-secondary)]`}>{fmtShort(sum(vals))}</td>
                     </tr>
                   ))}
                 </Fragment>
@@ -252,7 +252,7 @@ export default function ReportsPage() {
             })}
 
             {/* NET Row */}
-            <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+            <tr style={{ background: 'var(--bg-hover)', borderTop: '2px solid var(--table-border)' }}>
               <td className="px-2.5 py-2 font-bold text-[13px]" style={{ paddingLeft: 30 }}>NET</td>
               {data.monthlyNetTotals.map((v, i) => (
                 <td key={i} className={`${tdCls} text-right font-semibold ${
