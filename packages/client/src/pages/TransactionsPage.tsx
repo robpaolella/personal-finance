@@ -248,21 +248,6 @@ function TransactionForm({
             className={inputCls(false)} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Category" required error={errCategory}>
-            <select ref={categoryRef} value={categoryId} onChange={(e) => handleCategoryChange(parseInt(e.target.value, 10))}
-              className={inputCls(!!errCategory)}>
-              <option value={0} disabled>Select category</option>
-              {groupedCategories.map((g) => (
-                <optgroup key={g.group} label={g.group}>
-                  {g.cats.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.type === 'income' ? c.sub_name : c.sub_name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </Field>
           <Field label="Type">
             <div className="flex gap-2">
               {(['expense', 'income'] as const).map((t) => (
@@ -274,6 +259,19 @@ function TransactionForm({
                 </button>
               ))}
             </div>
+          </Field>
+          <Field label="Category" required error={errCategory}>
+            <select ref={categoryRef} value={categoryId} onChange={(e) => handleCategoryChange(parseInt(e.target.value, 10))}
+              className={inputCls(!!errCategory)}>
+              <option value={0} disabled>Select category</option>
+              {groupedCategories.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.cats.map((c) => (
+                    <option key={c.id} value={c.id}>{c.sub_name}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </Field>
         </div>
         <Field label="Amount" required error={errAmount}>
