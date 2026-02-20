@@ -110,7 +110,7 @@ async function seed() {
 
   let sortOrder = 0;
 
-  // Income categories (group_name = sub_name for income)
+  // Income categories (all under group_name "Income")
   const incomeCategories = [
     'Take Home Pay', '401(k)', 'Gifts Received', 'Tax Refunds',
     'Interest Income', 'Refunds/Reimbursements', 'Other Income',
@@ -118,9 +118,9 @@ async function seed() {
 
   for (const name of incomeCategories) {
     db.insert(schema.categories).values({
-      group_name: name,
+      group_name: 'Income',
       sub_name: name,
-      display_name: name,
+      display_name: `Income: ${name}`,
       type: 'income',
       is_deductible: 0,
       sort_order: sortOrder++,

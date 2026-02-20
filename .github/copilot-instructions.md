@@ -175,3 +175,9 @@ This is a living document. You MUST maintain this section throughout the life of
 **Problem:** Original design used an Expense/Income toggle to control sign, but refunds (negative expenses) don't fit cleanly into either category. Displaying all negative amounts as green "+$X" was misleading for refunds.
 **Resolution:** The amount field accepts negative values directly. The toggle auto-syncs with category type and sets the default sign, but a manually entered minus sign takes priority. Display logic differentiates between income (negative + income category) and refunds (negative + expense category).
 **Rule going forward:** Always check both the amount sign AND the category type when determining how to display a transaction. Never assume negative = income. A negative amount in an expense category is a refund/credit.
+
+### Income Categories Must Follow Group/Sub Pattern (2026-02-20)
+**Context:** Income categories were originally seeded with group_name = sub_name, making each item its own parent group.
+**Problem:** This caused duplicate display in the category dropdown (bold header + identical child for each income type) and was inconsistent with the expense category hierarchy.
+**Resolution:** Changed all income categories to use group_name = "Income" with each income type as a sub_name, matching the exact pattern used by expense categories.
+**Rule going forward:** ALL categories — income and expense — must follow the same group → sub-category hierarchy. Never create a category where group_name equals sub_name. If a new category type is added in the future (e.g., "Transfer"), it should follow this same pattern.
