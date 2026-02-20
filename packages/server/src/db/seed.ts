@@ -5,12 +5,12 @@ import bcrypt from 'bcrypt';
 import path from 'path';
 import fs from 'fs';
 
-const dataDir = path.resolve(process.cwd(), 'data');
+const defaultDir = path.resolve(process.cwd(), 'data');
+const dbPath = process.env.DATABASE_PATH || path.join(defaultDir, 'ledger.db');
+const dataDir = path.dirname(dbPath);
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
-
-const dbPath = path.join(dataDir, 'ledger.db');
 
 // Delete existing DB for clean seed
 if (fs.existsSync(dbPath)) {

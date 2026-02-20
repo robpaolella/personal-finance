@@ -18,6 +18,9 @@ sleep 3
 if [ ! -f ./data/ledger.db ]; then
   echo "Seeding database..."
   docker compose exec ledger npm run seed:prod
+  echo "Restarting server after seed..."
+  docker compose restart ledger
+  sleep 3
 fi
 
 echo ""
