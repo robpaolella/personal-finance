@@ -285,23 +285,8 @@ export default function ImportPage() {
     } : r));
   };
 
-  const updateRowGroup = (idx: number, groupName: string) => {
-    setCategorizedRows((prev) => prev.map((r, i) => {
-      if (i !== idx) return r;
-      // When group changes, reset category to first sub in that group (or clear)
-      const groupCats = groupName === 'Income' ? incomeCats : (catGroups.get(groupName) || []);
-      const firstCat = groupCats[0];
-      return {
-        ...r,
-        groupName,
-        categoryId: firstCat?.id || null,
-        subName: firstCat?.sub_name || null,
-        confidence: 1.0,
-      };
-    }));
-  };
 
-  // Group categories for dropdown
+  // Group ALL categories for grouped dropdown
   const expenseCats = categories.filter((c) => c.type === 'expense');
   const incomeCats = categories.filter((c) => c.type === 'income');
   const catGroups = new Map<string, Category[]>();
@@ -309,7 +294,6 @@ export default function ImportPage() {
     if (!catGroups.has(c.group_name)) catGroups.set(c.group_name, []);
     catGroups.get(c.group_name)!.push(c);
   }
-  const allGroupNames = [...Array.from(catGroups.keys()), 'Income'];
 
   const validImportCount = categorizedRows.filter((r, i) => selectedImportRows.has(i) && r.categoryId != null).length;
 
@@ -542,8 +526,7 @@ export default function ImportPage() {
               <col style={{ width: '110px' }} />
               <col />
               <col style={{ width: '110px' }} />
-              <col style={{ width: '160px' }} />
-              <col style={{ width: '160px' }} />
+              <col style={{ width: '220px' }} />
               <col style={{ width: '70px' }} />
             </colgroup>
             <thead>
@@ -561,15 +544,12 @@ export default function ImportPage() {
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-center">Conf.</th>
               </tr>
             </thead>
             <tbody>
-              {categorizedRows.map((r, i) => {
-                const subCats = r.groupName === 'Income' ? incomeCats : (catGroups.get(r.groupName || '') || []);
-                return (
-                <tr key={i} className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${r.confidence < 0.5 && selectedImportRows.has(i) ? 'bg-[#fffbeb]' : ''}`}>
+              {categorizedRows.map((r, i) => (
+                <tr key={i} className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${!r.categoryId && selectedImportRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
                   <td className="px-2 py-2 text-center">
                     <input type="checkbox" checked={selectedImportRows.has(i)}
                       onChange={() => {
@@ -587,23 +567,23 @@ export default function ImportPage() {
                     {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
                   </td>
                   <td className="px-2.5 py-1.5">
-                    <select
-                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
-                      value={r.groupName || ''}
-                      onChange={(e) => updateRowGroup(i, e.target.value)}
-                    >
-                      <option value="">Select...</option>
-                      {allGroupNames.map((g) => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-2.5 py-1.5">
+                    {r.groupName && r.categoryId && (
+                      <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                    )}
                     <select
                       className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
                       value={r.categoryId || ''}
                       onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
                     >
                       <option value="">Select...</option>
-                      {subCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                      {Array.from(catGroups.entries()).map(([group, cats]) => (
+                        <optgroup key={group} label={group}>
+                          {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                        </optgroup>
+                      ))}
+                      <optgroup label="Income">
+                        {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                      </optgroup>
                     </select>
                   </td>
                   <td className="px-2.5 py-2 text-center">
@@ -614,8 +594,7 @@ export default function ImportPage() {
                     </span>
                   </td>
                 </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </div>
