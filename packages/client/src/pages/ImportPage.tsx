@@ -42,6 +42,15 @@ interface CategorizedRow {
 
 const STEPS = ['Upload File', 'Map Columns', 'Review & Categorize'];
 
+function normalizeAmount(raw: string): number {
+  let s = raw.trim().replace(/"/g, '');
+  const isParenthesized = /^\(.*\)$/.test(s);
+  s = s.replace(/[($,+\s)]/g, '');
+  const val = parseFloat(s);
+  if (isNaN(val)) return 0;
+  return isParenthesized ? -val : val;
+}
+
 export default function ImportPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,10 +141,9 @@ export default function ImportPage() {
     if (!parseResult) return;
 
     const items = allRows.map((row) => {
-      const rawAmt = row[mapping.amount]?.replace(/[$,+\s"]/g, '') || '0';
       return {
         description: row[mapping.description] || '',
-        amount: parseFloat(rawAmt),
+        amount: normalizeAmount(row[mapping.amount] || '0'),
       };
     }).filter((item) => item.description.trim());
 
@@ -149,8 +157,8 @@ export default function ImportPage() {
     const merged = res.data.map((cat, i) => {
       const row = allRows[i];
       const dateStr = row?.[mapping.date] || '';
-      const rawAmt = row?.[mapping.amount]?.replace(/[$,+\s"]/g, '') || '0';
-      const amt = parseFloat(rawAmt);
+      const rawAmt = row?.[mapping.amount] || '0';
+      const amt = normalizeAmount(rawAmt);
 
       // Parse date
       let date = dateStr;
@@ -160,7 +168,7 @@ export default function ImportPage() {
       }
 
       // Convert amount: negative in CSV means money out = expense = positive in our system
-      const amount = isNaN(amt) ? 0 : -amt;
+      const amount = -amt;
 
       return {
         date,
