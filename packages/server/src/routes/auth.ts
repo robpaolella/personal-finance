@@ -1,15 +1,25 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { sanitize } from '../utils/sanitize.js';
 
 const router = Router();
 
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { error: 'Too many login attempts. Please try again in a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // POST /api/auth/login
-router.post('/login', async (req: Request, res: Response): Promise<void> => {
-  const { username, password } = req.body;
+router.post('/login', loginLimiter, async (req: Request, res: Response): Promise<void> => {
+  const { username, password } = sanitize(req.body);
 
   if (!username || !password) {
     res.status(400).json({ error: 'Username and password are required' });

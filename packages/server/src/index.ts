@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -27,7 +28,8 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === 'production';
 
-app.use(cors());
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
 app.use((req, res, next) => {
   // Skip JSON body parsing for multipart file uploads
   const ct = req.headers['content-type'] || '';

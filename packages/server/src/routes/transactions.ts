@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { transactions, accounts, categories } from '../db/schema.js';
 import { eq, and, gte, lte, like, or, sql, desc, asc, inArray } from 'drizzle-orm';
+import { sanitize } from '../utils/sanitize.js';
 
 const router = Router();
 
@@ -194,7 +195,7 @@ router.get('/:id', (req: Request, res: Response) => {
 // POST /api/transactions — create
 router.post('/', (req: Request, res: Response) => {
   try {
-    const { accountId, date, description, note, categoryId, amount } = req.body;
+    const { accountId, date, description, note, categoryId, amount } = sanitize(req.body);
     if (!accountId || !date || !description || !categoryId || amount === undefined) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -219,7 +220,7 @@ router.post('/', (req: Request, res: Response) => {
 router.put('/:id', (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
-    const { accountId, date, description, note, categoryId, amount } = req.body;
+    const { accountId, date, description, note, categoryId, amount } = sanitize(req.body);
 
     const existing = db.select().from(transactions).where(eq(transactions.id, id)).all();
     if (existing.length === 0) {
