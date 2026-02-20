@@ -1,9 +1,25 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db/index.js';
+import { db, sqlite } from '../db/index.js';
 import { transactions, accounts, categories, budgets, balanceSnapshots, assets } from '../db/schema.js';
 import { eq, and, gte, lte, sql, desc } from 'drizzle-orm';
 
 const router = Router();
+
+function getAccountOwnersDash(accountIds: number[]): Map<number, { id: number; displayName: string }[]> {
+  if (accountIds.length === 0) return new Map();
+  const rows = sqlite.prepare(`
+    SELECT ao.account_id, u.id as user_id, u.display_name
+    FROM account_owners ao JOIN users u ON ao.user_id = u.id
+    WHERE ao.account_id IN (${accountIds.map(() => '?').join(',')})
+    ORDER BY u.display_name
+  `).all(...accountIds) as { account_id: number; user_id: number; display_name: string }[];
+  const map = new Map<number, { id: number; displayName: string }[]>();
+  for (const o of rows) {
+    if (!map.has(o.account_id)) map.set(o.account_id, []);
+    map.get(o.account_id)!.push({ id: o.user_id, displayName: o.display_name });
+  }
+  return map;
+}
 
 function monthRange(month: string): { startDate: string; endDate: string } {
   const [year, m] = month.split('-').map(Number);
@@ -211,15 +227,20 @@ router.get('/recent-transactions', (req: Request, res: Response) => {
       .limit(limit)
       .all();
 
-    const data = rows.map((r) => ({
-      id: r.id,
-      date: r.date,
-      description: r.description,
-      note: r.note,
-      amount: r.amount,
-      account: { id: r.account_id, name: r.account_name, lastFour: r.account_last_four, owner: r.account_owner },
-      category: { id: r.category_id, groupName: r.category_group_name, subName: r.category_sub_name, displayName: r.category_display_name, type: r.category_type },
-    }));
+    const ownerMap = getAccountOwnersDash([...new Set(rows.map((r) => r.account_id))]);
+
+    const data = rows.map((r) => {
+      const owners = ownerMap.get(r.account_id) || [];
+      return {
+        id: r.id,
+        date: r.date,
+        description: r.description,
+        note: r.note,
+        amount: r.amount,
+        account: { id: r.account_id, name: r.account_name, lastFour: r.account_last_four, owner: r.account_owner, owners, isShared: owners.length > 1 },
+        category: { id: r.category_id, groupName: r.category_group_name, subName: r.category_sub_name, displayName: r.category_display_name, type: r.category_type },
+      };
+    });
 
     res.json({ data });
   } catch (err) {

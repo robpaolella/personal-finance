@@ -9,6 +9,8 @@ interface TransactionAccount {
   name: string;
   lastFour: string | null;
   owner: string;
+  owners?: { id: number; displayName: string }[];
+  isShared?: boolean;
 }
 
 interface TransactionCategory {
@@ -699,8 +701,17 @@ export default function TransactionsPage() {
                   <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)]">{t.date}</td>
                   <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
                   <td className="px-2.5 py-2">
-                    <span className="text-[11px] font-mono bg-[var(--bg-secondary-btn)] text-[var(--text-body)] px-2 py-0.5 rounded-md">
-                      {accountLabel(t.account)}
+                    <span className="inline-flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-mono bg-[var(--bg-secondary-btn)] text-[var(--text-body)] px-2 py-0.5 rounded-md">
+                        {accountLabel(t.account)}
+                      </span>
+                      {t.account.isShared ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
+                      ) : t.account.owners?.length === 1 ? (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
+                          t.account.owners[0].displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
+                        }`}>{t.account.owners[0].displayName}</span>
+                      ) : null}
                     </span>
                   </td>
                   <td className="px-2.5 py-2">
