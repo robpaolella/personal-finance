@@ -223,3 +223,9 @@ Form Input → Storage → Display:
 **Problem:** Redundant and cluttered — user sees the same message twice in different places
 **Resolution:** Established clear rules: toasts for action results (success/failure), inline for validation errors and constraint messages, never both. Removed duplicate setBulkNotification + addToast calls from TransactionsPage and duplicate setNotification + addToast from ImportPage.
 **Rule going forward:** One notification per action, maximum. Toasts for outcomes, inline for input problems. Never use both for the same action.
+
+### Multi-Owner Accounts (2026-02-21)
+**Context:** Some accounts (joint checking, shared credit card) are owned by multiple household members
+**Problem:** The original schema used a single `owner` text field, which couldn't represent shared ownership. This affected the Budget page owner filter — shared account transactions would only appear under one person.
+**Resolution:** Created an `account_owners` junction table supporting many-to-many relationships. Individual owner views on the Budget page include both sole and shared accounts. The "All" view remains the source of truth with no double-counting. Shared accounts display a "Shared" badge and multiple owner badges.
+**Rule going forward:** Always use the account_owners junction table for ownership. Never assume an account has exactly one owner. When filtering by owner, include accounts where the user is ANY of the owners, not just the sole owner. The legacy `owner` column on `accounts` is kept for backward compat but should not be used in new app logic.
