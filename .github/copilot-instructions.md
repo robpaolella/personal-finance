@@ -136,6 +136,9 @@ The file `.github/design-reference.jsx` is the approved interactive prototype fo
 - **Owner filter:** pill toggle group, #f1f5f9 container, active pill is white with shadow
 - **Expandable rows (reports):** chevron icon rotates on expand, indentation increases per level (28px → 52px)
 
+#### Dark Mode
+The app supports light and dark modes via CSS custom properties defined in `index.css`. All component colors must reference CSS variables (`var(--*)`, never hardcoded hex values. The dark palette uses deep navy/charcoal backgrounds (#0b0f1a, #141926) — not pure black. Accent colors (green, red, blue, category colors) remain the same in both modes. Badge backgrounds get darker but more saturated equivalents. Text inverts: primary becomes #f1f5f9, body becomes #94a3b8. The toggle is in the sidebar footer, preference stored in `localStorage('ledger-theme')` with system preference fallback.
+
 ## Project Learnings
 
 This is a living document. You MUST maintain this section throughout the life of the project. It captures hard-won lessons — things that broke, things that were non-obvious, decisions that were made and why — so we never repeat mistakes or lose context.
