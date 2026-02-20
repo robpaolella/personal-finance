@@ -67,7 +67,6 @@ export default function ImportPage() {
   const [venmoMapping, setVenmoMapping] = useState({ from: -1, to: -1, note: -1 });
   const [categorizedRows, setCategorizedRows] = useState<CategorizedRow[]>([]);
   const [importing, setImporting] = useState(false);
-  const [editingCatIdx, setEditingCatIdx] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [selectedImportRows, setSelectedImportRows] = useState<Set<number>>(new Set());
   const [signConvention, setSignConvention] = useState<'bank' | 'credit'>('bank');
@@ -281,7 +280,22 @@ export default function ImportPage() {
       subName: cat.sub_name,
       confidence: 1.0,
     } : r));
-    setEditingCatIdx(null);
+  };
+
+  const updateRowGroup = (idx: number, groupName: string) => {
+    setCategorizedRows((prev) => prev.map((r, i) => {
+      if (i !== idx) return r;
+      // When group changes, reset category to first sub in that group (or clear)
+      const groupCats = groupName === 'Income' ? incomeCats : (catGroups.get(groupName) || []);
+      const firstCat = groupCats[0];
+      return {
+        ...r,
+        groupName,
+        categoryId: firstCat?.id || null,
+        subName: firstCat?.sub_name || null,
+        confidence: 1.0,
+      };
+    }));
   };
 
   // Group categories for dropdown
@@ -292,6 +306,7 @@ export default function ImportPage() {
     if (!catGroups.has(c.group_name)) catGroups.set(c.group_name, []);
     catGroups.get(c.group_name)!.push(c);
   }
+  const allGroupNames = [...Array.from(catGroups.keys()), 'Income'];
 
   const validImportCount = categorizedRows.filter((r, i) => selectedImportRows.has(i) && r.categoryId != null).length;
 
@@ -518,10 +533,19 @@ export default function ImportPage() {
             </button>
           </div>
 
-          <table className="w-full border-collapse text-[13px]">
+          <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '40px' }} />
+              <col style={{ width: '110px' }} />
+              <col />
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '160px' }} />
+              <col style={{ width: '160px' }} />
+              <col style={{ width: '70px' }} />
+            </colgroup>
             <thead>
               <tr>
-                <th className="w-8 px-2 py-2 border-b-2 border-[#e2e8f0]">
+                <th className="px-2 py-2 border-b-2 border-[#e2e8f0]">
                   <input type="checkbox"
                     checked={selectedImportRows.size === categorizedRows.length && categorizedRows.length > 0}
                     onChange={() => {
@@ -539,7 +563,9 @@ export default function ImportPage() {
               </tr>
             </thead>
             <tbody>
-              {categorizedRows.map((r, i) => (
+              {categorizedRows.map((r, i) => {
+                const subCats = r.groupName === 'Income' ? incomeCats : (catGroups.get(r.groupName || '') || []);
+                return (
                 <tr key={i} className={`border-b border-[#f1f5f9] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${r.confidence < 0.5 && selectedImportRows.has(i) ? 'bg-[#fffbeb]' : ''}`}>
                   <td className="px-2 py-2 text-center">
                     <input type="checkbox" checked={selectedImportRows.has(i)}
@@ -552,41 +578,30 @@ export default function ImportPage() {
                       }}
                       className="cursor-pointer" />
                   </td>
-                  <td className="px-2.5 py-2 font-mono text-[12px] text-[#475569]">{r.date}</td>
-                  <td className="px-2.5 py-2 font-medium text-[#0f172a]">{r.description}</td>
+                  <td className="px-2.5 py-2 font-mono text-[12px] text-[#475569] truncate">{r.date}</td>
+                  <td className="px-2.5 py-2 font-medium text-[#0f172a] truncate">{r.description}</td>
                   <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[#0f172a]'}`}>
                     {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
                   </td>
-                  <td className="px-2.5 py-2">
-                    <span className="text-[11px] text-[#64748b]">{r.groupName || '—'}</span>
+                  <td className="px-2.5 py-1.5">
+                    <select
+                      className="w-full text-[11px] border border-[#e2e8f0] rounded-md px-1.5 py-1 outline-none bg-white"
+                      value={r.groupName || ''}
+                      onChange={(e) => updateRowGroup(i, e.target.value)}
+                    >
+                      <option value="">Select...</option>
+                      {allGroupNames.map((g) => <option key={g} value={g}>{g}</option>)}
+                    </select>
                   </td>
-                  <td className="px-2.5 py-2 relative">
-                    {editingCatIdx === i ? (
-                      <select
-                        autoFocus
-                        className="text-[11px] border border-[#3b82f6] rounded-md px-1.5 py-1 outline-none bg-white min-w-[160px]"
-                        value={r.categoryId || ''}
-                        onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
-                        onBlur={() => setEditingCatIdx(null)}
-                      >
-                        <option value="">Select...</option>
-                        {Array.from(catGroups.entries()).map(([group, cats]) => (
-                          <optgroup key={group} label={group}>
-                            {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                          </optgroup>
-                        ))}
-                        <optgroup label="Income">
-                          {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                        </optgroup>
-                      </select>
-                    ) : (
-                      <span
-                        onClick={() => setEditingCatIdx(i)}
-                        className="text-[11px] bg-[#eff6ff] text-[#3b82f6] px-2 py-0.5 rounded-md cursor-pointer border-b border-dashed border-[#94a3b8]"
-                      >
-                        {r.subName || 'Uncategorized'}
-                      </span>
-                    )}
+                  <td className="px-2.5 py-1.5">
+                    <select
+                      className="w-full text-[11px] border border-[#e2e8f0] rounded-md px-1.5 py-1 outline-none bg-white"
+                      value={r.categoryId || ''}
+                      onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
+                    >
+                      <option value="">Select...</option>
+                      {subCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                    </select>
                   </td>
                   <td className="px-2.5 py-2 text-center">
                     <span className={`text-[11px] font-semibold font-mono ${
@@ -596,7 +611,8 @@ export default function ImportPage() {
                     </span>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
