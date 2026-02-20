@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmtTransaction } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 
 interface TransactionAccount {
   id: number;
@@ -291,10 +292,9 @@ function TransactionForm({
       </div>
       <div className="flex gap-2 mt-5 justify-end">
         {transaction && onDelete && (
-          <button onClick={onDelete}
-            className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--error-bg)] text-[#ef4444] border-none cursor-pointer mr-auto">
-            Delete
-          </button>
+          <div className="mr-auto">
+            <ConfirmDeleteButton onConfirm={onDelete} />
+          </div>
         )}
         <button onClick={onClose}
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
@@ -339,7 +339,6 @@ export default function TransactionsPage() {
 
   // Modal
   const [editing, setEditing] = useState<Transaction | null | 'new'>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Bulk edit mode
   const [bulkMode, setBulkMode] = useState(false);
@@ -403,14 +402,9 @@ export default function TransactionsPage() {
 
   const handleDelete = async () => {
     if (editing && editing !== 'new') {
-      if (!confirmDelete) {
-        setConfirmDelete(true);
-        return;
-      }
       try {
         await apiFetch(`/transactions/${editing.id}`, { method: 'DELETE' });
         setEditing(null);
-        setConfirmDelete(false);
         addToast('Transaction deleted');
         loadTransactions(true);
       } catch {
@@ -675,7 +669,7 @@ export default function TransactionsPage() {
               const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
               return (
                 <tr key={t.id}
-                  onClick={() => { if (!bulkMode) { setEditing(t); setConfirmDelete(false); } }}
+                  onClick={() => { if (!bulkMode) { setEditing(t); } }}
                   className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)]">
                   {bulkMode && (
                     <td className="w-8 px-2 py-2">
@@ -732,7 +726,7 @@ export default function TransactionsPage() {
           categories={categories}
           onSave={handleSave}
           onDelete={editing !== 'new' ? handleDelete : undefined}
-          onClose={() => { setEditing(null); setConfirmDelete(false); }}
+          onClose={() => setEditing(null)}
         />
       )}
     </div>

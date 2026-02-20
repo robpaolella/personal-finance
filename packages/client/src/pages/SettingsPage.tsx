@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Income': '#10b981',
@@ -78,21 +79,15 @@ function AccountForm({
   const [classification, setClassification] = useState(account?.classification ?? 'liquid');
   const [owner, setOwner] = useState(account?.owner ?? owners[0] ?? '');
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (error) { const t = setTimeout(() => setError(null), 5000); return () => clearTimeout(t); }
   }, [error]);
 
-  useEffect(() => {
-    if (confirmDelete) { const t = setTimeout(() => setConfirmDelete(false), 3000); return () => clearTimeout(t); }
-  }, [confirmDelete]);
-
-  const handleDeleteClick = async () => {
-    if (!confirmDelete) { setConfirmDelete(true); return; }
+  const handleDeleteConfirm = async () => {
     if (onDelete) {
       const err = await onDelete();
-      if (err) { setError(err); setConfirmDelete(false); }
+      if (err) { setError(err); }
     }
   };
 
@@ -142,17 +137,8 @@ function AccountForm({
       </div>
       <div className="flex gap-2 mt-5 justify-end">
         {account && onDelete && (
-          <div className="mr-auto flex items-center gap-2">
-            <button onClick={handleDeleteClick}
-              className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer ${
-                confirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[var(--error-bg)] text-[#ef4444]'
-              }`}>
-              {confirmDelete ? 'Confirm Delete?' : 'Delete'}
-            </button>
-            {confirmDelete && (
-              <button onClick={() => setConfirmDelete(false)}
-                className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer underline">Cancel</button>
-            )}
+          <div className="mr-auto">
+            <ConfirmDeleteButton onConfirm={handleDeleteConfirm} />
           </div>
         )}
         <button onClick={onClose}
@@ -187,21 +173,15 @@ function CategoryForm({
   const [subName, setSubName] = useState(category?.sub_name ?? '');
   const [isDeductible, setIsDeductible] = useState(category?.is_deductible === 1);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (error) { const t = setTimeout(() => setError(null), 5000); return () => clearTimeout(t); }
   }, [error]);
 
-  useEffect(() => {
-    if (confirmDelete) { const t = setTimeout(() => setConfirmDelete(false), 3000); return () => clearTimeout(t); }
-  }, [confirmDelete]);
-
-  const handleDeleteClick = async () => {
-    if (!confirmDelete) { setConfirmDelete(true); return; }
+  const handleDeleteConfirm = async () => {
     if (onDelete) {
       const err = await onDelete();
-      if (err) { setError(err); setConfirmDelete(false); }
+      if (err) { setError(err); }
     }
   };
 
@@ -252,17 +232,8 @@ function CategoryForm({
       </div>
       <div className="flex gap-2 mt-5 justify-end">
         {category && onDelete && (
-          <div className="mr-auto flex items-center gap-2">
-            <button onClick={handleDeleteClick}
-              className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer ${
-                confirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[var(--error-bg)] text-[#ef4444]'
-              }`}>
-              {confirmDelete ? 'Confirm Delete?' : 'Delete'}
-            </button>
-            {confirmDelete && (
-              <button onClick={() => setConfirmDelete(false)}
-                className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer underline">Cancel</button>
-            )}
+          <div className="mr-auto">
+            <ConfirmDeleteButton onConfirm={handleDeleteConfirm} />
           </div>
         )}
         <button onClick={onClose}

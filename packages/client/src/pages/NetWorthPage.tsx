@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtShort } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import Spinner from '../components/Spinner';
 
 interface Account {
@@ -312,14 +313,15 @@ export default function NetWorthPage() {
                 ))}
               </div>
               <div className="flex gap-2 mt-3 justify-end">
+                {editingAssetId !== 'new' && (
+                  <div className="mr-auto">
+                    <ConfirmDeleteButton onConfirm={() => deleteAsset(editingAssetId as number)} />
+                  </div>
+                )}
                 <button onClick={() => setEditingAssetId(null)}
                   className="px-3.5 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[12px] font-medium">Cancel</button>
                 <button onClick={saveAsset}
                   className="px-3.5 py-1.5 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[12px] font-medium">Save</button>
-                {editingAssetId !== 'new' && (
-                  <button onClick={() => deleteAsset(editingAssetId as number)}
-                    className="px-3.5 py-1.5 bg-[var(--error-bg)] text-[#ef4444] rounded-lg border-none cursor-pointer text-[12px] font-medium">Delete</button>
-                )}
               </div>
             </div>
           )}
