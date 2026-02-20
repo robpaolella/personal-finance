@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
+import { useToast } from '../context/ToastContext';
 
 interface Account {
   id: number;
@@ -53,6 +54,7 @@ function normalizeAmount(raw: string): number {
 }
 
 export default function ImportPage() {
+  const { addToast } = useToast();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
@@ -262,9 +264,11 @@ export default function ImportPage() {
           })),
         }),
       });
+      addToast(`Import complete — ${validRows.length} transactions imported`);
       navigate('/transactions');
     } catch (err) {
       setNotification({ type: 'error', message: 'Import failed. Please try again.' });
+      addToast('Import failed', 'error');
     } finally {
       setImporting(false);
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
+import { useToast } from '../context/ToastContext';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Income': '#10b981',
@@ -278,6 +279,7 @@ function CategoryForm({
 }
 
 export default function SettingsPage() {
+  const { addToast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [owners, setOwners] = useState<string[]>([]);
@@ -317,13 +319,18 @@ export default function SettingsPage() {
   existingGroupNames.push('Income');
 
   const handleSaveAccount = async (data: Record<string, unknown>) => {
-    if (editingAccount === 'new') {
-      await apiFetch('/accounts', { method: 'POST', body: JSON.stringify(data) });
-    } else if (editingAccount) {
-      await apiFetch(`/accounts/${editingAccount.id}`, { method: 'PUT', body: JSON.stringify(data) });
+    try {
+      if (editingAccount === 'new') {
+        await apiFetch('/accounts', { method: 'POST', body: JSON.stringify(data) });
+      } else if (editingAccount) {
+        await apiFetch(`/accounts/${editingAccount.id}`, { method: 'PUT', body: JSON.stringify(data) });
+      }
+      setEditingAccount(null);
+      addToast('Account saved');
+      loadData();
+    } catch {
+      addToast('Failed to save account', 'error');
     }
-    setEditingAccount(null);
-    loadData();
   };
 
   const handleDeleteAccount = async (): Promise<string | null> => {
@@ -331,9 +338,11 @@ export default function SettingsPage() {
       try {
         await apiFetch(`/accounts/${editingAccount.id}`, { method: 'DELETE' });
         setEditingAccount(null);
+        addToast('Account deleted');
         loadData();
         return null;
       } catch (err) {
+        addToast('Failed to delete account', 'error');
         return err instanceof Error ? err.message : 'Delete failed';
       }
     }
@@ -341,13 +350,18 @@ export default function SettingsPage() {
   };
 
   const handleSaveCategory = async (data: Record<string, unknown>) => {
-    if (editingCategory === 'new') {
-      await apiFetch('/categories', { method: 'POST', body: JSON.stringify(data) });
-    } else if (editingCategory) {
-      await apiFetch(`/categories/${editingCategory.id}`, { method: 'PUT', body: JSON.stringify(data) });
+    try {
+      if (editingCategory === 'new') {
+        await apiFetch('/categories', { method: 'POST', body: JSON.stringify(data) });
+      } else if (editingCategory) {
+        await apiFetch(`/categories/${editingCategory.id}`, { method: 'PUT', body: JSON.stringify(data) });
+      }
+      setEditingCategory(null);
+      addToast('Category saved');
+      loadData();
+    } catch {
+      addToast('Failed to save category', 'error');
     }
-    setEditingCategory(null);
-    loadData();
   };
 
   const handleDeleteCategory = async (): Promise<string | null> => {
@@ -355,9 +369,11 @@ export default function SettingsPage() {
       try {
         await apiFetch(`/categories/${editingCategory.id}`, { method: 'DELETE' });
         setEditingCategory(null);
+        addToast('Category deleted');
         loadData();
         return null;
       } catch (err) {
+        addToast('Failed to delete category', 'error');
         return err instanceof Error ? err.message : 'Delete failed';
       }
     }

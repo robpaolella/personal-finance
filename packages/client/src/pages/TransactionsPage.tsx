@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmtTransaction } from '../lib/formatters';
+import { useToast } from '../context/ToastContext';
 
 interface TransactionAccount {
   id: number;
@@ -313,6 +314,7 @@ function TransactionForm({
 }
 
 export default function TransactionsPage() {
+  const { addToast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -385,13 +387,18 @@ export default function TransactionsPage() {
   useEffect(() => { loadTransactions(true); }, [startDate, endDate, search, filterAccount, filterType]);
 
   const handleSave = async (data: Record<string, unknown>) => {
-    if (editing === 'new') {
-      await apiFetch('/transactions', { method: 'POST', body: JSON.stringify(data) });
-    } else if (editing) {
-      await apiFetch(`/transactions/${editing.id}`, { method: 'PUT', body: JSON.stringify(data) });
+    try {
+      if (editing === 'new') {
+        await apiFetch('/transactions', { method: 'POST', body: JSON.stringify(data) });
+      } else if (editing) {
+        await apiFetch(`/transactions/${editing.id}`, { method: 'PUT', body: JSON.stringify(data) });
+      }
+      setEditing(null);
+      addToast('Transaction saved');
+      loadTransactions(true);
+    } catch {
+      addToast('Failed to save transaction', 'error');
     }
-    setEditing(null);
-    loadTransactions(true);
   };
 
   const handleDelete = async () => {
@@ -400,10 +407,15 @@ export default function TransactionsPage() {
         setConfirmDelete(true);
         return;
       }
-      await apiFetch(`/transactions/${editing.id}`, { method: 'DELETE' });
-      setEditing(null);
-      setConfirmDelete(false);
-      loadTransactions(true);
+      try {
+        await apiFetch(`/transactions/${editing.id}`, { method: 'DELETE' });
+        setEditing(null);
+        setConfirmDelete(false);
+        addToast('Transaction deleted');
+        loadTransactions(true);
+      } catch {
+        addToast('Failed to delete transaction', 'error');
+      }
     }
   };
 
@@ -472,12 +484,15 @@ export default function TransactionsPage() {
       } else { return; }
       setBulkAction(null);
       setBulkConfirmDelete(false);
-      setBulkNotification(`Updated ${ids.length} transactions`);
+      const msg = action === 'delete' ? `Deleted ${ids.length} transactions` : `Updated ${ids.length} transactions`;
+      setBulkNotification(msg);
+      addToast(msg);
       setTimeout(() => setBulkNotification(null), 3000);
       setSelectedIds(new Set());
       loadTransactions(true);
     } catch (err) {
       setBulkNotification('Bulk operation failed');
+      addToast('Bulk operation failed', 'error');
       setTimeout(() => setBulkNotification(null), 5000);
     }
   };

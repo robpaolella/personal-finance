@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtShort } from '../lib/formatters';
+import { useToast } from '../context/ToastContext';
 
 interface Account {
   accountId: number;
@@ -72,6 +73,7 @@ function AccountRow({ a, neg }: { a: Account; neg?: boolean }) {
 }
 
 export default function NetWorthPage() {
+  const { addToast } = useToast();
   const [data, setData] = useState<NetWorthData | null>(null);
   const [editingAssetId, setEditingAssetId] = useState<number | 'new' | null>(null);
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
@@ -110,19 +112,29 @@ export default function NetWorthPage() {
       salvageValue: parseFloat(assetForm.salvageValue),
     };
 
-    if (editingAssetId === 'new') {
-      await apiFetch('/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    } else {
-      await apiFetch(`/assets/${editingAssetId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    try {
+      if (editingAssetId === 'new') {
+        await apiFetch('/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      } else {
+        await apiFetch(`/assets/${editingAssetId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }
+      setEditingAssetId(null);
+      addToast('Asset saved');
+      await loadData();
+    } catch {
+      addToast('Failed to save asset', 'error');
     }
-    setEditingAssetId(null);
-    await loadData();
   };
 
   const deleteAsset = async (id: number) => {
-    await apiFetch(`/assets/${id}`, { method: 'DELETE' });
-    setEditingAssetId(null);
-    await loadData();
+    try {
+      await apiFetch(`/assets/${id}`, { method: 'DELETE' });
+      setEditingAssetId(null);
+      addToast('Asset deleted');
+      await loadData();
+    } catch {
+      addToast('Failed to delete asset', 'error');
+    }
   };
 
   const saveBalances = async () => {
@@ -138,10 +150,15 @@ export default function NetWorthPage() {
       }
       return Promise.resolve();
     });
-    await Promise.all(promises);
-    setShowBalanceModal(false);
-    setBalanceInputs({});
-    await loadData();
+    try {
+      await Promise.all(promises);
+      setShowBalanceModal(false);
+      setBalanceInputs({});
+      addToast('Balances updated');
+      await loadData();
+    } catch {
+      addToast('Failed to update balances', 'error');
+    }
   };
 
   if (!data) {
