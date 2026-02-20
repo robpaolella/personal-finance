@@ -8,6 +8,12 @@ import path from 'path';
  * Idempotent — safe to run multiple times.
  */
 export function migrateAccountOwners(sqlite: Database.Database): void {
+  // Skip if accounts table doesn't exist yet (fresh DB before seed)
+  const tableExists = sqlite.prepare(
+    "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='accounts'"
+  ).get() as { cnt: number };
+  if (tableExists.cnt === 0) return;
+
   // Create table if it doesn't exist
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS account_owners (
