@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db/index.js';
+import { db, sqlite } from '../db/index.js';
 import { balanceSnapshots, accounts, assets } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
 
@@ -91,6 +91,27 @@ router.get('/summary', (_req: Request, res: Response) => {
     const physicalAssetTotal = assetList.reduce((s, a) => s + a.currentValue, 0);
     const netWorth = liquidTotal + investmentTotal + physicalAssetTotal - liabilityTotal;
 
+    // Enrich accounts with owners from junction table
+    const acctIds = accountList.map((a) => a.accountId);
+    const ownerRows = acctIds.length > 0 ? (sqlite.prepare(`
+      SELECT ao.account_id, u.id as user_id, u.display_name
+      FROM account_owners ao
+      JOIN users u ON ao.user_id = u.id
+      WHERE ao.account_id IN (${acctIds.map(() => '?').join(',')})
+      ORDER BY u.display_name
+    `).all(...acctIds) as { account_id: number; user_id: number; display_name: string }[]) : [];
+
+    const ownerMap = new Map<number, { id: number; displayName: string }[]>();
+    for (const o of ownerRows) {
+      if (!ownerMap.has(o.account_id)) ownerMap.set(o.account_id, []);
+      ownerMap.get(o.account_id)!.push({ id: o.user_id, displayName: o.display_name });
+    }
+
+    const enrichedAccounts = accountList.map((a) => {
+      const owners = ownerMap.get(a.accountId) || [];
+      return { ...a, owners, isShared: owners.length > 1 };
+    });
+
     res.json({
       data: {
         liquidTotal,
@@ -98,7 +119,7 @@ router.get('/summary', (_req: Request, res: Response) => {
         liabilityTotal,
         physicalAssetTotal,
         netWorth,
-        accounts: accountList,
+        accounts: enrichedAccounts,
         assets: assetList,
       },
     });

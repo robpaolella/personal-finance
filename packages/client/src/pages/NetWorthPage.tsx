@@ -10,6 +10,8 @@ interface Account {
   name: string;
   lastFour: string | null;
   owner: string;
+  owners: { id: number; displayName: string }[];
+  isShared: boolean;
   classification: string;
   balance: number;
   date: string;
@@ -61,11 +63,18 @@ function SectionHeader({ label, total, color, neg }: { label: string; total: num
 function AccountRow({ a, neg }: { a: Account; neg?: boolean }) {
   return (
     <div className="flex justify-between items-center py-1.5 pl-3.5 border-b border-[var(--table-row-border)]">
-      <div>
+      <div className="flex items-center gap-1.5">
         <span className="text-[13px] text-[var(--text-body)]">
           {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
         </span>
-        <span className="text-[10px] text-[var(--text-muted)] ml-2 uppercase">{a.owner}</span>
+        {(a.owners || []).map((o) => (
+          <span key={o.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${
+            o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
+          }`}>{o.displayName}</span>
+        ))}
+        {a.isShared && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
+        )}
       </div>
       <span className={`font-mono text-[13px] font-semibold ${neg && a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
         {a.balance < 0 ? `(${fmt(Math.abs(a.balance))})` : fmt(a.balance)}
