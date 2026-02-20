@@ -34,6 +34,8 @@ interface Account {
   name: string;
   last_four: string | null;
   owner: string;
+  owners?: { id: number; displayName: string }[];
+  isShared?: boolean;
 }
 
 interface Category {
@@ -144,8 +146,15 @@ function TransactionForm({
   const accountsByOwner = useMemo(() => {
     const map = new Map<string, Account[]>();
     for (const a of accounts) {
-      if (!map.has(a.owner)) map.set(a.owner, []);
-      map.get(a.owner)!.push(a);
+      const ownerNames = (a.owners && a.owners.length > 0)
+        ? a.owners.map((o) => o.displayName)
+        : [a.owner];
+      for (const name of ownerNames) {
+        if (!map.has(name)) map.set(name, []);
+        if (!map.get(name)!.some((x) => x.id === a.id)) {
+          map.get(name)!.push(a);
+        }
+      }
     }
     return map;
   }, [accounts]);
