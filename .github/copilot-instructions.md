@@ -190,3 +190,21 @@ Form Input → Storage → Display:
 **Problem:** This caused duplicate display in the category dropdown (bold header + identical child for each income type) and was inconsistent with the expense category hierarchy.
 **Resolution:** Changed all income categories to use group_name = "Income" with each income type as a sub_name, matching the exact pattern used by expense categories.
 **Rule going forward:** ALL categories — income and expense — must follow the same group → sub-category hierarchy. Never create a category where group_name equals sub_name. If a new category type is added in the future (e.g., "Transfer"), it should follow this same pattern.
+
+### No Browser Alerts (2026-02-19)
+**Context:** Delete confirmations and error messages were using browser alert/confirm dialogs
+**Problem:** Browser dialogs are jarring, unstyled, and inconsistent with the app's design
+**Resolution:** Replaced with inline notification banners (red for errors, inline confirm state for destructive actions)
+**Rule going forward:** Never use alert(), confirm(), or window.confirm() anywhere in the app. All user notifications must be inline UI elements.
+
+### Credit Card CSV Sign Convention (2026-02-19)
+**Context:** Importing credit card CSV statements
+**Problem:** Credit card statements use inverted signs — positive = charge (expense), negative = credit (refund). Bank accounts use the opposite. Importing without accounting for this produces incorrect transaction amounts.
+**Resolution:** Auto-detect sign convention based on account type and allow manual override on the import screen.
+**Rule going forward:** Always consider the source account type when interpreting CSV amounts. Never assume a single sign convention for all account types.
+
+### Parenthesized Amounts in CSVs (2026-02-19)
+**Context:** Parsing CSV files from financial institutions
+**Problem:** Some institutions format negative amounts as (123.45) instead of -123.45
+**Resolution:** Added parsing for parenthesized amounts, stripping $, commas, and whitespace before numeric conversion
+**Rule going forward:** Always normalize amount strings before parsing — handle parentheses, currency symbols, commas, and whitespace.
