@@ -22,6 +22,11 @@ function classificationForType(type: string): string {
   return 'liquid';
 }
 
+interface AccountOwner {
+  id: number;
+  displayName: string;
+}
+
 interface Account {
   id: number;
   name: string;
@@ -29,6 +34,8 @@ interface Account {
   type: string;
   classification: string;
   owner: string;
+  owners: AccountOwner[];
+  isShared: boolean;
   is_active: number;
 }
 
@@ -62,13 +69,13 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
 // --- Account Form ---
 function AccountForm({
   account,
-  owners,
+  users,
   onSave,
   onDelete,
   onClose,
 }: {
   account?: Account;
-  owners: string[];
+  users: { id: number; displayName: string }[];
   onSave: (data: Record<string, unknown>) => void;
   onDelete?: () => Promise<string | null>;
   onClose: () => void;
@@ -77,12 +84,27 @@ function AccountForm({
   const [lastFour, setLastFour] = useState(account?.last_four ?? '');
   const [type, setType] = useState(account?.type ?? 'checking');
   const [classification, setClassification] = useState(account?.classification ?? 'liquid');
-  const [owner, setOwner] = useState(account?.owner ?? owners[0] ?? '');
+  const [selectedOwnerIds, setSelectedOwnerIds] = useState<Set<number>>(() => {
+    if (account?.owners?.length) return new Set(account.owners.map((o) => o.id));
+    return users.length > 0 ? new Set([users[0].id]) : new Set();
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (error) { const t = setTimeout(() => setError(null), 5000); return () => clearTimeout(t); }
   }, [error]);
+
+  const toggleOwner = (id: number) => {
+    setSelectedOwnerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        if (next.size > 1) next.delete(id); // Must keep at least one
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const handleDeleteConfirm = async () => {
     if (onDelete) {
@@ -128,11 +150,18 @@ function AccountForm({
           </select>
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Owner</label>
-          <select value={owner} onChange={(e) => setOwner(e.target.value)}
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]">
-            {owners.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
+            Owner{selectedOwnerIds.size > 1 ? 's' : ''}
+          </label>
+          <div className="flex gap-3">
+            {users.map((u) => (
+              <label key={u.id} className="flex items-center gap-1.5 cursor-pointer text-[13px] text-[var(--text-body)]">
+                <input type="checkbox" checked={selectedOwnerIds.has(u.id)} onChange={() => toggleOwner(u.id)}
+                  className="cursor-pointer" />
+                {u.displayName}
+              </label>
+            ))}
+          </div>
         </div>
       </div>
       <div className="flex gap-2 mt-5 justify-end">
@@ -145,7 +174,7 @@ function AccountForm({
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
           Cancel
         </button>
-        <button onClick={() => onSave({ name, lastFour: lastFour || null, type, classification, owner })}
+        <button onClick={() => onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds) })}
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer">
           Save
         </button>
@@ -253,7 +282,7 @@ export default function SettingsPage() {
   const { addToast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [owners, setOwners] = useState<string[]>([]);
+  const [userList, setUserList] = useState<{ id: number; displayName: string }[]>([]);
   const [editingAccount, setEditingAccount] = useState<Account | null | 'new'>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null | 'new'>(null);
 
@@ -261,11 +290,11 @@ export default function SettingsPage() {
     const [acctRes, catRes, userRes] = await Promise.all([
       apiFetch<{ data: Account[] }>('/accounts'),
       apiFetch<{ data: Category[] }>('/categories'),
-      apiFetch<{ data: { display_name: string }[] }>('/users'),
+      apiFetch<{ data: { id: number; display_name: string }[] }>('/users'),
     ]);
     setAccounts(acctRes.data);
     setCategories(catRes.data);
-    setOwners(userRes.data.map((u) => u.display_name));
+    setUserList(userRes.data.map((u) => ({ id: u.id, displayName: u.display_name })));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -378,9 +407,16 @@ export default function SettingsPage() {
                     {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
                   </td>
                   <td className="px-2.5 py-2">
-                    <span className={`text-[11px] px-2 py-0.5 rounded-md ${
-                      a.owner === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-                    }`}>{a.owner}</span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {(a.owners || []).map((o) => (
+                        <span key={o.id} className={`text-[11px] px-2 py-0.5 rounded-md ${
+                          o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
+                        }`}>{o.displayName}</span>
+                      ))}
+                      {a.isShared && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] capitalize">{a.type}</td>
                   <td className="px-2.5 py-2">
@@ -438,7 +474,7 @@ export default function SettingsPage() {
       {editingAccount !== null && (
         <AccountForm
           account={editingAccount === 'new' ? undefined : editingAccount}
-          owners={owners}
+          users={userList}
           onSave={handleSaveAccount}
           onDelete={editingAccount !== 'new' ? handleDeleteAccount : undefined}
           onClose={() => setEditingAccount(null)}
