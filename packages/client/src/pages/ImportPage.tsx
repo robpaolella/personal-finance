@@ -8,6 +8,7 @@ interface Account {
   name: string;
   last_four: string | null;
   owner: string;
+  type: string;
 }
 
 interface Category {
@@ -68,6 +69,7 @@ export default function ImportPage() {
   const [editingCatIdx, setEditingCatIdx] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [selectedImportRows, setSelectedImportRows] = useState<Set<number>>(new Set());
+  const [signConvention, setSignConvention] = useState<'bank' | 'credit'>('bank');
 
   useEffect(() => {
     if (notification) { const t = setTimeout(() => setNotification(null), 5000); return () => clearTimeout(t); }
@@ -167,8 +169,10 @@ export default function ImportPage() {
         date = parsed.toISOString().slice(0, 10);
       }
 
-      // Convert amount: negative in CSV means money out = expense = positive in our system
-      const amount = -amt;
+      // Convert amount based on sign convention
+      // Bank: positive CSV = money in (income) = negative stored; negative CSV = money out (expense) = positive stored
+      // Credit: positive CSV = charge (expense) = positive stored; negative CSV = credit (refund) = negative stored
+      const amount = signConvention === 'bank' ? -amt : amt;
 
       return {
         date,
@@ -281,7 +285,14 @@ export default function ImportPage() {
             <label className="text-[12px] text-[#64748b] font-medium block mb-1">Import to Account</label>
             <select
               value={selectedAccountId}
-              onChange={(e) => setSelectedAccountId(e.target.value ? parseInt(e.target.value) : '')}
+              onChange={(e) => {
+                const id = e.target.value ? parseInt(e.target.value) : '';
+                setSelectedAccountId(id);
+                if (id) {
+                  const acct = accounts.find(a => a.id === id);
+                  setSignConvention(acct?.type === 'credit' ? 'credit' : 'bank');
+                }
+              }}
               className="border border-[#e2e8f0] rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px] outline-none w-[300px]"
             >
               <option value="">Select an account...</option>
@@ -364,6 +375,28 @@ export default function ImportPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Sign convention */}
+          <div className="bg-[#f8fafc] rounded-lg p-4 mb-4">
+            <p className="text-[12px] font-medium text-[#475569] m-0 mb-2">Amount Sign Convention</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSignConvention('bank')}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'bank' ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-[#475569] border-[#e2e8f0]'}`}
+              >
+                Positive = money in, Negative = money out
+              </button>
+              <button
+                onClick={() => setSignConvention('credit')}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'credit' ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-[#475569] border-[#e2e8f0]'}`}
+              >
+                Positive = money out, Negative = money in
+              </button>
+            </div>
+            <p className="text-[11px] text-[#94a3b8] m-0 mt-1.5">
+              {signConvention === 'bank' ? 'Standard for bank accounts (checking, savings)' : 'Standard for credit card statements'}
+            </p>
           </div>
 
           {/* Sample preview */}
