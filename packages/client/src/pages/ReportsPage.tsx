@@ -42,6 +42,24 @@ export default function ReportsPage() {
 
   const toggleGroup = (g: string) => setExpandedGroups((p) => ({ ...p, [g]: !p[g] }));
 
+  const isAnyExpanded = expandIncome || expandExpenses || Object.values(expandedGroups).some(Boolean);
+
+  const expandAll = () => {
+    setExpandIncome(true);
+    setExpandExpenses(true);
+    if (data) {
+      const allGroups: Record<string, boolean> = {};
+      for (const g of Object.keys(data.expensesByGroup)) { allGroups[g] = true; }
+      setExpandedGroups(allGroups);
+    }
+  };
+
+  const collapseAll = () => {
+    setExpandIncome(false);
+    setExpandExpenses(false);
+    setExpandedGroups({});
+  };
+
   useEffect(() => {
     apiFetch<{ data: number[] }>('/reports/available-years').then((res) => {
       setYears(res.data);
@@ -121,8 +139,16 @@ export default function ReportsPage() {
 
       {/* Monthly Breakdown Table */}
       <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] overflow-x-auto">
-        <h3 className="text-[14px] font-bold text-[#0f172a] m-0">Monthly Breakdown</h3>
-        <p className="text-[11px] text-[#94a3b8] mt-0.5 mb-3">Click rows to expand into categories → sub-categories</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-[14px] font-bold text-[#0f172a] m-0">Monthly Breakdown</h3>
+            <p className="text-[11px] text-[#94a3b8] mt-0.5 mb-3">Click rows to expand into categories → sub-categories</p>
+          </div>
+          <button onClick={isAnyExpanded ? collapseAll : expandAll}
+            className="text-[12px] text-[#64748b] bg-transparent border-none cursor-pointer hover:text-[#334155]">
+            {isAnyExpanded ? 'Collapse All' : 'Expand All'}
+          </button>
+        </div>
 
         <table className="w-full border-collapse">
           <thead>
