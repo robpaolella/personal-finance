@@ -267,7 +267,6 @@ export default function ImportPage() {
       addToast(`Import complete — ${validRows.length} transactions imported`);
       navigate('/transactions');
     } catch (err) {
-      setNotification({ type: 'error', message: 'Import failed. Please try again.' });
       addToast('Import failed', 'error');
     } finally {
       setImporting(false);

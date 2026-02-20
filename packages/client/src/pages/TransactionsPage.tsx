@@ -376,7 +376,6 @@ export default function TransactionsPage() {
   const [bulkFind, setBulkFind] = useState('');
   const [bulkReplace, setBulkReplace] = useState('');
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
-  const [bulkNotification, setBulkNotification] = useState<string | null>(null);
 
   const loadTransactions = useCallback(async () => {
     const params = new URLSearchParams();
@@ -462,7 +461,6 @@ export default function TransactionsPage() {
     setSelectedIds(new Set());
     setBulkAction(null);
     setBulkConfirmDelete(false);
-    setBulkNotification(null);
   };
 
   const applyBulkAction = async (action: string) => {
@@ -484,15 +482,11 @@ export default function TransactionsPage() {
       setBulkAction(null);
       setBulkConfirmDelete(false);
       const msg = action === 'delete' ? `Deleted ${ids.length} transactions` : `Updated ${ids.length} transactions`;
-      setBulkNotification(msg);
       addToast(msg);
-      setTimeout(() => setBulkNotification(null), 3000);
       setSelectedIds(new Set());
       loadTransactions();
     } catch (err) {
-      setBulkNotification('Bulk operation failed');
       addToast('Bulk operation failed', 'error');
-      setTimeout(() => setBulkNotification(null), 5000);
     }
   };
 
@@ -604,12 +598,6 @@ export default function TransactionsPage() {
       {/* Bulk Actions Toolbar */}
       {bulkMode && (
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--card-shadow)] px-4 py-3 mb-3">
-          {bulkNotification && (
-            <div className="bg-[#f0fdf4] border border-[#bbf7d0] text-[#166534] rounded-lg px-3 py-2 text-[12px] mb-2 flex items-center justify-between">
-              <span>{bulkNotification}</span>
-              <button onClick={() => setBulkNotification(null)} className="ml-2 text-[#166534] bg-transparent border-none cursor-pointer font-bold">×</button>
-            </div>
-          )}
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-[13px] font-semibold text-[var(--text-primary)]">{selectedIds.size} selected</span>
             <div className="h-4 w-px bg-[var(--table-border)]" />
