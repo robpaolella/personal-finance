@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "seed": "tsx src/db/seed.ts",
-    "migrate:income": "tsx src/db/migrate-income-categories.ts"
+    "seed:prod": "node dist/db/seed.js",
+    "migrate:income": "tsx src/db/migrate-income-categories.ts",
+    "migrate:income:prod": "node dist/db/migrate-income-categories.js"
   },
   "dependencies": {
     "@ledger/shared": "*",

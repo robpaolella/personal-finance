@@ -1,0 +1,12 @@
+services:
+  ledger:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/packages/server/data
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+      - DATABASE_PATH=/app/data/ledger.db
+    restart: unless-stopped

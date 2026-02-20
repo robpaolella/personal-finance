@@ -4,13 +4,14 @@ import * as schema from './schema.js';
 import path from 'path';
 import fs from 'fs';
 
-const dataDir = path.resolve(process.cwd(), 'data');
+const dbPath = process.env.DATABASE_PATH || path.join(path.resolve(process.cwd(), 'data'), 'ledger.db');
+const dataDir = path.dirname(dbPath);
+
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, 'ledger.db');
-const sqlite = new Database(dbPath);
+const sqlite: Database.Database = new Database(dbPath);
 
 // Enable WAL mode for better concurrent read performance
 sqlite.pragma('journal_mode = WAL');
