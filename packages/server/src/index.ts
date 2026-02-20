@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { db, sqlite } from './db/index.js';
 import { authenticate } from './middleware/auth.js';
@@ -18,8 +20,12 @@ import importRoutes from './routes/import.js';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProd = process.env.NODE_ENV === 'production';
 
 app.use(cors());
 app.use((req, res, next) => {
@@ -50,8 +56,17 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/networth', networthRoutes);
 app.use('/api/import', importRoutes);
 
+// Production: serve client static files and SPA fallback
+if (isProd) {
+  const clientDist = path.join(__dirname, '../../client/dist');
+  app.use(express.static(clientDist));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}${isProd ? ' (production)' : ''}`);
 });
 
 export { app, db };
