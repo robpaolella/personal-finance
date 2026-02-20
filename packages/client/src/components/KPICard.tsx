@@ -9,14 +9,14 @@ export default function KPICard({ label, value, subtitle, trend }: KPICardProps)
   const trendColor =
     trend === 'up' ? 'text-[#10b981]' :
     trend === 'down' ? 'text-[#ef4444]' :
-    'text-[#64748b]';
+    'text-[var(--text-secondary)]';
 
   return (
-    <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-      <p className="text-[11px] text-[#64748b] uppercase tracking-[0.05em] font-medium m-0">
+    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+      <p className="text-[11px] text-[var(--text-secondary)] uppercase tracking-[0.05em] font-medium m-0">
         {label}
       </p>
-      <p className="text-[22px] font-extrabold text-[#0f172a] font-mono tracking-[-0.02em] mt-1 m-0">
+      <p className="text-[22px] font-extrabold text-[var(--text-primary)] font-mono tracking-[-0.02em] mt-1 m-0">
         {value}
       </p>
       {subtitle && (

@@ -27,15 +27,15 @@ const UsersIcon = () => (
 
 export default function OwnerFilter({ value, onChange }: OwnerFilterProps) {
   return (
-    <div className="flex bg-[#f1f5f9] rounded-lg p-0.5">
+    <div className="flex bg-[var(--filter-container-bg)] rounded-lg p-0.5">
       {options.map((opt) => (
         <button
           key={opt.key}
           onClick={() => onChange(opt.key)}
           className={`flex items-center gap-[5px] px-3.5 py-1.5 text-xs rounded-md border-none cursor-pointer transition-all ${
             value === opt.key
-              ? 'bg-white text-[#0f172a] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
-              : 'bg-transparent text-[#64748b]'
+              ? 'bg-[var(--filter-active-pill)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
+              : 'bg-transparent text-[var(--text-secondary)]'
           }`}
         >
           {opt.icon === 'users' ? <UsersIcon /> : <UserIcon />}

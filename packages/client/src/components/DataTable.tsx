@@ -20,7 +20,7 @@ export default function DataTable<T>({ columns, data, onRowClick, rowKey }: Data
           {columns.map((col) => (
             <th
               key={col.key}
-              className={`text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] ${
+              className={`text-[11px] font-semibold text-[var(--text-table-header)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] ${
                 col.align === 'right' ? 'text-right' : 'text-left'
               }`}
             >
@@ -34,12 +34,12 @@ export default function DataTable<T>({ columns, data, onRowClick, rowKey }: Data
           <tr
             key={rowKey(row)}
             onClick={() => onRowClick?.(row)}
-            className={`border-b border-[#f1f5f9] ${onRowClick ? 'cursor-pointer' : ''} hover:bg-[#f8fafc]`}
+            className={`border-b border-[var(--table-row-border)] ${onRowClick ? 'cursor-pointer' : ''} hover:bg-[var(--bg-hover)]`}
           >
             {columns.map((col) => (
               <td
                 key={col.key}
-                className={`px-2.5 py-2 text-[13px] text-[#475569] ${
+                className={`px-2.5 py-2 text-[13px] text-[var(--text-body)] ${
                   col.align === 'right' ? 'text-right' : 'text-left'
                 }`}
               >

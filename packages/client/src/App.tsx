@@ -50,8 +50,8 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#f4f6f9] flex items-center justify-center">
-        <div className="text-[#64748b] text-sm">Loading...</div>
+      <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center">
+        <div className="text-[var(--text-secondary)] text-sm">Loading...</div>
       </div>
     );
   }
@@ -68,16 +68,16 @@ function AppShell() {
   const location = useLocation();
 
   return (
-    <div className="flex h-screen bg-[#f4f6f9] font-sans">
+    <div className="flex h-screen bg-[var(--bg-main)] font-sans">
       {/* Sidebar */}
-      <div className="w-[220px] bg-[#0f172a] flex flex-col shrink-0">
+      <div className="w-[220px] bg-[var(--bg-sidebar)] flex flex-col shrink-0">
         {/* Logo */}
-        <div className="p-5 pb-4 border-b border-[#1e293b]">
+        <div className="p-5 pb-4 border-b border-[var(--bg-sidebar-border)]">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-md bg-gradient-to-br from-[#3b82f6] to-[#10b981] flex items-center justify-center">
               <span className="text-white text-sm font-extrabold font-mono">$</span>
             </div>
-            <span className="text-[#f1f5f9] text-base font-bold tracking-[-0.02em]">Ledger</span>
+            <span className="text-[var(--sidebar-text)] text-base font-bold tracking-[-0.02em]">Ledger</span>
           </div>
         </div>
 
@@ -94,8 +94,8 @@ function AppShell() {
                 to={item.to}
                 className={`flex items-center gap-2.5 py-[9px] px-3 rounded-lg text-[13px] no-underline transition-colors ${
                   isActive
-                    ? 'bg-[rgba(59,130,246,0.15)] text-[#93c5fd] font-semibold'
-                    : 'text-[#94a3b8] font-normal hover:bg-white/5'
+                    ? 'bg-[var(--nav-active-bg)] text-[var(--nav-active-text)] font-semibold'
+                    : 'text-[var(--nav-inactive-text)] font-normal hover:bg-white/5'
                 }`}
               >
                 {item.icon}
@@ -106,12 +106,12 @@ function AppShell() {
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-[#1e293b]">
+        <div className="px-4 py-3 border-t border-[var(--bg-sidebar-border)]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-[#475569]">v1.0 · {user?.displayName}</span>
+            <span className="text-[11px] text-[var(--text-muted)]">v1.0 · {user?.displayName}</span>
             <button
               onClick={logout}
-              className="text-[11px] text-[#475569] hover:text-[#94a3b8] transition-colors bg-transparent border-none cursor-pointer"
+              className="text-[11px] text-[var(--text-muted)] hover:text-[var(--nav-inactive-text)] transition-colors bg-transparent border-none cursor-pointer"
             >
               Sign out
             </button>
