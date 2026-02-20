@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
@@ -89,10 +89,23 @@ function AccountForm({
     return users.length > 0 ? new Set([users[0].id]) : new Set();
   });
   const [error, setError] = useState<string | null>(null);
+  const [ownerDropdownOpen, setOwnerDropdownOpen] = useState(false);
+  const ownerDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (error) { const t = setTimeout(() => setError(null), 5000); return () => clearTimeout(t); }
   }, [error]);
+
+  useEffect(() => {
+    if (!ownerDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ownerDropdownRef.current && !ownerDropdownRef.current.contains(e.target as Node)) {
+        setOwnerDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [ownerDropdownOpen]);
 
   const toggleOwner = (id: number) => {
     setSelectedOwnerIds((prev) => {
@@ -153,14 +166,52 @@ function AccountForm({
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">
             Owner{selectedOwnerIds.size > 1 ? 's' : ''}
           </label>
-          <div className="flex gap-3">
-            {users.map((u) => (
-              <label key={u.id} className="flex items-center gap-1.5 cursor-pointer text-[13px] text-[var(--text-body)]">
-                <input type="checkbox" checked={selectedOwnerIds.has(u.id)} onChange={() => toggleOwner(u.id)}
-                  className="cursor-pointer" />
-                {u.displayName}
-              </label>
-            ))}
+          <div className="relative" ref={ownerDropdownRef}>
+            <button type="button" onClick={() => setOwnerDropdownOpen((v) => !v)}
+              className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-left flex items-center justify-between cursor-pointer">
+              <span className="flex items-center gap-1.5">
+                {selectedOwnerIds.size === 0 ? (
+                  <span className="text-[var(--text-muted)]">Select owners...</span>
+                ) : (
+                  users.filter((u) => selectedOwnerIds.has(u.id)).map((u) => (
+                    <span key={u.id} className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium ${
+                      u.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
+                    }`}>{u.displayName}</span>
+                  ))
+                )}
+              </span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className={`text-[var(--text-muted)] transition-transform duration-150 ${ownerDropdownOpen ? 'rotate-180' : ''}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {ownerDropdownOpen && (
+              <div className="absolute z-50 left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--bg-card-border)] rounded-lg overflow-hidden" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
+                {users.map((u, i) => {
+                  const checked = selectedOwnerIds.has(u.id);
+                  return (
+                    <button key={u.id} type="button" onClick={() => toggleOwner(u.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 text-[13px] text-left cursor-pointer border-none transition-colors duration-150 ${
+                        checked ? 'bg-[var(--owner-select-checked-bg)]' : 'bg-transparent hover:bg-[var(--bg-hover)]'
+                      } ${i < users.length - 1 ? 'border-b border-[var(--bg-card-border)]' : ''}`}
+                      style={i < users.length - 1 ? { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: 'var(--bg-card-border)' } : undefined}>
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium ${
+                        u.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
+                      }`}>{u.displayName}</span>
+                      <span className={`flex items-center justify-center rounded-full transition-all duration-150 ${
+                        checked ? 'bg-[#3b82f6] border-2 border-[#3b82f6]' : 'bg-transparent border-2 border-[var(--owner-select-circle-border)]'
+                      }`} style={{ width: 18, height: 18 }}>
+                        {checked && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

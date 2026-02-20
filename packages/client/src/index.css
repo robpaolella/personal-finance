@@ -26,6 +26,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --bg-input: #f8fafc;
   --bg-input-border: #e2e8f0;
   --bg-hover: #f8fafc;
+  --owner-select-checked-bg: #eff6ff;
+  --owner-select-circle-border: #cbd5e1;
   --bg-modal-backdrop: rgba(0,0,0,0.5);
   --bg-dropdown: #ffffff;
   --bg-secondary-btn: #f1f5f9;
@@ -94,6 +96,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --bg-input: #0f1629;
   --bg-input-border: #1e293b;
   --bg-hover: #1a2234;
+  --owner-select-checked-bg: #1e3a5f;
+  --owner-select-circle-border: #475569;
   --bg-modal-backdrop: rgba(0,0,0,0.7);
   --bg-dropdown: #141926;
   --bg-secondary-btn: #1a2234;
