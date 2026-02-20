@@ -14,13 +14,20 @@ export interface User {
   created_at: string;
 }
 
+export interface AccountOwner {
+  id: number;
+  displayName: string;
+}
+
 export interface Account {
   id: number;
   name: string;
   last_four: string | null;
   type: AccountType;
   classification: AccountClassification;
-  owner: string;
+  owner: string; // legacy — first owner display_name for backward compat
+  owners: AccountOwner[];
+  isShared: boolean;
   is_active: number;
   created_at: string;
 }
