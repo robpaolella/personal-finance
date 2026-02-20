@@ -6,6 +6,11 @@
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Date input calendar icon color */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: var(--date-icon-filter);
+}
+
 :root {
   /* Backgrounds */
   --bg-main: #f4f6f9;
@@ -65,6 +70,9 @@
 
   /* Progress bar */
   --progress-track: #f1f5f9;
+
+  /* Date input icon */
+  --date-icon-filter: invert(46%) sepia(9%) saturate(1044%) hue-rotate(176deg) brightness(92%) contrast(87%);
 
   /* Login */
   --login-bg: #f4f6f9;
@@ -129,6 +137,9 @@
 
   /* Progress bar */
   --progress-track: #1a2234;
+
+  /* Date input icon */
+  --date-icon-filter: invert(70%) sepia(9%) saturate(497%) hue-rotate(176deg) brightness(92%) contrast(89%);
 
   /* Login */
   --login-bg: #0b0f1a;
