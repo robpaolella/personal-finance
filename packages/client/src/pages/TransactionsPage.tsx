@@ -148,14 +148,13 @@ function TransactionForm({
   const accountsByOwner = useMemo(() => {
     const map = new Map<string, Account[]>();
     for (const a of accounts) {
-      const ownerNames = (a.owners && a.owners.length > 0)
-        ? a.owners.map((o) => o.displayName)
-        : [a.owner];
-      for (const name of ownerNames) {
+      if (a.isShared) {
+        if (!map.has('Shared')) map.set('Shared', []);
+        map.get('Shared')!.push(a);
+      } else {
+        const name = a.owners?.[0]?.displayName || a.owner;
         if (!map.has(name)) map.set(name, []);
-        if (!map.get(name)!.some((x) => x.id === a.id)) {
-          map.get(name)!.push(a);
-        }
+        map.get(name)!.push(a);
       }
     }
     return map;
