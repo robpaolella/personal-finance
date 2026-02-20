@@ -11,6 +11,9 @@ import transactionRoutes from './routes/transactions.js';
 import dashboardRoutes from './routes/dashboard.js';
 import budgetRoutes from './routes/budgets.js';
 import reportRoutes from './routes/reports.js';
+import balanceRoutes from './routes/balances.js';
+import assetRoutes from './routes/assets.js';
+import networthRoutes from './routes/networth.js';
 
 dotenv.config();
 
@@ -36,6 +39,9 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/balances', balanceRoutes);
+app.use('/api/assets', assetRoutes);
+app.use('/api/networth', networthRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
