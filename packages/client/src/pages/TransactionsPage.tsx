@@ -339,6 +339,18 @@ export default function TransactionsPage() {
   const [editing, setEditing] = useState<Transaction | null | 'new'>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Bulk edit mode
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkAction, setBulkAction] = useState<string | null>(null);
+  const [bulkDate, setBulkDate] = useState('');
+  const [bulkAccountId, setBulkAccountId] = useState<number | ''>('');
+  const [bulkCategoryId, setBulkCategoryId] = useState<number | ''>('');
+  const [bulkFind, setBulkFind] = useState('');
+  const [bulkReplace, setBulkReplace] = useState('');
+  const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
+  const [bulkNotification, setBulkNotification] = useState<string | null>(null);
+
   const loadTransactions = useCallback(async (resetOffset = true) => {
     const params = new URLSearchParams();
     params.set('startDate', startDate);
@@ -418,6 +430,67 @@ export default function TransactionsPage() {
     return lf ? `${a.name} (${lf})` : a.name;
   };
 
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === transactions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(transactions.map((t) => t.id)));
+    }
+  };
+
+  const exitBulkMode = () => {
+    setBulkMode(false);
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    setBulkConfirmDelete(false);
+    setBulkNotification(null);
+  };
+
+  const applyBulkAction = async (action: string) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    try {
+      if (action === 'date' && bulkDate) {
+        await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { date: bulkDate } }) });
+      } else if (action === 'account' && bulkAccountId) {
+        await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { accountId: bulkAccountId } }) });
+      } else if (action === 'category' && bulkCategoryId) {
+        await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { categoryId: bulkCategoryId } }) });
+      } else if (action === 'findReplace' && bulkFind) {
+        await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { description: { find: bulkFind, replace: bulkReplace } } }) });
+      } else if (action === 'delete') {
+        if (!bulkConfirmDelete) { setBulkConfirmDelete(true); setTimeout(() => setBulkConfirmDelete(false), 3000); return; }
+        await apiFetch('/transactions/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) });
+      } else { return; }
+      setBulkAction(null);
+      setBulkConfirmDelete(false);
+      setBulkNotification(`Updated ${ids.length} transactions`);
+      setTimeout(() => setBulkNotification(null), 3000);
+      setSelectedIds(new Set());
+      loadTransactions(true);
+    } catch (err) {
+      setBulkNotification('Bulk operation failed');
+      setTimeout(() => setBulkNotification(null), 5000);
+    }
+  };
+
+  // Group categories for bulk dropdown
+  const expenseCats = categories.filter((c) => c.type === 'expense');
+  const incomeCats = categories.filter((c) => c.type === 'income');
+  const catGroupsForBulk = new Map<string, Category[]>();
+  for (const c of [...expenseCats, ...incomeCats]) {
+    if (!catGroupsForBulk.has(c.group_name)) catGroupsForBulk.set(c.group_name, []);
+    catGroupsForBulk.get(c.group_name)!.push(c);
+  }
+
   return (
     <div>
       {/* Header */}
@@ -426,11 +499,24 @@ export default function TransactionsPage() {
           <h1 className="text-[22px] font-bold text-[#0f172a] m-0">Transactions</h1>
           <p className="text-[#64748b] text-[13px] mt-1">{total} transactions</p>
         </div>
-        <button onClick={() => setEditing('new')}
-          className="flex items-center gap-1.5 px-4 py-2 bg-[#0f172a] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Transaction
-        </button>
+        <div className="flex gap-2">
+          {bulkMode ? (
+            <button onClick={exitBulkMode}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#f1f5f9] text-[#334155] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+              Exit Bulk Edit
+            </button>
+          ) : (
+            <button onClick={() => setBulkMode(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#f1f5f9] text-[#334155] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+              Bulk Edit
+            </button>
+          )}
+          <button onClick={() => setEditing('new')}
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#0f172a] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Transaction
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -465,11 +551,83 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Bulk Actions Toolbar */}
+      {bulkMode && (
+        <div className="bg-white rounded-xl border border-[#e8ecf1] shadow-[0_1px_2px_rgba(0,0,0,0.04)] px-4 py-3 mb-3">
+          {bulkNotification && (
+            <div className="bg-[#f0fdf4] border border-[#bbf7d0] text-[#166534] rounded-lg px-3 py-2 text-[12px] mb-2 flex items-center justify-between">
+              <span>{bulkNotification}</span>
+              <button onClick={() => setBulkNotification(null)} className="ml-2 text-[#166534] bg-transparent border-none cursor-pointer font-bold">×</button>
+            </div>
+          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[13px] font-semibold text-[#0f172a]">{selectedIds.size} selected</span>
+            <div className="h-4 w-px bg-[#e2e8f0]" />
+            {/* Set Date */}
+            <div className="flex items-center gap-1">
+              <input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)}
+                className="px-2 py-1.5 border border-[#e2e8f0] rounded-lg text-[12px] outline-none bg-[#f8fafc] font-mono" />
+              <button onClick={() => applyBulkAction('date')} disabled={!bulkDate || selectedIds.size === 0}
+                className="px-2.5 py-1.5 bg-[#f1f5f9] text-[#334155] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set Date</button>
+            </div>
+            {/* Set Account */}
+            <div className="flex items-center gap-1">
+              <select value={bulkAccountId} onChange={(e) => setBulkAccountId(e.target.value ? parseInt(e.target.value) : '')}
+                className="px-2 py-1.5 border border-[#e2e8f0] rounded-lg text-[12px] bg-[#f8fafc] outline-none">
+                <option value="">Account...</option>
+                {accounts.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
+              </select>
+              <button onClick={() => applyBulkAction('account')} disabled={!bulkAccountId || selectedIds.size === 0}
+                className="px-2.5 py-1.5 bg-[#f1f5f9] text-[#334155] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set</button>
+            </div>
+            {/* Set Category */}
+            <div className="flex items-center gap-1">
+              <select value={bulkCategoryId} onChange={(e) => setBulkCategoryId(e.target.value ? parseInt(e.target.value) : '')}
+                className="px-2 py-1.5 border border-[#e2e8f0] rounded-lg text-[12px] bg-[#f8fafc] outline-none max-w-[180px]">
+                <option value="">Category...</option>
+                {Array.from(catGroupsForBulk.entries()).map(([group, subs]) => (
+                  <optgroup key={group} label={group}>
+                    {subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+              <button onClick={() => applyBulkAction('category')} disabled={!bulkCategoryId || selectedIds.size === 0}
+                className="px-2.5 py-1.5 bg-[#f1f5f9] text-[#334155] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set</button>
+            </div>
+            {/* Find & Replace */}
+            <div className="flex items-center gap-1">
+              <input value={bulkFind} onChange={(e) => setBulkFind(e.target.value)} placeholder="Find..."
+                className="px-2 py-1.5 border border-[#e2e8f0] rounded-lg text-[12px] outline-none bg-[#f8fafc] w-[100px]" />
+              <input value={bulkReplace} onChange={(e) => setBulkReplace(e.target.value)} placeholder="Replace..."
+                className="px-2 py-1.5 border border-[#e2e8f0] rounded-lg text-[12px] outline-none bg-[#f8fafc] w-[100px]" />
+              <button onClick={() => applyBulkAction('findReplace')} disabled={!bulkFind || selectedIds.size === 0}
+                className="px-2.5 py-1.5 bg-[#f1f5f9] text-[#334155] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Replace</button>
+            </div>
+            <div className="h-4 w-px bg-[#e2e8f0]" />
+            {/* Delete */}
+            <button onClick={() => applyBulkAction('delete')} disabled={selectedIds.size === 0}
+              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40 ${
+                bulkConfirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[#fef2f2] text-[#ef4444]'
+              }`}>
+              {bulkConfirmDelete ? 'Confirm Delete?' : 'Delete Selected'}
+            </button>
+            {bulkConfirmDelete && (
+              <button onClick={() => setBulkConfirmDelete(false)}
+                className="text-[11px] text-[#64748b] bg-transparent border-none cursor-pointer underline">Cancel</button>
+            )}
+          </div>
+        </div>
+      )}
       <div className="bg-white rounded-xl border border-[#e8ecf1] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
+              {bulkMode && (
+                <th className="w-8 px-2 py-2 border-b-2 border-[#e2e8f0]">
+                  <input type="checkbox" checked={selectedIds.size === transactions.length && transactions.length > 0}
+                    onChange={toggleSelectAll} className="cursor-pointer" />
+                </th>
+              )}
               <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Date</th>
               <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Description</th>
               <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Account</th>
@@ -483,8 +641,14 @@ export default function TransactionsPage() {
               const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
               return (
                 <tr key={t.id}
-                  onClick={() => { setEditing(t); setConfirmDelete(false); }}
+                  onClick={() => { if (!bulkMode) { setEditing(t); setConfirmDelete(false); } }}
                   className="border-b border-[#f1f5f9] cursor-pointer hover:bg-[#f8fafc]">
+                  {bulkMode && (
+                    <td className="w-8 px-2 py-2">
+                      <input type="checkbox" checked={selectedIds.has(t.id)}
+                        onChange={() => toggleSelect(t.id)} className="cursor-pointer" />
+                    </td>
+                  )}
                   <td className="px-2.5 py-2 font-mono text-[12px] text-[#475569]">{t.date}</td>
                   <td className="px-2.5 py-2 text-[#0f172a] font-medium">{t.description}</td>
                   <td className="px-2.5 py-2">
@@ -506,7 +670,7 @@ export default function TransactionsPage() {
             })}
             {transactions.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-[#94a3b8] text-[13px]">
+                <td colSpan={bulkMode ? 7 : 6} className="text-center py-8 text-[#94a3b8] text-[13px]">
                   No transactions found for this period
                 </td>
               </tr>
