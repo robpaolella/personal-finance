@@ -173,12 +173,17 @@ This is a living document. You MUST maintain this section throughout the life of
 ### Transaction Amount Sign Convention (2026-02-20)
 **Context:** Designing the transaction entry form and display logic
 **Problem:** Original design used an Expense/Income toggle to control sign, but refunds (negative expenses) and income reversals (positive income) don't fit cleanly into a simple positive/negative split. Displaying all negative amounts as green "+$X" was misleading for refunds.
-**Resolution:** The amount field accepts negative values directly. The toggle auto-syncs with category type and sets the default sign, but a manually entered minus sign takes priority. Display logic uses four cases based on amount sign × category type:
-1. Positive + expense = regular expense → black, no prefix ("$50.00")
-2. Negative + income = regular income → green, "+" prefix ("+$3,618.21")
-3. Negative + expense = refund/credit → green, "-" prefix ("-$50.00")
-4. Positive + income = income reversal → red, "-" prefix ("-$500.00")
-**Rule going forward:** Always check both the amount sign AND the category type when determining how to display a transaction. Use the shared `fmtTransaction()` helper from `lib/formatters.ts` for consistent display everywhere transactions are shown. Green = money coming to you. Red = money leaving against income. Black = normal expense.
+**Resolution:** Minus in the amount field = "reverse this category's normal direction." Storage: Positive = money out, Negative = money in. Always. Display: Check BOTH the sign AND the category type. Never assume negative = income. Use `fmtTransaction()` from `lib/formatters.ts` everywhere.
+
+Form Input → Storage → Display:
+| Toggle   | User Types | Stored As | Category Type | Display          |
+|----------|-----------|-----------|---------------|------------------|
+| Expense  | 50        | +50       | expense       | Black "$50.00"   |
+| Expense  | -50       | -50       | expense       | Green "-$50.00"  |
+| Income   | 5000      | -5000     | income        | Green "+$5,000"  |
+| Income   | -500      | +500      | income        | Red "-$500.00"   |
+
+**Rule going forward:** Always check both the amount sign AND the category type when determining how to display a transaction. Green = money coming to you (income or refund). Red = money leaving against an income category. Black = normal expense.
 
 ### Income Categories Must Follow Group/Sub Pattern (2026-02-20)
 **Context:** Income categories were originally seeded with group_name = sub_name, making each item its own parent group.
