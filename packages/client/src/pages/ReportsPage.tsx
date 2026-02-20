@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api';
 import { fmtShort, fmtWhole } from '../lib/formatters';
 import KPICard from '../components/KPICard';
 import OwnerFilter from '../components/OwnerFilter';
+import Spinner from '../components/Spinner';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -88,7 +89,7 @@ export default function ReportsPage() {
   const isYTD = year === currentYear;
 
   if (!data) {
-    return <div className="text-[var(--text-muted)] text-[13px] py-8">Loading report...</div>;
+    return <Spinner />;
   }
 
   const thCls = "text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-1.5 py-2 border-b-2 border-[var(--table-border)]";

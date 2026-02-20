@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtShort } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import Spinner from '../components/Spinner';
 
 interface Account {
   accountId: number;
@@ -162,7 +163,7 @@ export default function NetWorthPage() {
   };
 
   if (!data) {
-    return <div className="text-[var(--text-muted)] text-[13px] py-8">Loading net worth...</div>;
+    return <Spinner />;
   }
 
   const liquid = data.accounts.filter((a) => a.classification === 'liquid');

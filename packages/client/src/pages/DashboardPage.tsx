@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmtWhole, fmtTransaction } from '../lib/formatters';
 import KPICard from '../components/KPICard';
+import Spinner from '../components/Spinner';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
@@ -87,7 +88,7 @@ export default function DashboardPage() {
     a.lastFour ? `${a.name} (${a.lastFour})` : a.name;
 
   if (!summary) {
-    return <div className="text-[var(--text-muted)] text-[13px] py-8">Loading dashboard...</div>;
+    return <Spinner />;
   }
 
   const budgetPct = summary.totalBudgetedExpenses > 0

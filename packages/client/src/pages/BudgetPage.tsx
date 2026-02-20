@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api';
 import { fmt, fmtWhole } from '../lib/formatters';
 import KPICard from '../components/KPICard';
 import OwnerFilter from '../components/OwnerFilter';
+import Spinner from '../components/Spinner';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
@@ -110,7 +111,7 @@ export default function BudgetPage() {
   };
 
   if (!data) {
-    return <div className="text-[var(--text-muted)] text-[13px] py-8">Loading budget...</div>;
+    return <Spinner />;
   }
 
   const { income, expenseGroups, totals } = data;
