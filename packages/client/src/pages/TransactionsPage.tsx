@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiFetch } from '../lib/api';
-import { fmt } from '../lib/formatters';
+import { fmtTransaction } from '../lib/formatters';
 
 interface TransactionAccount {
   id: number;
@@ -298,25 +298,6 @@ function TransactionForm({
   );
 }
 
-/**
- * Display logic for transaction amounts:
- * - Positive amount (expense): black text, no prefix
- * - Negative amount + income category: green "+$X"
- * - Negative amount + expense category: green "-$X" (refund)
- */
-function formatTransactionAmount(amount: number, categoryType: string): { text: string; className: string } {
-  if (amount >= 0) {
-    return { text: fmt(amount), className: 'text-[#0f172a]' };
-  }
-  // Negative amount
-  const abs = Math.abs(amount);
-  if (categoryType === 'income') {
-    return { text: `+${fmt(abs)}`, className: 'text-[#10b981]' };
-  }
-  // Negative + expense = refund
-  return { text: `-${fmt(abs)}`, className: 'text-[#10b981]' };
-}
-
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
@@ -485,7 +466,7 @@ export default function TransactionsPage() {
           </thead>
           <tbody>
             {transactions.map((t) => {
-              const { text: amtText, className: amtClass } = formatTransactionAmount(t.amount, t.category.type);
+              const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
               return (
                 <tr key={t.id}
                   onClick={() => { setEditing(t); setConfirmDelete(false); }}
