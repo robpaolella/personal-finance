@@ -49,7 +49,7 @@ export function fmtTransaction(amount: number, categoryType: string): { text: st
 
   if (amount >= 0 && categoryType === 'expense') {
     // Case 1: regular expense — black, no prefix
-    return { text: formatted, className: 'text-[#0f172a]' };
+    return { text: formatted, className: 'text-[var(--text-primary)]' };
   }
   if (amount < 0 && categoryType === 'income') {
     // Case 2: regular income — green, "+"
