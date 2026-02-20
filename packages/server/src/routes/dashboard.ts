@@ -68,17 +68,19 @@ router.get('/summary', (req: Request, res: Response) => {
 
     // Month income/expenses
     const [monthTotals] = db.select({
-      income: sql<number>`coalesce(sum(case when ${transactions.amount} < 0 then abs(${transactions.amount}) else 0 end), 0)`,
-      expenses: sql<number>`coalesce(sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end), 0)`,
+      income: sql<number>`coalesce(sum(case when ${categories.type} = 'income' then abs(${transactions.amount}) else 0 end), 0)`,
+      expenses: sql<number>`coalesce(sum(case when ${categories.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
     }).from(transactions)
+      .innerJoin(categories, eq(transactions.category_id, categories.id))
       .where(and(gte(transactions.date, startDate), lte(transactions.date, endDate)))
       .all();
 
     // Prior month income/expenses
     const [priorTotals] = db.select({
-      income: sql<number>`coalesce(sum(case when ${transactions.amount} < 0 then abs(${transactions.amount}) else 0 end), 0)`,
-      expenses: sql<number>`coalesce(sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end), 0)`,
+      income: sql<number>`coalesce(sum(case when ${categories.type} = 'income' then abs(${transactions.amount}) else 0 end), 0)`,
+      expenses: sql<number>`coalesce(sum(case when ${categories.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
     }).from(transactions)
+      .innerJoin(categories, eq(transactions.category_id, categories.id))
       .where(and(gte(transactions.date, priorStart), lte(transactions.date, priorEnd)))
       .all();
 
@@ -114,7 +116,7 @@ router.get('/spending-by-category', (req: Request, res: Response) => {
 
     const spending = db.select({
       groupName: categories.group_name,
-      totalSpent: sql<number>`coalesce(sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end), 0)`,
+      totalSpent: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
     }).from(transactions)
       .innerJoin(categories, eq(transactions.category_id, categories.id))
       .where(and(
@@ -160,9 +162,10 @@ router.get('/income-vs-expenses', (req: Request, res: Response) => {
 
     const monthly = db.select({
       month: sql<number>`cast(substr(${transactions.date}, 6, 2) as integer)`,
-      totalIncome: sql<number>`coalesce(sum(case when ${transactions.amount} < 0 then abs(${transactions.amount}) else 0 end), 0)`,
-      totalExpenses: sql<number>`coalesce(sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end), 0)`,
+      totalIncome: sql<number>`coalesce(sum(case when ${categories.type} = 'income' then abs(${transactions.amount}) else 0 end), 0)`,
+      totalExpenses: sql<number>`coalesce(sum(case when ${categories.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
     }).from(transactions)
+      .innerJoin(categories, eq(transactions.category_id, categories.id))
       .where(sql`substr(${transactions.date}, 1, 4) = ${year}`)
       .groupBy(sql`cast(substr(${transactions.date}, 6, 2) as integer)`)
       .all();

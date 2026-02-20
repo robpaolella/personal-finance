@@ -65,8 +65,8 @@ router.get('/annual', (req: Request, res: Response) => {
         if (!expensesByGroup[row.group_name][row.sub_name]) {
           expensesByGroup[row.group_name][row.sub_name] = new Array(12).fill(0);
         }
-        // Expenses are positive amounts
-        expensesByGroup[row.group_name][row.sub_name][monthIdx] += row.total > 0 ? row.total : 0;
+        // Net expenses including refunds (negative amounts reduce the total)
+        expensesByGroup[row.group_name][row.sub_name][monthIdx] += row.total;
       }
     }
 

@@ -181,8 +181,8 @@ router.get('/summary', (req: Request, res: Response) => {
       }
       const budget = budgetMap.get(c.id);
       const actual = actualMap.get(c.id) ?? 0;
-      // Expense transactions are positive for money out
-      const actualExpense = actual > 0 ? actual : 0;
+      // Net expense amount (refunds reduce the total)
+      const actualExpense = actual;
       groupMap.get(c.group_name)!.subs.push({
         categoryId: c.id,
         subName: c.sub_name,
