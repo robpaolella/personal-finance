@@ -145,7 +145,7 @@ export default function ReportsPage() {
             <p className="text-[11px] text-[var(--text-muted)] mt-0.5 mb-3">Click rows to expand into categories → sub-categories</p>
           </div>
           <button onClick={isAnyExpanded ? collapseAll : expandAll}
-            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer hover:text-[#334155]">
+            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer hover:text-[var(--text-body)]">
             {isAnyExpanded ? 'Collapse All' : 'Expand All'}
           </button>
         </div>
@@ -162,7 +162,7 @@ export default function ReportsPage() {
             {/* TOTAL INCOME */}
             <tr
               className="cursor-pointer"
-              style={{ background: '#f0fdf4', borderBottom: '2px solid #bbf7d0' }}
+              style={{ borderBottom: '2px solid rgba(187, 247, 208, 0.25)' }}
               onClick={() => setExpandIncome(!expandIncome)}
             >
               <td className="px-2.5 py-2 font-bold text-[#15803d] text-[13px]">
@@ -187,14 +187,14 @@ export default function ReportsPage() {
                     {v > 0 ? fmtShort(v) : '—'}
                   </td>
                 ))}
-                <td className={`${tdCls} text-right text-[12px] font-semibold text-[#334155]`}>{fmtShort(sum(vals))}</td>
+                <td className={`${tdCls} text-right text-[12px] font-semibold text-[var(--text-body)]`}>{fmtShort(sum(vals))}</td>
               </tr>
             ))}
 
             {/* TOTAL EXPENSES */}
             <tr
               className="cursor-pointer"
-              style={{ background: '#fff7ed', borderBottom: '2px solid #fed7aa' }}
+              style={{ borderBottom: '2px solid rgba(254, 215, 170, 0.25)' }}
               onClick={() => setExpandExpenses(!expandExpenses)}
             >
               <td className="px-2.5 py-2 font-bold text-[#c2410c] text-[13px]">
@@ -219,10 +219,10 @@ export default function ReportsPage() {
                 <Fragment key={group}>
                   <tr
                     className="cursor-pointer"
-                    style={{ background: '#fafafa', borderBottom: '1px solid var(--table-row-border)' }}
+                    style={{ borderBottom: '1px solid var(--table-row-border)' }}
                     onClick={() => toggleGroup(group)}
                   >
-                    <td className="px-2.5 py-2 font-semibold text-[12px] text-[#334155]" style={{ paddingLeft: 28 }}>
+                    <td className="px-2.5 py-2 font-semibold text-[12px] text-[var(--text-body)]" style={{ paddingLeft: 28 }}>
                       <span className="flex items-center gap-[5px]">
                         <ChevronIcon open={!!isOpen} />
                         <span className="w-1.5 h-1.5 rounded-sm inline-block" style={{ background: color }} />
@@ -234,7 +234,7 @@ export default function ReportsPage() {
                         {v > 0 ? fmtShort(v) : '—'}
                       </td>
                     ))}
-                    <td className={`${tdCls} text-right text-[12px] font-semibold`}>{fmtShort(sum(gMonthly))}</td>
+                    <td className={`${tdCls} text-right text-[12px] font-semibold text-[var(--text-body)]`}>{fmtShort(sum(gMonthly))}</td>
                   </tr>
                   {isOpen && Object.entries(subs).map(([sub, vals]) => (
                     <tr key={sub} className="border-b border-[var(--bg-hover)]">
@@ -253,7 +253,7 @@ export default function ReportsPage() {
 
             {/* NET Row */}
             <tr style={{ background: 'var(--bg-hover)', borderTop: '2px solid var(--table-border)' }}>
-              <td className="px-2.5 py-2 font-bold text-[13px]" style={{ paddingLeft: 30 }}>NET</td>
+              <td className="px-2.5 py-2 font-bold text-[13px] text-[var(--text-primary)]" style={{ paddingLeft: 30 }}>NET</td>
               {data.monthlyNetTotals.map((v, i) => (
                 <td key={i} className={`${tdCls} text-right font-semibold ${
                   data.monthlyIncomeTotals[i] === 0 && data.monthlyExpenseTotals[i] === 0

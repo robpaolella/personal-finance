@@ -110,31 +110,31 @@ function AccountForm({
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Account Name</label>
           <input value={name} onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Last Four (optional)</label>
           <input value={lastFour} onChange={(e) => setLastFour(e.target.value)}
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none" maxLength={5} />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" maxLength={5} />
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Type</label>
           <select value={type} onChange={(e) => { setType(e.target.value); setClassification(classificationForType(e.target.value)); }}
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none capitalize">
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none capitalize text-[var(--text-body)]">
             {ACCOUNT_TYPES.map((t) => <option key={t} value={t} className="capitalize">{t}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Classification</label>
           <select value={classification} onChange={(e) => setClassification(e.target.value)}
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none capitalize">
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none capitalize text-[var(--text-body)]">
             {CLASSIFICATIONS.map((c) => <option key={c} value={c} className="capitalize">{c}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Owner</label>
           <select value={owner} onChange={(e) => setOwner(e.target.value)}
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none">
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]">
             {owners.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
@@ -232,7 +232,7 @@ function CategoryForm({
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Group Name</label>
           <input value={groupName} onChange={(e) => setGroupName(e.target.value)} list="group-list"
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           <datalist id="group-list">
             {existingGroups.map((g) => <option key={g} value={g} />)}
           </datalist>
@@ -240,7 +240,7 @@ function CategoryForm({
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Sub-Category Name</label>
           <input value={subName} onChange={(e) => setSubName(e.target.value)}
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
         </div>
         {catType === 'expense' && (
           <label className="flex items-center gap-2 text-[13px] text-[var(--text-body)]">

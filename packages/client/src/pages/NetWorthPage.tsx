@@ -259,10 +259,10 @@ export default function NetWorthPage() {
               ))}
               {/* Total Row */}
               <tr className="bg-[var(--bg-hover)]">
-                <td className="px-2.5 py-2 text-[13px] font-bold">Total</td>
-                <td className="px-2.5 py-2 text-right font-mono font-bold">{fmt(assetTotalCost)}</td>
+                <td className="px-2.5 py-2 text-[13px] font-bold text-[var(--text-primary)]">Total</td>
+                <td className="px-2.5 py-2 text-right font-mono font-bold text-[var(--text-primary)]">{fmt(assetTotalCost)}</td>
                 <td></td>
-                <td className="px-2.5 py-2 text-right font-mono font-bold">{fmt(assetTotalCurrent)}</td>
+                <td className="px-2.5 py-2 text-right font-mono font-bold text-[var(--text-primary)]">{fmt(assetTotalCurrent)}</td>
                 <td></td>
               </tr>
             </tbody>
@@ -288,7 +288,7 @@ export default function NetWorthPage() {
                       type={f.t}
                       value={assetForm[f.k]}
                       onChange={(e) => setAssetForm({ ...assetForm, [f.k]: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none focus:border-[#3b82f6]"
+                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none focus:border-[#3b82f6] text-[var(--text-body)]"
                     />
                   </div>
                 ))}
@@ -325,7 +325,7 @@ export default function NetWorthPage() {
                     step="0.01"
                     value={balanceInputs[a.accountId] ?? ''}
                     onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
-                    className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none focus:border-[#3b82f6]"
+                    className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none focus:border-[#3b82f6] text-[var(--text-body)] bg-[var(--bg-input)]"
                   />
                 </div>
               ))}

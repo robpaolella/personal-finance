@@ -205,7 +205,7 @@ export default function BudgetPage() {
                           min="0"
                           step="1"
                           autoFocus
-                          className="w-20 text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1.5 py-0.5 outline-none"
+                          className="w-20 text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1.5 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                           value={editingCell.value}
                           onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
                           onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
@@ -247,7 +247,7 @@ export default function BudgetPage() {
         {/* Expenses */}
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
           <h3 className="text-[14px] font-bold text-[#f97316] m-0">Expenses</h3>
-          <div className="max-h-[460px] overflow-y-auto mt-2">
+          <div className="max-h-[460px] overflow-y-auto overflow-x-hidden hide-scrollbar mt-2">
             {expenseGroups.map((g) => {
               const gBudgeted = g.subs.reduce((s, sub) => s + sub.budgeted, 0);
               const gActual = g.subs.reduce((s, sub) => s + sub.actual, 0);
@@ -287,7 +287,7 @@ export default function BudgetPage() {
                             min="0"
                             step="1"
                             autoFocus
-                            className="w-[60px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none"
+                            className="w-[60px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                             value={editingCell.value}
                             onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
                             onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}

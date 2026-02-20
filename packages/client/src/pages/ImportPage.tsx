@@ -358,7 +358,7 @@ export default function ImportPage() {
                   setSignConvention(acct?.type === 'credit' ? 'credit' : 'bank');
                 }
               }}
-              className="border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-3 py-2 text-[13px] outline-none w-[300px]"
+              className="border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-3 py-2 text-[13px] outline-none w-[300px] text-[var(--text-body)]"
             >
               <option value="">Select an account...</option>
               {accounts.map((a) => (
@@ -376,7 +376,7 @@ export default function ImportPage() {
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
           >
-            <div className={`border-2 border-dashed rounded-2xl py-12 px-6 ${dragOver ? 'border-[#3b82f6] bg-[var(--info-bg)]' : 'border-[#cbd5e1] bg-[#fafbfc]'}`}>
+            <div className={`border-2 border-dashed rounded-2xl py-12 px-6 ${dragOver ? 'border-[#3b82f6] bg-[var(--info-bg)]' : 'border-[var(--text-muted)] bg-transparent'}`}>
               <div className={`mb-3 ${dragOver ? 'text-[var(--badge-blue-text)]' : 'text-[var(--text-muted)]'}`}>
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mx-auto">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
@@ -431,7 +431,7 @@ export default function ImportPage() {
                   <select
                     value={mapping[field]}
                     onChange={(e) => setMapping({ ...mapping, [field]: parseInt(e.target.value) })}
-                    className="w-full border border-[var(--table-border)] rounded-md bg-[var(--bg-card)] px-2 py-1.5 text-[12px] outline-none"
+                    className="w-full border border-[var(--table-border)] rounded-md bg-[var(--bg-card)] px-2 py-1.5 text-[12px] outline-none text-[var(--text-body)]"
                   >
                     {parseResult.headers.map((h, i) => (
                       <option key={i} value={i}>{h}</option>
@@ -453,7 +453,7 @@ export default function ImportPage() {
                     <select
                       value={venmoMapping[field]}
                       onChange={(e) => setVenmoMapping({ ...venmoMapping, [field]: parseInt(e.target.value) })}
-                      className="w-full border border-[var(--table-border)] rounded-md bg-[var(--bg-card)] px-2 py-1.5 text-[12px] outline-none"
+                      className="w-full border border-[var(--table-border)] rounded-md bg-[var(--bg-card)] px-2 py-1.5 text-[12px] outline-none text-[var(--text-body)]"
                     >
                       <option value={-1}>— Not mapped —</option>
                       {parseResult.headers.map((h, i) => (
@@ -585,7 +585,7 @@ export default function ImportPage() {
                   </td>
                   <td className="px-2.5 py-1.5">
                     <select
-                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)]"
+                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
                       value={r.groupName || ''}
                       onChange={(e) => updateRowGroup(i, e.target.value)}
                     >
@@ -595,7 +595,7 @@ export default function ImportPage() {
                   </td>
                   <td className="px-2.5 py-1.5">
                     <select
-                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)]"
+                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
                       value={r.categoryId || ''}
                       onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
                     >
@@ -627,7 +627,7 @@ export default function ImportPage() {
             <select
               value={modalAccountId}
               onChange={(e) => setModalAccountId(e.target.value ? parseInt(e.target.value) : '')}
-              className="w-full border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-3 py-2 text-[13px] outline-none mb-4"
+              className="w-full border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-3 py-2 text-[13px] outline-none mb-4 text-[var(--text-body)]"
             >
               <option value="">Select an account...</option>
               {accounts.map((a) => (
