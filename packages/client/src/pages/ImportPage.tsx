@@ -9,6 +9,8 @@ interface Account {
   name: string;
   last_four: string | null;
   owner: string;
+  owners?: { id: number; displayName: string }[];
+  isShared?: boolean;
   type: string;
 }
 
@@ -179,8 +181,9 @@ export default function ImportPage() {
   const handleAutoCategorize = async () => {
     if (!parseResult) return;
 
-    const isVenmo = parseResult?.detectedFormat === 'venmo' || accounts.find(a => a.id === selectedAccountId)?.type === 'venmo';
-    const ownerName = accounts.find(a => a.id === selectedAccountId)?.owner || '';
+    const acct = accounts.find(a => a.id === selectedAccountId);
+    const isVenmo = parseResult?.detectedFormat === 'venmo' || acct?.type === 'venmo';
+    const ownerName = acct?.owners?.[0]?.displayName || acct?.owner || '';
 
     const items = allRows.map((row) => {
       let description = row[mapping.description] || '';
@@ -350,7 +353,7 @@ export default function ImportPage() {
               <option value="">Select an account...</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name}{a.last_four ? ` (${a.last_four})` : ''} — {a.owner}
+                  {a.name}{a.last_four ? ` (${a.last_four})` : ''} — {(a.owners || []).map(o => o.displayName).join(', ') || a.owner}
                 </option>
               ))}
             </select>
@@ -614,7 +617,7 @@ export default function ImportPage() {
               <option value="">Select an account...</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name}{a.last_four ? ` (${a.last_four})` : ''} — {a.owner}
+                  {a.name}{a.last_four ? ` (${a.last_four})` : ''} — {(a.owners || []).map(o => o.displayName).join(', ') || a.owner}
                 </option>
               ))}
             </select>
