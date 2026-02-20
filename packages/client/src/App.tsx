@@ -8,7 +8,26 @@ import ReportsPage from './pages/ReportsPage';
 import NetWorthPage from './pages/NetWorthPage';
 import ImportPage from './pages/ImportPage';
 import SettingsPage from './pages/SettingsPage';
-import type { ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
+
+function getInitialTheme(): 'light' | 'dark' {
+  const stored = localStorage.getItem('ledger-theme');
+  if (stored === 'dark' || stored === 'light') return stored;
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+  return 'light';
+}
+
+function useTheme() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('ledger-theme', theme);
+  }, [theme]);
+
+  const toggle = () => setTheme(t => t === 'light' ? 'dark' : 'light');
+  return { theme, toggle };
+}
 
 // --- Nav Icons ---
 const icons = {
@@ -66,6 +85,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 function AppShell() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   return (
     <div className="flex h-screen bg-[var(--bg-main)] font-sans">
@@ -107,6 +127,24 @@ function AppShell() {
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-[var(--bg-sidebar-border)]">
+          <div className="flex items-center justify-between mb-2">
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-1.5 text-[11px] text-[var(--nav-inactive-text)] hover:text-[var(--sidebar-text)] bg-transparent border-none cursor-pointer transition-colors"
+              title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            >
+              {theme === 'light' ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+              )}
+              {theme === 'light' ? 'Dark mode' : 'Light mode'}
+            </button>
+          </div>
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-[var(--text-muted)]">v1.0 · {user?.displayName}</span>
             <button
