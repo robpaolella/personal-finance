@@ -172,8 +172,8 @@ export default function ReportsPage() {
                 </span>
               </td>
               {data.monthlyIncomeTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[#15803d]' : 'text-[#d1d5db]'}`}>
-                  {v > 0 ? fmtShort(v) : '—'}
+                <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[#15803d]' : 'text-[#d1d5db]'}`}>
+                  {v !== 0 ? fmtShort(v) : '—'}
                 </td>
               ))}
               <td className={`${tdCls} text-right font-bold text-[#15803d]`}>{fmtShort(totalIncome)}</td>
@@ -184,8 +184,8 @@ export default function ReportsPage() {
               <tr key={cat} className="border-b border-[var(--table-row-border)]">
                 <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)]" style={{ paddingLeft: 36 }}>{cat}</td>
                 {vals.map((v, i) => (
-                  <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--table-border)]'}`}>
-                    {v > 0 ? fmtShort(v) : '—'}
+                  <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--table-border)]'}`}>
+                    {v !== 0 ? fmtShort(v) : '—'}
                   </td>
                 ))}
                 <td className={`${tdCls} text-right text-[12px] font-semibold text-[var(--text-body)]`}>{fmtShort(sum(vals))}</td>
@@ -204,8 +204,8 @@ export default function ReportsPage() {
                 </span>
               </td>
               {data.monthlyExpenseTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[#c2410c]' : 'text-[#d1d5db]'}`}>
-                  {v > 0 ? fmtShort(v) : '—'}
+                <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[#c2410c]' : v < 0 ? 'text-[#10b981]' : 'text-[#d1d5db]'}`}>
+                  {v !== 0 ? fmtShort(v) : '—'}
                 </td>
               ))}
               <td className={`${tdCls} text-right font-bold text-[#c2410c]`}>{fmtShort(totalExpenses)}</td>
@@ -231,8 +231,8 @@ export default function ReportsPage() {
                       </span>
                     </td>
                     {gMonthly.map((v, i) => (
-                      <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-body)]' : 'text-[var(--table-border)]'}`}>
-                        {v > 0 ? fmtShort(v) : '—'}
+                      <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-body)]' : v < 0 ? 'text-[#10b981]' : 'text-[var(--table-border)]'}`}>
+                        {v !== 0 ? fmtShort(v) : '—'}
                       </td>
                     ))}
                     <td className={`${tdCls} text-right text-[12px] font-semibold text-[var(--text-body)]`}>{fmtShort(sum(gMonthly))}</td>
@@ -241,8 +241,8 @@ export default function ReportsPage() {
                     <tr key={sub} className="border-b border-[var(--bg-hover)]">
                       <td className="px-2.5 py-2 text-[11px] text-[var(--text-muted)]" style={{ paddingLeft: 52 }}>{sub}</td>
                       {vals.map((v, i) => (
-                        <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-muted)]' : 'text-[var(--table-border)]'}`}>
-                          {v > 0 ? fmtShort(v) : '—'}
+                        <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-muted)]' : v < 0 ? 'text-[#10b981]' : 'text-[var(--table-border)]'}`}>
+                          {v !== 0 ? fmtShort(v) : '—'}
                         </td>
                       ))}
                       <td className={`${tdCls} text-right text-[11px] text-[var(--text-secondary)]`}>{fmtShort(sum(vals))}</td>
@@ -261,7 +261,7 @@ export default function ReportsPage() {
                     ? 'text-[#d1d5db]'
                     : v > 0 ? 'text-[#10b981]' : v < 0 ? 'text-[#ef4444]' : 'text-[#d1d5db]'
                 }`}>
-                  {data.monthlyIncomeTotals[i] > 0 || data.monthlyExpenseTotals[i] > 0 ? fmtShort(v) : '—'}
+                  {data.monthlyIncomeTotals[i] !== 0 || data.monthlyExpenseTotals[i] !== 0 ? fmtShort(v) : '—'}
                 </td>
               ))}
               <td className={`${tdCls} text-right font-bold ${totalNet >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
