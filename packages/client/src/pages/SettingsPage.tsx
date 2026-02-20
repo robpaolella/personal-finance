@@ -86,7 +86,7 @@ function AccountForm({
   const [classification, setClassification] = useState(account?.classification ?? 'liquid');
   const [selectedOwnerIds, setSelectedOwnerIds] = useState<Set<number>>(() => {
     if (account?.owners?.length) return new Set(account.owners.map((o) => o.id));
-    return users.length > 0 ? new Set([users[0].id]) : new Set();
+    return new Set();
   });
   const [error, setError] = useState<string | null>(null);
   const [ownerDropdownOpen, setOwnerDropdownOpen] = useState(false);
@@ -110,11 +110,8 @@ function AccountForm({
   const toggleOwner = (id: number) => {
     setSelectedOwnerIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        if (next.size > 1) next.delete(id); // Must keep at least one
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -225,7 +222,10 @@ function AccountForm({
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
           Cancel
         </button>
-        <button onClick={() => onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds) })}
+        <button onClick={() => {
+          if (selectedOwnerIds.size === 0) { setError('At least one owner is required'); return; }
+          onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds) });
+        }}
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer">
           Save
         </button>
