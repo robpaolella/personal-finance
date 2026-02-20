@@ -47,6 +47,12 @@ async function seed() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS account_owners (
+      account_id INTEGER NOT NULL REFERENCES accounts(id),
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      PRIMARY KEY (account_id, user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_name TEXT NOT NULL,

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, primaryKey } from 'drizzle-orm/sqlite-core';
 
 // === Users ===
 export const users = sqliteTable('users', {
@@ -16,10 +16,18 @@ export const accounts = sqliteTable('accounts', {
   last_four: text('last_four'),
   type: text('type').notNull(), // checking, savings, credit, investment, retirement, venmo, cash
   classification: text('classification').notNull(), // liquid, investment, liability
-  owner: text('owner').notNull(),
+  owner: text('owner').notNull(), // legacy — kept for backward compat; use account_owners instead
   is_active: integer('is_active').default(1),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
+
+// === Account Owners (junction table) ===
+export const accountOwners = sqliteTable('account_owners', {
+  account_id: integer('account_id').notNull().references(() => accounts.id),
+  user_id: integer('user_id').notNull().references(() => users.id),
+}, (table) => [
+  primaryKey({ columns: [table.account_id, table.user_id] }),
+]);
 
 // === Categories ===
 export const categories = sqliteTable('categories', {
