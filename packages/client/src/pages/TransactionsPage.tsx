@@ -324,18 +324,44 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [filterAccount, setFilterAccount] = useState('All');
   const [filterType, setFilterType] = useState('All');
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-  });
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-    return last.toISOString().slice(0, 10);
+  const [datePreset, setDatePreset] = useState('all');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(() => {
+    const stored = localStorage.getItem('ledger-page-size');
+    return stored ? parseInt(stored, 10) : 50;
   });
 
-  const [offset, setOffset] = useState(0);
-  const limit = 50;
+  const getDateRange = useCallback((): { startDate?: string; endDate?: string } => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const monthStart = (yr: number, mo: number) => `${yr}-${String(mo + 1).padStart(2, '0')}-01`;
+    const monthEnd = (yr: number, mo: number) => fmt(new Date(yr, mo + 1, 0));
+    const q = Math.floor(m / 3);
+    switch (datePreset) {
+      case 'all': return {};
+      case 'this-month': return { startDate: monthStart(y, m), endDate: monthEnd(y, m) };
+      case 'last-month': {
+        const d = new Date(y, m - 1, 1);
+        return { startDate: monthStart(d.getFullYear(), d.getMonth()), endDate: monthEnd(d.getFullYear(), d.getMonth()) };
+      }
+      case 'this-quarter': return { startDate: monthStart(y, q * 3), endDate: monthEnd(y, q * 3 + 2) };
+      case 'last-quarter': {
+        const pq = q === 0 ? 3 : q - 1;
+        const py = q === 0 ? y - 1 : y;
+        return { startDate: monthStart(py, pq * 3), endDate: monthEnd(py, pq * 3 + 2) };
+      }
+      case 'this-year': return { startDate: `${y}-01-01`, endDate: `${y}-12-31` };
+      case 'last-year': return { startDate: `${y - 1}-01-01`, endDate: `${y - 1}-12-31` };
+      case 'ytd': return { startDate: `${y}-01-01`, endDate: fmt(now) };
+      case 'custom': return { startDate: customStart || undefined, endDate: customEnd || undefined };
+      default: return {};
+    }
+  }, [datePreset, customStart, customEnd]);
 
   // Modal
   const [editing, setEditing] = useState<Transaction | null | 'new'>(null);
@@ -352,26 +378,21 @@ export default function TransactionsPage() {
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
   const [bulkNotification, setBulkNotification] = useState<string | null>(null);
 
-  const loadTransactions = useCallback(async (resetOffset = true) => {
+  const loadTransactions = useCallback(async () => {
     const params = new URLSearchParams();
-    params.set('startDate', startDate);
-    params.set('endDate', endDate);
-    params.set('limit', limit.toString());
-    const currentOffset = resetOffset ? 0 : offset;
-    params.set('offset', currentOffset.toString());
+    const { startDate, endDate } = getDateRange();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    params.set('limit', pageSize.toString());
+    params.set('offset', ((page - 1) * pageSize).toString());
     if (search) params.set('search', search);
     if (filterAccount !== 'All') params.set('accountId', filterAccount);
     if (filterType !== 'All') params.set('type', filterType.toLowerCase());
 
     const res = await apiFetch<{ data: Transaction[]; total: number }>(`/transactions?${params.toString()}`);
-    if (resetOffset) {
-      setTransactions(res.data);
-      setOffset(0);
-    } else {
-      setTransactions((prev) => [...prev, ...res.data]);
-    }
+    setTransactions(res.data);
     setTotal(res.total);
-  }, [startDate, endDate, search, filterAccount, filterType, offset]);
+  }, [getDateRange, search, filterAccount, filterType, page, pageSize]);
 
   const loadMeta = useCallback(async () => {
     const [acctRes, catRes] = await Promise.all([
@@ -383,7 +404,8 @@ export default function TransactionsPage() {
   }, []);
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
-  useEffect(() => { loadTransactions(true); }, [startDate, endDate, search, filterAccount, filterType]);
+  useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType]);
+  useEffect(() => { loadTransactions(); }, [loadTransactions]);
 
   const handleSave = async (data: Record<string, unknown>) => {
     try {
@@ -394,7 +416,7 @@ export default function TransactionsPage() {
       }
       setEditing(null);
       addToast('Transaction saved');
-      loadTransactions(true);
+      loadTransactions();
     } catch {
       addToast('Failed to save transaction', 'error');
     }
@@ -406,30 +428,13 @@ export default function TransactionsPage() {
         await apiFetch(`/transactions/${editing.id}`, { method: 'DELETE' });
         setEditing(null);
         addToast('Transaction deleted');
-        loadTransactions(true);
+        loadTransactions();
       } catch {
         addToast('Failed to delete transaction', 'error');
       }
     }
   };
 
-  const loadMore = () => {
-    const newOffset = offset + limit;
-    setOffset(newOffset);
-    const params = new URLSearchParams();
-    params.set('startDate', startDate);
-    params.set('endDate', endDate);
-    params.set('limit', limit.toString());
-    params.set('offset', newOffset.toString());
-    if (search) params.set('search', search);
-    if (filterAccount !== 'All') params.set('accountId', filterAccount);
-    if (filterType !== 'All') params.set('type', filterType.toLowerCase());
-
-    apiFetch<{ data: Transaction[]; total: number }>(`/transactions?${params.toString()}`).then((res) => {
-      setTransactions((prev) => [...prev, ...res.data]);
-      setTotal(res.total);
-    });
-  };
 
   const accountLabel = (a: { name: string; last_four?: string | null; lastFour?: string | null }) => {
     const lf = a.lastFour ?? a.last_four;
@@ -483,7 +488,7 @@ export default function TransactionsPage() {
       addToast(msg);
       setTimeout(() => setBulkNotification(null), 3000);
       setSelectedIds(new Set());
-      loadTransactions(true);
+      loadTransactions();
     } catch (err) {
       setBulkNotification('Bulk operation failed');
       addToast('Bulk operation failed', 'error');
@@ -500,17 +505,20 @@ export default function TransactionsPage() {
     catGroupsForBulk.get(c.group_name)!.push(c);
   }
 
-  const defaultStartDate = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; })();
-  const defaultEndDate = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10); })();
-  const hasActiveFilters = search !== '' || filterAccount !== 'All' || filterType !== 'All' || startDate !== defaultStartDate || endDate !== defaultEndDate;
+  const hasActiveFilters = search !== '' || filterAccount !== 'All' || filterType !== 'All' || datePreset !== 'all';
 
   const resetFilters = () => {
     setSearch('');
     setFilterAccount('All');
     setFilterType('All');
-    setStartDate(defaultStartDate);
-    setEndDate(defaultEndDate);
+    setDatePreset('all');
+    setCustomStart('');
+    setCustomEnd('');
   };
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const showFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const showTo = Math.min(page * pageSize, total);
 
   return (
     <div>
@@ -563,13 +571,27 @@ export default function TransactionsPage() {
           <option value="Income">Income</option>
           <option value="Expense">Expense</option>
         </select>
-        <div className="flex items-center gap-2">
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-            className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
-          <span className="text-[var(--text-muted)] text-[11px]">to</span>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-            className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
-        </div>
+        <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}
+          className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+          <option value="all">All Time</option>
+          <option value="this-month">This Month</option>
+          <option value="last-month">Last Month</option>
+          <option value="this-quarter">This Quarter</option>
+          <option value="last-quarter">Last Quarter</option>
+          <option value="this-year">This Year</option>
+          <option value="last-year">Last Year</option>
+          <option value="ytd">Year to Date</option>
+          <option value="custom">Custom Range...</option>
+        </select>
+        {datePreset === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+              className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
+            <span className="text-[var(--text-muted)] text-[11px]">to</span>
+            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+              className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
+          </div>
+        )}
         {hasActiveFilters && (
           <button onClick={resetFilters}
             className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer hover:text-[var(--bg-secondary-btn-text)] whitespace-nowrap flex items-center gap-1">
@@ -709,13 +731,31 @@ export default function TransactionsPage() {
 
       {/* Pagination */}
       <div className="flex justify-between items-center mt-3 text-[13px] text-[var(--text-secondary)]">
-        <span>Showing {transactions.length} of {total} transactions</span>
-        {transactions.length < total && (
-          <button onClick={loadMore}
-            className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
-            Load More
-          </button>
-        )}
+        <span className="font-mono text-[12px]">
+          {total > 0 ? `Showing ${showFrom}–${showTo} of ${total} transactions` : 'No transactions'}
+        </span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <select value={pageSize} onChange={(e) => { const v = parseInt(e.target.value, 10); setPageSize(v); localStorage.setItem('ledger-page-size', v.toString()); setPage(1); }}
+              className="px-2 py-1 border border-[var(--table-border)] rounded text-[12px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={250}>250</option>
+            </select>
+            <span className="text-[12px] text-[var(--text-muted)]">per page</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
+              className="px-2.5 py-1 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default">
+              ← Prev
+            </button>
+            <span className="font-mono text-[12px] text-[var(--text-muted)]">{page} / {totalPages}</span>
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+              className="px-2.5 py-1 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default">
+              Next →
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Modal */}
