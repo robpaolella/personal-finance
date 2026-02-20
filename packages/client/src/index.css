@@ -91,8 +91,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --bg-modal-backdrop: rgba(0,0,0,0.7);
   --bg-dropdown: #141926;
   --bg-secondary-btn: #1a2234;
-  --bg-primary-btn: #e2e8f0;
-  --bg-primary-btn-text: #0f172a;
+  --bg-primary-btn: rgba(226, 232, 240, 0.5);
+  --bg-primary-btn-text: #ffffff;
   --bg-secondary-btn-text: #94a3b8;
 
   /* Text */
