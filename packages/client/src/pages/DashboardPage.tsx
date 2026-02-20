@@ -1,8 +1,259 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { fmtWhole, fmtTransaction } from '../lib/formatters';
+import KPICard from '../components/KPICard';
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
+  'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
+  'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
+  'Utilities': '#f97316', 'Savings': '#06b6d4',
+};
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+interface Summary {
+  netWorth: number;
+  liquidAssets: number;
+  monthIncome: number;
+  monthExpenses: number;
+  totalBudgetedExpenses: number;
+  priorMonthIncome: number;
+  priorMonthExpenses: number;
+}
+
+interface SpendingGroup {
+  groupName: string;
+  totalSpent: number;
+  totalBudgeted: number;
+}
+
+interface MonthlyData {
+  month: number;
+  totalIncome: number;
+  totalExpenses: number;
+}
+
+interface Transaction {
+  id: number;
+  date: string;
+  description: string;
+  amount: number;
+  account: { id: number; name: string; lastFour: string | null; owner: string };
+  category: { id: number; groupName: string; subName: string; displayName: string; type: string };
+}
+
 export default function DashboardPage() {
+  const navigate = useNavigate();
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentYear = String(now.getFullYear());
+  const currentMonthIdx = now.getMonth();
+
+  const monthName = now.toLocaleString('en-US', { month: 'long' });
+
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [spending, setSpending] = useState<SpendingGroup[]>([]);
+  const [monthlyChart, setMonthlyChart] = useState<MonthlyData[]>([]);
+  const [recentTxns, setRecentTxns] = useState<Transaction[]>([]);
+
+  const loadData = useCallback(async () => {
+    const [sumRes, spendRes, chartRes, txnRes] = await Promise.all([
+      apiFetch<{ data: Summary }>(`/dashboard/summary?month=${currentMonth}`),
+      apiFetch<{ data: SpendingGroup[] }>(`/dashboard/spending-by-category?month=${currentMonth}`),
+      apiFetch<{ data: MonthlyData[] }>(`/dashboard/income-vs-expenses?year=${currentYear}`),
+      apiFetch<{ data: Transaction[] }>('/dashboard/recent-transactions?limit=8'),
+    ]);
+    setSummary(sumRes.data);
+    setSpending(spendRes.data);
+    setMonthlyChart(chartRes.data);
+    setRecentTxns(txnRes.data);
+  }, [currentMonth, currentYear]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Chart scaling
+  const maxChartVal = useMemo(() => {
+    let max = 1;
+    for (const m of monthlyChart) {
+      if (m.totalIncome > max) max = m.totalIncome;
+      if (m.totalExpenses > max) max = m.totalExpenses;
+    }
+    return max;
+  }, [monthlyChart]);
+
+  const accountLabel = (a: { name: string; lastFour: string | null }) =>
+    a.lastFour ? `${a.name} (${a.lastFour})` : a.name;
+
+  if (!summary) {
+    return <div className="text-[#94a3b8] text-[13px] py-8">Loading dashboard...</div>;
+  }
+
+  const budgetPct = summary.totalBudgetedExpenses > 0
+    ? Math.round((summary.monthExpenses / summary.totalBudgetedExpenses) * 100)
+    : 0;
+
   return (
     <div>
-      <h1 className="text-[22px] font-bold text-[#0f172a]">Dashboard</h1>
-      <p className="text-[#64748b] text-[13px] mt-1">Overview coming soon</p>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-7">
+        <div>
+          <h1 className="text-[22px] font-bold text-[#0f172a] m-0">Dashboard</h1>
+          <p className="text-[#64748b] text-[13px] mt-1">{monthName} {now.getFullYear()} Overview</p>
+        </div>
+        <div className="flex gap-2">
+          <button className="flex items-center gap-1.5 px-4 py-2 bg-[#f1f5f9] text-[#334155] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
+            AI Summary
+          </button>
+          <button onClick={() => navigate('/transactions')}
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#0f172a] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Transaction
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-4 gap-4 mb-7">
+        <KPICard label="Net Worth" value={fmtWhole(summary.netWorth)} />
+        <KPICard label="Liquid Assets" value={fmtWhole(summary.liquidAssets)} />
+        <KPICard
+          label={`${monthName.slice(0, 3)} Income`}
+          value={fmtWhole(summary.monthIncome)}
+          subtitle={summary.monthIncome >= summary.priorMonthIncome && summary.priorMonthIncome > 0 ? 'On track' : undefined}
+          trend={summary.monthIncome >= summary.priorMonthIncome ? 'up' : 'down'}
+        />
+        <KPICard
+          label={`${monthName.slice(0, 3)} Expenses`}
+          value={fmtWhole(summary.monthExpenses)}
+          subtitle={summary.totalBudgetedExpenses > 0 ? `${budgetPct}% of budget` : undefined}
+          trend="neutral"
+        />
+      </div>
+
+      {/* Two-Column: Spending + Chart */}
+      <div className="grid grid-cols-2 gap-5 mb-7">
+        {/* Spending by Category */}
+        <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <h3 className="text-[14px] font-bold text-[#0f172a] m-0">Spending by Category</h3>
+          <p className="text-[11px] text-[#94a3b8] mt-0.5 mb-3">Parent categories total all sub-categories</p>
+          <div className="flex flex-col gap-3.5">
+            {spending.map((s) => {
+              const color = CATEGORY_COLORS[s.groupName] || '#64748b';
+              const pct = s.totalBudgeted > 0 ? Math.min(100, (s.totalSpent / s.totalBudgeted) * 100) : 100;
+              const overBudget = s.totalBudgeted > 0 && s.totalSpent > s.totalBudgeted;
+              return (
+                <div key={s.groupName}>
+                  <div className="flex justify-between text-[12px] mb-1">
+                    <span className="font-semibold text-[#334155] flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />{s.groupName}
+                    </span>
+                    <span className="text-[#64748b] font-mono text-[11px]">
+                      {fmtWhole(s.totalSpent)}{s.totalBudgeted > 0 ? ` / ${fmtWhole(s.totalBudgeted)}` : ''}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-[#f1f5f9] rounded-sm overflow-hidden">
+                    <div className="h-full rounded-sm" style={{
+                      width: `${pct}%`,
+                      background: overBudget ? '#ef4444' : color,
+                    }} />
+                  </div>
+                </div>
+              );
+            })}
+            {spending.length === 0 && (
+              <p className="text-[12px] text-[#94a3b8] py-4 text-center">No spending this month</p>
+            )}
+          </div>
+        </div>
+
+        {/* Income vs Expenses Chart */}
+        <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <h3 className="text-[14px] font-bold text-[#0f172a] m-0">Income vs Expenses ({currentYear})</h3>
+          <div className="flex items-end gap-1.5 mt-4 h-[160px] pb-5">
+            {monthlyChart.map((m, i) => {
+              const isFuture = i > currentMonthIdx;
+              const incH = maxChartVal > 0 ? (m.totalIncome / maxChartVal) * 130 : 0;
+              const expH = maxChartVal > 0 ? (m.totalExpenses / maxChartVal) * 130 : 0;
+              return (
+                <div key={m.month} className="flex-1 flex flex-col items-center gap-0.5">
+                  <div className="flex gap-0.5 items-end h-[130px]">
+                    <div className="w-2 rounded-t-sm" style={{
+                      height: `${isFuture ? 40 : Math.max(incH, 2)}px`,
+                      background: isFuture ? '#e2e8f0' : (m.totalIncome > 0 ? '#3b82f6' : '#e2e8f0'),
+                    }} />
+                    <div className="w-2 rounded-t-sm" style={{
+                      height: `${isFuture ? 30 : Math.max(expH, 2)}px`,
+                      background: isFuture ? '#e2e8f0' : (m.totalExpenses > 0 ? '#f97316' : '#e2e8f0'),
+                    }} />
+                  </div>
+                  <span className={`text-[10px] font-mono font-medium ${isFuture ? 'text-[#cbd5e1]' : 'text-[#64748b]'}`}>
+                    {MONTH_LABELS[i]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex gap-4 justify-center mt-1">
+            {[{ c: '#3b82f6', l: 'Income' }, { c: '#f97316', l: 'Expenses' }].map((x) => (
+              <span key={x.l} className="flex items-center gap-1 text-[11px] text-[#64748b]">
+                <span className="w-2 h-2 rounded-sm inline-block" style={{ background: x.c }} />{x.l}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Transactions */}
+      <div className="bg-white rounded-xl border border-[#e8ecf1] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-[14px] font-bold text-[#0f172a] m-0">Recent Transactions</h3>
+          <button onClick={() => navigate('/transactions')}
+            className="text-[12px] text-[#3b82f6] font-medium bg-transparent border-none cursor-pointer px-2 py-1 rounded-md hover:bg-[#f1f5f9]">
+            View All →
+          </button>
+        </div>
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr>
+              <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Date</th>
+              <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Description</th>
+              <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Account</th>
+              <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Category</th>
+              <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Sub-Category</th>
+              <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentTxns.map((t) => {
+              const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
+              return (
+                <tr key={t.id} className="border-b border-[#f1f5f9]">
+                  <td className="px-2.5 py-2 font-mono text-[12px] text-[#475569]">{t.date}</td>
+                  <td className="px-2.5 py-2 text-[#0f172a] font-medium">{t.description}</td>
+                  <td className="px-2.5 py-2">
+                    <span className="text-[11px] font-mono bg-[#f1f5f9] text-[#475569] px-2 py-0.5 rounded-md">{accountLabel(t.account)}</span>
+                  </td>
+                  <td className="px-2.5 py-2">
+                    <span className="text-[11px] text-[#64748b]">{t.category.groupName}</span>
+                  </td>
+                  <td className="px-2.5 py-2">
+                    <span className="text-[11px] bg-[#eff6ff] text-[#3b82f6] px-2 py-0.5 rounded-md">{t.category.subName}</span>
+                  </td>
+                  <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>{amtText}</td>
+                </tr>
+              );
+            })}
+            {recentTxns.length === 0 && (
+              <tr>
+                <td colSpan={6} className="text-center py-8 text-[#94a3b8] text-[13px]">No transactions yet</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
