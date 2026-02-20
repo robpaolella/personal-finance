@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 
@@ -14,6 +14,7 @@ interface TransactionCategory {
   groupName: string;
   subName: string;
   displayName: string;
+  type: string;
 }
 
 interface Transaction {
@@ -51,6 +52,27 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
   );
 }
 
+// Field wrapper with validation error display
+function Field({
+  label,
+  required,
+  error,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  error?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-[11px] font-medium text-[#64748b] mb-1">{label}</label>
+      {children}
+      {error && <span className="text-[10px] text-[#ef4444] mt-0.5 block">Required</span>}
+    </div>
+  );
+}
+
 function TransactionForm({
   transaction,
   accounts,
@@ -70,22 +92,45 @@ function TransactionForm({
   const [accountId, setAccountId] = useState<number>(transaction?.account.id ?? (accounts[0]?.id ?? 0));
   const [description, setDescription] = useState(transaction?.description ?? '');
   const [note, setNote] = useState(transaction?.note ?? '');
-  const [selectedGroup, setSelectedGroup] = useState(transaction?.category.groupName ?? '');
   const [categoryId, setCategoryId] = useState<number>(transaction?.category.id ?? 0);
-  const [amount, setAmount] = useState(transaction ? Math.abs(transaction.amount).toString() : '');
+  const [amount, setAmount] = useState(transaction ? transaction.amount.toString() : '');
   const [txType, setTxType] = useState<'expense' | 'income'>(
-    transaction ? (transaction.amount < 0 ? 'income' : 'expense') : 'expense'
+    transaction?.category.type === 'income' ? 'income' : 'expense'
   );
+  const [showErrors, setShowErrors] = useState(false);
 
-  const groups = useMemo(() => {
-    const unique = [...new Set(categories.map((c) => c.group_name))];
-    return unique;
-  }, [categories]);
+  // Refs for focusing first invalid field
+  const dateRef = useRef<HTMLInputElement>(null);
+  const accountRef = useRef<HTMLSelectElement>(null);
+  const descRef = useRef<HTMLInputElement>(null);
+  const categoryRef = useRef<HTMLSelectElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
 
-  const filteredSubs = useMemo(() => {
-    if (!selectedGroup) return categories;
-    return categories.filter((c) => c.group_name === selectedGroup);
-  }, [categories, selectedGroup]);
+  // Filter categories by current toggle type
+  const filteredCategories = useMemo(() => {
+    return categories.filter((c) => c.type === txType);
+  }, [categories, txType]);
+
+  // Group filtered categories for the dropdown
+  const groupedCategories = useMemo(() => {
+    const groups: { group: string; cats: Category[] }[] = [];
+    const groupMap = new Map<string, Category[]>();
+    for (const c of filteredCategories) {
+      if (!groupMap.has(c.group_name)) {
+        const arr: Category[] = [];
+        groupMap.set(c.group_name, arr);
+        groups.push({ group: c.group_name, cats: arr });
+      }
+      // For income categories where group_name === sub_name, show once
+      const existing = groupMap.get(c.group_name)!;
+      if (c.type === 'income' && c.group_name === c.sub_name) {
+        if (!existing.some((e) => e.id === c.id)) existing.push(c);
+      } else {
+        existing.push(c);
+      }
+    }
+    return groups;
+  }, [filteredCategories]);
 
   // Grouped accounts by owner
   const accountsByOwner = useMemo(() => {
@@ -97,6 +142,76 @@ function TransactionForm({
     return map;
   }, [accounts]);
 
+  // When category changes, auto-sync type toggle
+  const handleCategoryChange = (id: number) => {
+    setCategoryId(id);
+    const cat = categories.find((c) => c.id === id);
+    if (cat) {
+      setTxType(cat.type === 'income' ? 'income' : 'expense');
+    }
+  };
+
+  // When toggle changes, clear category if it doesn't match
+  const handleTypeChange = (newType: 'expense' | 'income') => {
+    setTxType(newType);
+    const current = categories.find((c) => c.id === categoryId);
+    if (current && current.type !== newType) {
+      setCategoryId(0);
+    }
+  };
+
+  // Validation
+  const parsedAmount = parseFloat(amount);
+  const isValid = !!(
+    date &&
+    accountId > 0 &&
+    description.trim() &&
+    categoryId > 0 &&
+    amount !== '' &&
+    !isNaN(parsedAmount)
+  );
+
+  const getFirstInvalidRef = () => {
+    if (!date) return dateRef;
+    if (accountId <= 0) return accountRef;
+    if (!description.trim()) return descRef;
+    if (categoryId <= 0) return categoryRef;
+    if (amount === '' || isNaN(parsedAmount)) return amountRef;
+    return null;
+  };
+
+  const handleSaveClick = () => {
+    if (!isValid) {
+      setShowErrors(true);
+      const ref = getFirstInvalidRef();
+      ref?.current?.focus();
+      return;
+    }
+
+    // Sign logic: explicit negative takes priority, otherwise toggle determines sign
+    let finalAmount: number;
+    if (parsedAmount < 0) {
+      // User explicitly typed a negative number — store as-is
+      finalAmount = parsedAmount;
+    } else {
+      // Toggle determines sign
+      finalAmount = txType === 'income' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
+    }
+
+    onSave({ accountId, date, description, note: note || null, categoryId, amount: finalAmount });
+  };
+
+  const errDate = showErrors && !date;
+  const errAccount = showErrors && accountId <= 0;
+  const errDesc = showErrors && !description.trim();
+  const errCategory = showErrors && categoryId <= 0;
+  const errAmount = showErrors && (amount === '' || isNaN(parsedAmount));
+
+  const inputCls = (hasError: boolean) =>
+    `w-full px-3 py-2 border rounded-lg text-[13px] outline-none ${
+      hasError ? 'border-[#ef4444] bg-[#fef2f2]' : 'border-[#e2e8f0] bg-[#f8fafc]'
+    }`;
+
   return (
     <Modal onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[#0f172a] mb-4">
@@ -104,15 +219,13 @@ function TransactionForm({
       </h3>
       <div className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[11px] font-medium text-[#64748b] mb-1">Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none font-mono" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-[#64748b] mb-1">Account</label>
-            <select value={accountId} onChange={(e) => setAccountId(parseInt(e.target.value, 10))}
-              className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none">
+          <Field label="Date" required error={errDate}>
+            <input ref={dateRef} type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              className={`${inputCls(!!errDate)} font-mono`} />
+          </Field>
+          <Field label="Account" required error={errAccount}>
+            <select ref={accountRef} value={accountId} onChange={(e) => setAccountId(parseInt(e.target.value, 10))}
+              className={inputCls(!!errAccount)}>
               <option value={0} disabled>Select account</option>
               {[...accountsByOwner.entries()].map(([owner, accts]) => (
                 <optgroup key={owner} label={owner}>
@@ -124,50 +237,36 @@ function TransactionForm({
                 </optgroup>
               ))}
             </select>
-          </div>
+          </Field>
         </div>
-        <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Description</label>
-          <input value={description} onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none" />
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium text-[#64748b] mb-1">Note (optional)</label>
+        <Field label="Description" required error={errDesc}>
+          <input ref={descRef} value={description} onChange={(e) => setDescription(e.target.value)}
+            className={inputCls(!!errDesc)} />
+        </Field>
+        <Field label="Note (optional)">
           <input value={note} onChange={(e) => setNote(e.target.value)}
-            className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none" />
-        </div>
+            className={inputCls(false)} />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[11px] font-medium text-[#64748b] mb-1">Category Group</label>
-            <select value={selectedGroup} onChange={(e) => { setSelectedGroup(e.target.value); setCategoryId(0); }}
-              className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none">
-              <option value="">All Groups</option>
-              {groups.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-[#64748b] mb-1">Sub-Category</label>
-            <select value={categoryId} onChange={(e) => setCategoryId(parseInt(e.target.value, 10))}
-              className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none">
+          <Field label="Category" required error={errCategory}>
+            <select ref={categoryRef} value={categoryId} onChange={(e) => handleCategoryChange(parseInt(e.target.value, 10))}
+              className={inputCls(!!errCategory)}>
               <option value={0} disabled>Select category</option>
-              {filteredSubs.map((c) => (
-                <option key={c.id} value={c.id}>{c.display_name}</option>
+              {groupedCategories.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.cats.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.type === 'income' ? c.sub_name : c.sub_name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[11px] font-medium text-[#64748b] mb-1">Amount</label>
-            <input type="number" step="0.01" min="0" value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full px-3 py-2 border border-[#e2e8f0] rounded-lg text-[13px] bg-[#f8fafc] outline-none font-mono" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-[#64748b] mb-1">Type</label>
+          </Field>
+          <Field label="Type">
             <div className="flex gap-2">
               {(['expense', 'income'] as const).map((t) => (
-                <button key={t} onClick={() => setTxType(t)}
+                <button key={t} onClick={() => handleTypeChange(t)}
                   className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
                     txType === t ? 'bg-[#0f172a] text-white' : 'bg-[#f1f5f9] text-[#64748b]'
                   }`}>
@@ -175,8 +274,13 @@ function TransactionForm({
                 </button>
               ))}
             </div>
-          </div>
+          </Field>
         </div>
+        <Field label="Amount" required error={errAmount}>
+          <input ref={amountRef} type="number" step="0.01" value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={`${inputCls(!!errAmount)} font-mono`} />
+        </Field>
       </div>
       <div className="flex gap-2 mt-5 justify-end">
         {transaction && onDelete && (
@@ -189,17 +293,36 @@ function TransactionForm({
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#f1f5f9] text-[#64748b] border-none cursor-pointer">
           Cancel
         </button>
-        <button onClick={() => {
-          const parsedAmount = parseFloat(amount);
-          const finalAmount = txType === 'income' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
-          onSave({ accountId, date, description, note: note || null, categoryId, amount: finalAmount });
-        }}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#0f172a] text-white border-none cursor-pointer">
+        <button onClick={handleSaveClick}
+          className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none ${
+            isValid
+              ? 'bg-[#0f172a] text-white cursor-pointer'
+              : 'bg-[#94a3b8] text-white cursor-not-allowed'
+          }`}>
           Save
         </button>
       </div>
     </Modal>
   );
+}
+
+/**
+ * Display logic for transaction amounts:
+ * - Positive amount (expense): black text, no prefix
+ * - Negative amount + income category: green "+$X"
+ * - Negative amount + expense category: green "-$X" (refund)
+ */
+function formatTransactionAmount(amount: number, categoryType: string): { text: string; className: string } {
+  if (amount >= 0) {
+    return { text: fmt(amount), className: 'text-[#0f172a]' };
+  }
+  // Negative amount
+  const abs = Math.abs(amount);
+  if (categoryType === 'income') {
+    return { text: `+${fmt(abs)}`, className: 'text-[#10b981]' };
+  }
+  // Negative + expense = refund
+  return { text: `-${fmt(abs)}`, className: 'text-[#10b981]' };
 }
 
 export default function TransactionsPage() {
@@ -369,30 +492,31 @@ export default function TransactionsPage() {
             </tr>
           </thead>
           <tbody>
-            {transactions.map((t) => (
-              <tr key={t.id}
-                onClick={() => { setEditing(t); setConfirmDelete(false); }}
-                className="border-b border-[#f1f5f9] cursor-pointer hover:bg-[#f8fafc]">
-                <td className="px-2.5 py-2 font-mono text-[12px] text-[#475569]">{t.date}</td>
-                <td className="px-2.5 py-2 text-[#0f172a] font-medium">{t.description}</td>
-                <td className="px-2.5 py-2">
-                  <span className="text-[11px] font-mono bg-[#f1f5f9] text-[#475569] px-2 py-0.5 rounded-md">
-                    {accountLabel(t.account)}
-                  </span>
-                </td>
-                <td className="px-2.5 py-2">
-                  <span className="text-[11px] text-[#64748b]">{t.category.groupName}</span>
-                </td>
-                <td className="px-2.5 py-2">
-                  <span className="text-[11px] bg-[#eff6ff] text-[#3b82f6] px-2 py-0.5 rounded-md">{t.category.subName}</span>
-                </td>
-                <td className={`px-2.5 py-2 text-right font-mono font-semibold ${
-                  t.amount < 0 ? 'text-[#10b981]' : 'text-[#0f172a]'
-                }`}>
-                  {t.amount < 0 ? '+' : ''}{fmt(Math.abs(t.amount))}
-                </td>
-              </tr>
-            ))}
+            {transactions.map((t) => {
+              const { text: amtText, className: amtClass } = formatTransactionAmount(t.amount, t.category.type);
+              return (
+                <tr key={t.id}
+                  onClick={() => { setEditing(t); setConfirmDelete(false); }}
+                  className="border-b border-[#f1f5f9] cursor-pointer hover:bg-[#f8fafc]">
+                  <td className="px-2.5 py-2 font-mono text-[12px] text-[#475569]">{t.date}</td>
+                  <td className="px-2.5 py-2 text-[#0f172a] font-medium">{t.description}</td>
+                  <td className="px-2.5 py-2">
+                    <span className="text-[11px] font-mono bg-[#f1f5f9] text-[#475569] px-2 py-0.5 rounded-md">
+                      {accountLabel(t.account)}
+                    </span>
+                  </td>
+                  <td className="px-2.5 py-2">
+                    <span className="text-[11px] text-[#64748b]">{t.category.groupName}</span>
+                  </td>
+                  <td className="px-2.5 py-2">
+                    <span className="text-[11px] bg-[#eff6ff] text-[#3b82f6] px-2 py-0.5 rounded-md">{t.category.subName}</span>
+                  </td>
+                  <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>
+                    {amtText}
+                  </td>
+                </tr>
+              );
+            })}
             {transactions.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-center py-8 text-[#94a3b8] text-[13px]">

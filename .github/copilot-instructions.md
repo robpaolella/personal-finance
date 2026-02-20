@@ -170,4 +170,8 @@ This is a living document. You MUST maintain this section throughout the life of
 
 ### Learnings Log
 
-_(Entries will be added here as the project progresses)_
+### Transaction Amount Sign Convention (2026-02-20)
+**Context:** Designing the transaction entry form and display logic
+**Problem:** Original design used an Expense/Income toggle to control sign, but refunds (negative expenses) don't fit cleanly into either category. Displaying all negative amounts as green "+$X" was misleading for refunds.
+**Resolution:** The amount field accepts negative values directly. The toggle auto-syncs with category type and sets the default sign, but a manually entered minus sign takes priority. Display logic differentiates between income (negative + income category) and refunds (negative + expense category).
+**Rule going forward:** Always check both the amount sign AND the category type when determining how to display a transaction. Never assume negative = income. A negative amount in an expense category is a refund/credit.

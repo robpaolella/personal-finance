@@ -61,6 +61,7 @@ router.get('/', (req: Request, res: Response) => {
         category_group_name: categories.group_name,
         category_sub_name: categories.sub_name,
         category_display_name: categories.display_name,
+        category_type: categories.type,
       })
       .from(transactions)
       .innerJoin(accounts, eq(transactions.account_id, accounts.id))
@@ -98,6 +99,7 @@ router.get('/', (req: Request, res: Response) => {
         groupName: r.category_group_name,
         subName: r.category_sub_name,
         displayName: r.category_display_name,
+        type: r.category_type,
       },
     }));
 
@@ -158,6 +160,7 @@ router.get('/:id', (req: Request, res: Response) => {
         category_group_name: categories.group_name,
         category_sub_name: categories.sub_name,
         category_display_name: categories.display_name,
+        category_type: categories.type,
       })
       .from(transactions)
       .innerJoin(accounts, eq(transactions.account_id, accounts.id))
@@ -179,7 +182,7 @@ router.get('/:id', (req: Request, res: Response) => {
         amount: r.amount,
         created_at: r.created_at,
         account: { id: r.account_id, name: r.account_name, lastFour: r.account_last_four, owner: r.account_owner },
-        category: { id: r.category_id, groupName: r.category_group_name, subName: r.category_sub_name, displayName: r.category_display_name },
+        category: { id: r.category_id, groupName: r.category_group_name, subName: r.category_sub_name, displayName: r.category_display_name, type: r.category_type },
       },
     });
   } catch (err) {
