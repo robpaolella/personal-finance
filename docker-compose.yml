@@ -8,5 +8,5 @@ services:
     environment:
       - NODE_ENV=production
       - JWT_SECRET=${JWT_SECRET}
-      - DATABASE_PATH=/app/data/ledger.db
+      - DATABASE_PATH=/app/packages/server/data/ledger.db
     restart: unless-stopped

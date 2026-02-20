@@ -55,7 +55,7 @@ COPY --from=builder /app/packages/server/dist ./packages/server/dist
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 # Create the data directory where SQLite will live
-RUN mkdir -p /app/data
+RUN mkdir -p /app/packages/server/data
 
 # Tell Docker this container listens on port 3001
 # (This is documentation — it doesn't actually open the port)

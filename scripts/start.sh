@@ -7,21 +7,22 @@ if [ ! -f .env ]; then
   echo "Generated .env with JWT_SECRET"
 fi
 
-# Build and start the container
-docker compose up -d --build
+# Build the image
+docker compose build
 
-# Wait for the container to be healthy
-echo "Waiting for container to start..."
-sleep 3
-
-# Seed the database if it doesn't exist yet
-if [ ! -f ./data/ledger.db ]; then
-  echo "Seeding database..."
-  docker compose exec ledger npm run seed:prod
-  echo "Restarting server after seed..."
-  docker compose restart ledger
-  sleep 3
+# Seed the database if it has no tables (first run)
+NEEDS_SEED=false
+if [ ! -f ./data/ledger.db ] || [ ! -s ./data/ledger.db ]; then
+  NEEDS_SEED=true
 fi
+
+if [ "$NEEDS_SEED" = true ]; then
+  echo "Seeding database..."
+  docker compose run --rm ledger npm run seed:prod
+fi
+
+# Start the container
+docker compose up -d
 
 echo ""
 echo "Ledger is running at http://localhost:3001"
