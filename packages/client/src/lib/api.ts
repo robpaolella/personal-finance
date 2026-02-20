@@ -8,9 +8,13 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
   const { skipAuth, ...fetchOptions } = options;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string>),
   };
+
+  // Let browser set Content-Type for FormData (multipart/form-data with boundary)
+  if (!(fetchOptions.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (!skipAuth) {
     const token = localStorage.getItem('token');
