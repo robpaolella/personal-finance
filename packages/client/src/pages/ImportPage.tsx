@@ -58,6 +58,7 @@ export default function ImportPage() {
   const [importing, setImporting] = useState(false);
   const [editingCatIdx, setEditingCatIdx] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+  const [selectedImportRows, setSelectedImportRows] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (notification) { const t = setTimeout(() => setNotification(null), 5000); return () => clearTimeout(t); }
@@ -176,12 +177,13 @@ export default function ImportPage() {
     });
 
     setCategorizedRows(merged);
+    setSelectedImportRows(new Set(merged.map((_, i) => i)));
     setStep(2);
   };
 
   const handleImport = async () => {
     if (!selectedAccountId) return;
-    const validRows = categorizedRows.filter((r) => r.categoryId != null);
+    const validRows = categorizedRows.filter((r, i) => selectedImportRows.has(i) && r.categoryId != null);
     if (validRows.length === 0) { setNotification({ type: 'error', message: 'No transactions with assigned categories to import.' }); return; }
 
     setImporting(true);
@@ -229,7 +231,7 @@ export default function ImportPage() {
     catGroups.get(c.group_name)!.push(c);
   }
 
-  const validImportCount = categorizedRows.filter((r) => r.categoryId != null).length;
+  const validImportCount = categorizedRows.filter((r, i) => selectedImportRows.has(i) && r.categoryId != null).length;
 
   return (
     <div>
@@ -397,13 +399,22 @@ export default function ImportPage() {
               disabled={importing || validImportCount === 0}
               className="px-4 py-2 bg-[#10b981] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {importing ? 'Importing...' : `Import ${validImportCount} Transactions`}
+              {importing ? 'Importing...' : `Import ${validImportCount} of ${categorizedRows.length} Transactions`}
             </button>
           </div>
 
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
+                <th className="w-8 px-2 py-2 border-b-2 border-[#e2e8f0]">
+                  <input type="checkbox"
+                    checked={selectedImportRows.size === categorizedRows.length && categorizedRows.length > 0}
+                    onChange={() => {
+                      if (selectedImportRows.size === categorizedRows.length) setSelectedImportRows(new Set());
+                      else setSelectedImportRows(new Set(categorizedRows.map((_, i) => i)));
+                    }}
+                    className="cursor-pointer" />
+                </th>
                 <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Date</th>
                 <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-left">Description</th>
                 <th className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[#e2e8f0] text-right">Amount</th>
@@ -414,7 +425,18 @@ export default function ImportPage() {
             </thead>
             <tbody>
               {categorizedRows.map((r, i) => (
-                <tr key={i} className={`border-b border-[#f1f5f9] ${r.confidence < 0.5 ? 'bg-[#fffbeb]' : ''}`}>
+                <tr key={i} className={`border-b border-[#f1f5f9] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${r.confidence < 0.5 && selectedImportRows.has(i) ? 'bg-[#fffbeb]' : ''}`}>
+                  <td className="px-2 py-2 text-center">
+                    <input type="checkbox" checked={selectedImportRows.has(i)}
+                      onChange={() => {
+                        setSelectedImportRows(prev => {
+                          const next = new Set(prev);
+                          if (next.has(i)) next.delete(i); else next.add(i);
+                          return next;
+                        });
+                      }}
+                      className="cursor-pointer" />
+                  </td>
                   <td className="px-2.5 py-2 font-mono text-[12px] text-[#475569]">{r.date}</td>
                   <td className="px-2.5 py-2 font-medium text-[#0f172a]">{r.description}</td>
                   <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[#0f172a]'}`}>
