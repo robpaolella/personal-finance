@@ -40,6 +40,13 @@ export default function ReportsPage() {
   const [expandIncome, setExpandIncome] = useState(false);
   const [expandExpenses, setExpandExpenses] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [users, setUsers] = useState<{ id: number; displayName: string }[]>([]);
+
+  useEffect(() => {
+    apiFetch<{ data: { id: number; display_name: string }[] }>('/users').then((res) =>
+      setUsers(res.data.map((u) => ({ id: u.id, displayName: u.display_name })))
+    );
+  }, []);
 
   const toggleGroup = (g: string) => setExpandedGroups((p) => ({ ...p, [g]: !p[g] }));
 
@@ -104,7 +111,7 @@ export default function ReportsPage() {
           <p className="text-[var(--text-secondary)] text-[13px] mt-1">{year} {isYTD ? 'Year-to-Date' : 'Full Year'}</p>
         </div>
         <div className="flex gap-3 items-center">
-          <OwnerFilter value={owner} onChange={setOwner} />
+          <OwnerFilter value={owner} onChange={setOwner} users={users} />
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
@@ -121,7 +128,7 @@ export default function ReportsPage() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
           </svg>
-          <span className="text-[13px] text-[#1e40af]">Showing data from <strong>{owner}'s</strong> accounts only</span>
+          <span className="text-[13px] text-[#1e40af]">Showing data from <strong>{owner}'s</strong> accounts (including shared accounts)</span>
         </div>
       )}
 

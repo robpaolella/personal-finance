@@ -1,13 +1,8 @@
 interface OwnerFilterProps {
   value: string;
   onChange: (owner: string) => void;
+  users: { id: number; displayName: string }[];
 }
-
-const options = [
-  { key: 'All', label: 'All', icon: 'users' as const },
-  { key: 'Robert', label: 'Robert', icon: 'user' as const },
-  { key: 'Kathleen', label: 'Kathleen', icon: 'user' as const },
-];
 
 const UserIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -25,21 +20,32 @@ const UsersIcon = () => (
   </svg>
 );
 
-export default function OwnerFilter({ value, onChange }: OwnerFilterProps) {
+export default function OwnerFilter({ value, onChange, users }: OwnerFilterProps) {
   return (
     <div className="flex bg-[var(--filter-container-bg)] rounded-lg p-0.5">
-      {options.map((opt) => (
+      <button
+        onClick={() => onChange('All')}
+        className={`flex items-center gap-[5px] px-3.5 py-1.5 text-xs rounded-md border-none cursor-pointer transition-all ${
+          value === 'All'
+            ? 'bg-[var(--filter-active-pill)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
+            : 'bg-transparent text-[var(--text-secondary)]'
+        }`}
+      >
+        <UsersIcon />
+        All
+      </button>
+      {users.map((u) => (
         <button
-          key={opt.key}
-          onClick={() => onChange(opt.key)}
+          key={u.id}
+          onClick={() => onChange(u.displayName)}
           className={`flex items-center gap-[5px] px-3.5 py-1.5 text-xs rounded-md border-none cursor-pointer transition-all ${
-            value === opt.key
+            value === u.displayName
               ? 'bg-[var(--filter-active-pill)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
               : 'bg-transparent text-[var(--text-secondary)]'
           }`}
         >
-          {opt.icon === 'users' ? <UsersIcon /> : <UserIcon />}
-          {opt.label}
+          <UserIcon />
+          {u.displayName}
         </button>
       ))}
     </div>

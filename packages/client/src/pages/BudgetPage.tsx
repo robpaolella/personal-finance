@@ -71,6 +71,13 @@ export default function BudgetPage() {
   const [owner, setOwner] = useState('All');
   const [data, setData] = useState<BudgetSummary | null>(null);
   const [editingCell, setEditingCell] = useState<{ categoryId: number; value: string } | null>(null);
+  const [users, setUsers] = useState<{ id: number; displayName: string }[]>([]);
+
+  useEffect(() => {
+    apiFetch<{ data: { id: number; display_name: string }[] }>('/users').then((res) =>
+      setUsers(res.data.map((u) => ({ id: u.id, displayName: u.display_name })))
+    );
+  }, []);
 
   const loadData = useCallback(async () => {
     const res = await apiFetch<{ data: BudgetSummary }>(
@@ -127,7 +134,7 @@ export default function BudgetPage() {
           <p className="text-[var(--text-secondary)] text-[13px] mt-1">{monthLabel(month)}</p>
         </div>
         <div className="flex gap-3 items-center">
-          <OwnerFilter value={owner} onChange={setOwner} />
+          <OwnerFilter value={owner} onChange={setOwner} users={users} />
           <div className="flex gap-2 items-center">
             <button
               onClick={() => setMonth(prevMonth(month))}
@@ -154,7 +161,7 @@ export default function BudgetPage() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
           </svg>
-          <span className="text-[13px] text-[#1e40af]">Showing data from <strong>{owner}'s</strong> accounts only</span>
+          <span className="text-[13px] text-[#1e40af]">Showing data from <strong>{owner}'s</strong> accounts (including shared accounts)</span>
         </div>
       )}
 
