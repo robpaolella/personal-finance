@@ -71,6 +71,9 @@ export default function ImportPage() {
   const [notification, setNotification] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [selectedImportRows, setSelectedImportRows] = useState<Set<number>>(new Set());
   const [signConvention, setSignConvention] = useState<'bank' | 'credit'>('bank');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [modalAccountId, setModalAccountId] = useState<number | ''>('');
 
   useEffect(() => {
     if (notification) { const t = setTimeout(() => setNotification(null), 5000); return () => clearTimeout(t); }
@@ -83,9 +86,31 @@ export default function ImportPage() {
 
   const handleFile = async (f: File) => {
     if (!selectedAccountId) {
-      setNotification({ type: 'error', message: 'Please select an account first.' });
+      setPendingFile(f);
+      setModalAccountId('');
+      setShowAccountModal(true);
       return;
     }
+    await processFile(f);
+  };
+
+  const handleAccountModalContinue = async () => {
+    if (!modalAccountId || !pendingFile) return;
+    setSelectedAccountId(modalAccountId);
+    const acct = accounts.find(a => a.id === modalAccountId);
+    setSignConvention(acct?.type === 'credit' ? 'credit' : 'bank');
+    setShowAccountModal(false);
+    await processFile(pendingFile);
+    setPendingFile(null);
+  };
+
+  const handleAccountModalCancel = () => {
+    setShowAccountModal(false);
+    setPendingFile(null);
+    setModalAccountId('');
+  };
+
+  const processFile = async (f: File) => {
     setFile(f);
     const formData = new FormData();
     formData.append('file', f);
@@ -574,6 +599,40 @@ export default function ImportPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Account selection modal */}
+      {showAccountModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl border border-[#e8ecf1] p-6 shadow-lg w-[420px]">
+            <h2 className="text-[16px] font-bold text-[#0f172a] m-0 mb-1">Select Account</h2>
+            <p className="text-[13px] text-[#64748b] m-0 mb-4">Which account is this import for?</p>
+            <select
+              value={modalAccountId}
+              onChange={(e) => setModalAccountId(e.target.value ? parseInt(e.target.value) : '')}
+              className="w-full border border-[#e2e8f0] rounded-lg bg-[#f8fafc] px-3 py-2 text-[13px] outline-none mb-4"
+            >
+              <option value="">Select an account...</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}{a.last_four ? ` (${a.last_four})` : ''} — {a.owner}
+                </option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button onClick={handleAccountModalCancel} className="px-4 py-2 text-[13px] font-medium text-[#475569] bg-[#f1f5f9] rounded-lg border-none cursor-pointer">
+                Cancel
+              </button>
+              <button
+                onClick={handleAccountModalContinue}
+                disabled={!modalAccountId}
+                className="px-4 py-2 text-[13px] font-semibold text-white bg-[#0f172a] rounded-lg border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
