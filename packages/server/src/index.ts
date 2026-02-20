@@ -22,7 +22,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use((req, res, next) => {
+  // Skip JSON body parsing for multipart file uploads
+  if (req.path.startsWith('/api/import/parse')) return next();
+  express.json()(req, res, next);
+});
 
 // Auth middleware — applied to all /api/* routes
 app.use('/api', authenticate);
