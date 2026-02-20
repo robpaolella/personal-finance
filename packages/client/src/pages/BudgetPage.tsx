@@ -267,7 +267,7 @@ export default function BudgetPage() {
                   {/* Sub-category rows */}
                   {g.subs.map((sub) => {
                     const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : (sub.actual > 0 ? 100 : 0);
-                    const diff = sub.budgeted - sub.actual;
+                    const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
                     const isEditing = editingCell?.categoryId === sub.categoryId;
                     return (
                       <div key={sub.categoryId} className="flex items-center py-1 pl-3.5 gap-2">
@@ -296,9 +296,9 @@ export default function BudgetPage() {
                         ) : (
                           <span
                             onClick={() => setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                            className={`w-[60px] text-right text-[11px] font-mono cursor-pointer hover:bg-[#f1f5f9] rounded px-1 py-0.5 -mx-1 ${diff < 0 ? 'text-[#ef4444]' : 'text-[#94a3b8]'}`}
+                            className={`w-[60px] text-right text-[11px] font-mono cursor-pointer hover:bg-[#f1f5f9] rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[#94a3b8]'}`}
                           >
-                            {sub.budgeted > 0 ? fmt(diff) : ''}
+                            {sub.budgeted > 0 ? fmt(sub.budgeted) : ''}
                           </span>
                         )}
                       </div>
