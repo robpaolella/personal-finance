@@ -49,31 +49,30 @@ export function parseVenmoCSV(headers: string[], rows: string[][], ownerName: st
     let description = '';
     let finalAmount = amount;
 
+    // Build description: combine sender/recipient with note
+    const fmtDesc = (name: string, prefix?: string): string => {
+      const p = prefix ? `${prefix} ${name}` : name;
+      return note ? `${p}: "${note}"` : p;
+    };
+
     if (type.toLowerCase() === 'payment') {
       if (from.toLowerCase() === ownerName.toLowerCase()) {
-        // Owner paid someone → expense
-        description = `To ${to}: "${note}"`;
+        description = fmtDesc(to, 'To');
         finalAmount = Math.abs(amount);
       } else {
-        // Someone paid owner → income-ish
-        description = `${from}: "${note}"`;
+        description = fmtDesc(from);
         finalAmount = -Math.abs(amount);
       }
     } else if (type.toLowerCase() === 'charge') {
       if (to.toLowerCase() === ownerName.toLowerCase()) {
-        // Owner was charged → expense
-        description = `Charge from ${from}: "${note}"`;
+        description = fmtDesc(from, 'Charge from');
         finalAmount = Math.abs(amount);
       } else {
-        // Owner charged someone → incoming
-        description = `Charge to ${to}: "${note}"`;
+        description = fmtDesc(to, 'Charge to');
         finalAmount = -Math.abs(amount);
       }
     } else {
-      // Generic: use the amount sign as-is
       description = note || `${from || to || 'Venmo'} transaction`;
-      // Negative amounts in Venmo = money out = expense (positive in our system)
-      // Positive amounts = money in = income (negative in our system)
       finalAmount = -amount;
     }
 

@@ -64,6 +64,7 @@ export default function ImportPage() {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [allRows, setAllRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState({ date: 0, description: 1, amount: 2 });
+  const [venmoMapping, setVenmoMapping] = useState({ from: -1, to: -1, note: -1 });
   const [categorizedRows, setCategorizedRows] = useState<CategorizedRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [editingCatIdx, setEditingCatIdx] = useState<number | null>(null);
@@ -97,6 +98,16 @@ export default function ImportPage() {
 
       setParseResult(res.data);
       setMapping(res.data.suggestedMapping);
+
+      // Auto-map Venmo columns
+      if (res.data.detectedFormat === 'venmo') {
+        const h = res.data.headers.map(x => x.toLowerCase());
+        setVenmoMapping({
+          from: h.findIndex(x => /^from$/i.test(x)),
+          to: h.findIndex(x => /^to$/i.test(x)),
+          note: h.findIndex(x => /note/i.test(x)),
+        });
+      }
     } catch (err) {
       console.error('Failed to parse CSV:', err);
       setNotification({ type: 'error', message: 'Failed to parse CSV file. Check console for details.' });
@@ -142,9 +153,23 @@ export default function ImportPage() {
   const handleAutoCategorize = async () => {
     if (!parseResult) return;
 
+    const isVenmo = parseResult?.detectedFormat === 'venmo' || accounts.find(a => a.id === selectedAccountId)?.type === 'venmo';
+    const ownerName = accounts.find(a => a.id === selectedAccountId)?.owner || '';
+
     const items = allRows.map((row) => {
+      let description = row[mapping.description] || '';
+      // Build Venmo description from From/To + Note
+      if (isVenmo && venmoMapping.from >= 0 && venmoMapping.to >= 0) {
+        const from = row[venmoMapping.from]?.trim() || '';
+        const to = row[venmoMapping.to]?.trim() || '';
+        const note = venmoMapping.note >= 0 ? row[venmoMapping.note]?.trim() || '' : '';
+        const isOutbound = from.toLowerCase() === ownerName.toLowerCase();
+        const name = isOutbound ? to : from;
+        const prefix = isOutbound ? `To ${name}` : name;
+        description = note ? `${prefix}: "${note}"` : prefix;
+      }
       return {
-        description: row[mapping.description] || '',
+        description,
         amount: normalizeAmount(row[mapping.amount] || '0'),
       };
     }).filter((item) => item.description.trim());
@@ -376,6 +401,30 @@ export default function ImportPage() {
               ))}
             </div>
           </div>
+
+          {/* Venmo-specific mapping */}
+          {(parseResult.detectedFormat === 'venmo' || accounts.find(a => a.id === selectedAccountId)?.type === 'venmo') && (
+            <div className="bg-[#f8fafc] rounded-lg p-4 mb-4">
+              <p className="text-[12px] font-medium text-[#475569] m-0 mb-2">Venmo Column Mapping</p>
+              <div className="flex gap-4">
+                {(['from', 'to', 'note'] as const).map((field) => (
+                  <div key={field} className="flex-1">
+                    <label className="text-[11px] text-[#64748b] block mb-1 capitalize">{field === 'from' ? 'From' : field === 'to' ? 'To' : 'Note'}</label>
+                    <select
+                      value={venmoMapping[field]}
+                      onChange={(e) => setVenmoMapping({ ...venmoMapping, [field]: parseInt(e.target.value) })}
+                      className="w-full border border-[#e2e8f0] rounded-md bg-white px-2 py-1.5 text-[12px] outline-none"
+                    >
+                      <option value={-1}>— Not mapped —</option>
+                      {parseResult.headers.map((h, i) => (
+                        <option key={i} value={i}>{h}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Sign convention */}
           <div className="bg-[#f8fafc] rounded-lg p-4 mb-4">
