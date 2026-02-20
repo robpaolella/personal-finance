@@ -121,13 +121,7 @@ function TransactionForm({
         groupMap.set(c.group_name, arr);
         groups.push({ group: c.group_name, cats: arr });
       }
-      // For income categories where group_name === sub_name, show once
-      const existing = groupMap.get(c.group_name)!;
-      if (c.type === 'income' && c.group_name === c.sub_name) {
-        if (!existing.some((e) => e.id === c.id)) existing.push(c);
-      } else {
-        existing.push(c);
-      }
+      groupMap.get(c.group_name)!.push(c);
     }
     return groups;
   }, [filteredCategories]);

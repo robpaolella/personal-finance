@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 
 const CATEGORY_COLORS: Record<string, string> = {
+  'Income': '#10b981',
   'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
   'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
   'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
@@ -247,7 +248,9 @@ export default function SettingsPage() {
 
   const expenseGroups = grouped.filter((g) => g.type === 'expense');
   const incomeGroups = grouped.filter((g) => g.type === 'income');
+  const allGroups = [...incomeGroups, ...expenseGroups];
   const existingGroupNames = [...new Set(categories.filter((c) => c.type === 'expense').map((c) => c.group_name))];
+  existingGroupNames.push('Income');
 
   const handleSaveAccount = async (data: Record<string, unknown>) => {
     if (editingAccount === 'new') {
@@ -348,29 +351,10 @@ export default function SettingsPage() {
           <h3 className="text-[14px] font-bold text-[#0f172a] mb-1">Categories</h3>
           <p className="text-[13px] text-[#64748b] mb-3">Parent categories group sub-categories for budgets and reports.</p>
           <div className="max-h-[400px] overflow-y-auto">
-            {/* Income */}
-            {incomeGroups.length > 0 && (
-              <div className="mb-3">
-                <div className="flex justify-between items-center py-1.5 border-b-2 border-[#10b98130]">
-                  <span className="font-bold text-[12px] text-[#334155] flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-sm bg-[#10b981]" />Income
-                  </span>
-                  <span className="text-[11px] text-[#94a3b8]">{incomeGroups[0]?.subs.length ?? 0} items</span>
-                </div>
-                {incomeGroups.flatMap((g) => g.subs).map((s) => (
-                  <div key={s.id} onClick={() => setEditingCategory(s)}
-                    className="flex justify-between py-1 pl-[18px] text-[12px] text-[#64748b] cursor-pointer hover:text-[#334155]">
-                    <span>{s.sub_name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Expense groups */}
-            {expenseGroups.map((g) => {
+            {allGroups.map((g) => {
               const color = CATEGORY_COLORS[g.group] || '#94a3b8';
               return (
-                <div key={g.group} className="mb-2">
+                <div key={`${g.type}:${g.group}`} className="mb-2">
                   <div className="flex justify-between items-center py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
                     <span className="font-bold text-[12px] text-[#334155] flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-sm" style={{ background: color }} />{g.group}
