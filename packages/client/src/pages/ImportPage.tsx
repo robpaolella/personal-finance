@@ -57,6 +57,11 @@ export default function ImportPage() {
   const [categorizedRows, setCategorizedRows] = useState<CategorizedRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [editingCatIdx, setEditingCatIdx] = useState<number | null>(null);
+  const [notification, setNotification] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (notification) { const t = setTimeout(() => setNotification(null), 5000); return () => clearTimeout(t); }
+  }, [notification]);
 
   useEffect(() => {
     apiFetch<{ data: Account[] }>('/accounts').then((r) => setAccounts(r.data));
@@ -65,7 +70,7 @@ export default function ImportPage() {
 
   const handleFile = async (f: File) => {
     if (!selectedAccountId) {
-      alert('Please select an account first.');
+      setNotification({ type: 'error', message: 'Please select an account first.' });
       return;
     }
     setFile(f);
@@ -82,7 +87,7 @@ export default function ImportPage() {
       setMapping(res.data.suggestedMapping);
     } catch (err) {
       console.error('Failed to parse CSV:', err);
-      alert('Failed to parse CSV file. Check console for details.');
+      setNotification({ type: 'error', message: 'Failed to parse CSV file. Check console for details.' });
       setFile(null);
       return;
     }
@@ -177,7 +182,7 @@ export default function ImportPage() {
   const handleImport = async () => {
     if (!selectedAccountId) return;
     const validRows = categorizedRows.filter((r) => r.categoryId != null);
-    if (validRows.length === 0) { alert('No transactions with assigned categories to import.'); return; }
+    if (validRows.length === 0) { setNotification({ type: 'error', message: 'No transactions with assigned categories to import.' }); return; }
 
     setImporting(true);
     try {
@@ -196,7 +201,7 @@ export default function ImportPage() {
       });
       navigate('/transactions');
     } catch (err) {
-      alert('Import failed. Please try again.');
+      setNotification({ type: 'error', message: 'Import failed. Please try again.' });
     } finally {
       setImporting(false);
     }
@@ -245,6 +250,18 @@ export default function ImportPage() {
           </div>
         ))}
       </div>
+
+      {/* Inline notification banner */}
+      {notification && (
+        <div className={`rounded-lg p-3 text-[13px] mb-4 flex items-center justify-between border ${
+          notification.type === 'error' ? 'bg-[#fef2f2] border-[#fecaca] text-[#991b1b]' : 'bg-[#f0fdf4] border-[#bbf7d0] text-[#166534]'
+        }`}>
+          <span>{notification.message}</span>
+          <button onClick={() => setNotification(null)} className={`ml-2 bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none ${
+            notification.type === 'error' ? 'text-[#991b1b]' : 'text-[#166534]'
+          }`}>×</button>
+        </div>
+      )}
 
       {/* Step 1: Upload */}
       {step === 0 && (

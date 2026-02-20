@@ -68,7 +68,7 @@ function AccountForm({
   account?: Account;
   owners: string[];
   onSave: (data: Record<string, unknown>) => void;
-  onDelete?: () => void;
+  onDelete?: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const [name, setName] = useState(account?.name ?? '');
@@ -76,12 +76,36 @@ function AccountForm({
   const [type, setType] = useState(account?.type ?? 'checking');
   const [classification, setClassification] = useState(account?.classification ?? 'liquid');
   const [owner, setOwner] = useState(account?.owner ?? owners[0] ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (error) { const t = setTimeout(() => setError(null), 5000); return () => clearTimeout(t); }
+  }, [error]);
+
+  useEffect(() => {
+    if (confirmDelete) { const t = setTimeout(() => setConfirmDelete(false), 3000); return () => clearTimeout(t); }
+  }, [confirmDelete]);
+
+  const handleDeleteClick = async () => {
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    if (onDelete) {
+      const err = await onDelete();
+      if (err) { setError(err); setConfirmDelete(false); }
+    }
+  };
 
   return (
     <Modal onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[#0f172a] mb-4">
         {account ? 'Edit Account' : 'Add Account'}
       </h3>
+      {error && (
+        <div className="bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-2 text-[#991b1b] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         <div>
           <label className="block text-[11px] font-medium text-[#64748b] mb-1">Account Name</label>
@@ -117,10 +141,18 @@ function AccountForm({
       </div>
       <div className="flex gap-2 mt-5 justify-end">
         {account && onDelete && (
-          <button onClick={onDelete}
-            className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#fef2f2] text-[#ef4444] border-none cursor-pointer mr-auto">
-            Delete
-          </button>
+          <div className="mr-auto flex items-center gap-2">
+            <button onClick={handleDeleteClick}
+              className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer ${
+                confirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[#fef2f2] text-[#ef4444]'
+              }`}>
+              {confirmDelete ? 'Confirm Delete?' : 'Delete'}
+            </button>
+            {confirmDelete && (
+              <button onClick={() => setConfirmDelete(false)}
+                className="text-[12px] text-[#64748b] bg-transparent border-none cursor-pointer underline">Cancel</button>
+            )}
+          </div>
         )}
         <button onClick={onClose}
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#f1f5f9] text-[#64748b] border-none cursor-pointer">
@@ -146,19 +178,43 @@ function CategoryForm({
   category?: Category;
   existingGroups: string[];
   onSave: (data: Record<string, unknown>) => void;
-  onDelete?: () => void;
+  onDelete?: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const [catType, setCatType] = useState(category?.type ?? 'expense');
   const [groupName, setGroupName] = useState(category?.group_name ?? '');
   const [subName, setSubName] = useState(category?.sub_name ?? '');
   const [isDeductible, setIsDeductible] = useState(category?.is_deductible === 1);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (error) { const t = setTimeout(() => setError(null), 5000); return () => clearTimeout(t); }
+  }, [error]);
+
+  useEffect(() => {
+    if (confirmDelete) { const t = setTimeout(() => setConfirmDelete(false), 3000); return () => clearTimeout(t); }
+  }, [confirmDelete]);
+
+  const handleDeleteClick = async () => {
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    if (onDelete) {
+      const err = await onDelete();
+      if (err) { setError(err); setConfirmDelete(false); }
+    }
+  };
 
   return (
     <Modal onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[#0f172a] mb-4">
         {category ? 'Edit Category' : 'Add Category'}
       </h3>
+      {error && (
+        <div className="bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-2 text-[#991b1b] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         <div>
           <label className="block text-[11px] font-medium text-[#64748b] mb-1">Type</label>
@@ -195,10 +251,18 @@ function CategoryForm({
       </div>
       <div className="flex gap-2 mt-5 justify-end">
         {category && onDelete && (
-          <button onClick={onDelete}
-            className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#fef2f2] text-[#ef4444] border-none cursor-pointer mr-auto">
-            Delete
-          </button>
+          <div className="mr-auto flex items-center gap-2">
+            <button onClick={handleDeleteClick}
+              className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer ${
+                confirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[#fef2f2] text-[#ef4444]'
+              }`}>
+              {confirmDelete ? 'Confirm Delete?' : 'Delete'}
+            </button>
+            {confirmDelete && (
+              <button onClick={() => setConfirmDelete(false)}
+                className="text-[12px] text-[#64748b] bg-transparent border-none cursor-pointer underline">Cancel</button>
+            )}
+          </div>
         )}
         <button onClick={onClose}
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[#f1f5f9] text-[#64748b] border-none cursor-pointer">
@@ -262,16 +326,18 @@ export default function SettingsPage() {
     loadData();
   };
 
-  const handleDeleteAccount = async () => {
+  const handleDeleteAccount = async (): Promise<string | null> => {
     if (editingAccount && editingAccount !== 'new') {
       try {
         await apiFetch(`/accounts/${editingAccount.id}`, { method: 'DELETE' });
         setEditingAccount(null);
         loadData();
+        return null;
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Delete failed');
+        return err instanceof Error ? err.message : 'Delete failed';
       }
     }
+    return null;
   };
 
   const handleSaveCategory = async (data: Record<string, unknown>) => {
@@ -284,16 +350,18 @@ export default function SettingsPage() {
     loadData();
   };
 
-  const handleDeleteCategory = async () => {
+  const handleDeleteCategory = async (): Promise<string | null> => {
     if (editingCategory && editingCategory !== 'new') {
       try {
         await apiFetch(`/categories/${editingCategory.id}`, { method: 'DELETE' });
         setEditingCategory(null);
         loadData();
+        return null;
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Delete failed');
+        return err instanceof Error ? err.message : 'Delete failed';
       }
     }
+    return null;
   };
 
   return (
