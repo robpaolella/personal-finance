@@ -28,7 +28,7 @@ router.get('/', (req: Request, res: Response) => {
     if (groupName) conditions.push(eq(categories.group_name, groupName));
     if (type === 'income') conditions.push(sql`${transactions.amount} < 0`);
     if (type === 'expense') conditions.push(sql`${transactions.amount} >= 0`);
-    if (owner) conditions.push(eq(accounts.owner, owner));
+    if (owner) conditions.push(sql`EXISTS (SELECT 1 FROM account_owners ao JOIN users u ON ao.user_id = u.id WHERE ao.account_id = ${accounts.id} AND u.display_name = ${owner})`);
     if (search) {
       conditions.push(
         or(
@@ -120,7 +120,7 @@ router.get('/summary', (req: Request, res: Response) => {
     if (startDate) conditions.push(gte(transactions.date, startDate));
     if (endDate) conditions.push(lte(transactions.date, endDate));
     if (accountId) conditions.push(eq(transactions.account_id, parseInt(accountId, 10)));
-    if (owner) conditions.push(eq(accounts.owner, owner));
+    if (owner) conditions.push(sql`EXISTS (SELECT 1 FROM account_owners ao JOIN users u ON ao.user_id = u.id WHERE ao.account_id = ${accounts.id} AND u.display_name = ${owner})`);
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 

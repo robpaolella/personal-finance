@@ -139,7 +139,7 @@ router.get('/summary', (req: Request, res: Response) => {
 
     // Get actuals from transactions — optionally filtered by owner
     const ownerFilter = owner !== 'all'
-      ? sql`AND ${accounts.owner} = ${owner}`
+      ? sql`AND EXISTS (SELECT 1 FROM account_owners ao JOIN users u ON ao.user_id = u.id WHERE ao.account_id = ${accounts.id} AND u.display_name = ${owner})`
       : sql``;
 
     const actuals = db.select({

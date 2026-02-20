@@ -28,7 +28,7 @@ router.get('/annual', (req: Request, res: Response) => {
     const owner = (req.query.owner as string) || 'all';
 
     const ownerFilter = owner !== 'all'
-      ? sql`AND ${accounts.owner} = ${owner}`
+      ? sql`AND EXISTS (SELECT 1 FROM account_owners ao JOIN users u ON ao.user_id = u.id WHERE ao.account_id = ${accounts.id} AND u.display_name = ${owner})`
       : sql``;
 
     // Get monthly totals per category
