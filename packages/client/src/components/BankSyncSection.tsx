@@ -603,8 +603,22 @@ function ConnectionRow({
   currentUserId: number;
   onAccountCreated: () => void;
 }) {
+  const [showDeleteWarning, setShowDeleteWarning] = useState(false);
+
+  useEffect(() => {
+    if (!showDeleteWarning) return;
+    const t = setTimeout(() => setShowDeleteWarning(false), 3000);
+    return () => clearTimeout(t);
+  }, [showDeleteWarning]);
+
   return (
     <div className="border border-[var(--table-border)] rounded-lg mb-2 overflow-hidden">
+      {/* Delete Warning */}
+      {showDeleteWarning && (
+        <div className="px-3 py-2 border-b border-[var(--table-border)] bg-[var(--error-bg)] text-[12px] text-[var(--error-text)]">
+          This will remove all account links for this connection. Previously imported transactions will not be affected.
+        </div>
+      )}
       <div className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={onToggle}>
         {/* Chevron */}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -643,6 +657,7 @@ function ConnectionRow({
           </button>
           <ConfirmDeleteButton
             onConfirm={onDelete}
+            onFirstClick={() => setShowDeleteWarning(true)}
           />
         </div>
       </div>
