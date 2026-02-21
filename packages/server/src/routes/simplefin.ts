@@ -9,7 +9,7 @@ import {
   balanceSnapshots,
   categories,
 } from '../db/schema.js';
-import { eq, and, inArray, isNull, sql } from 'drizzle-orm';
+import { eq, and, or, inArray, isNull, sql } from 'drizzle-orm';
 import { claimAccessUrl, fetchAccounts } from '../services/simplefin.js';
 import type { SimpleFINAccount, SimpleFINTransaction } from '../services/simplefin.js';
 import { convertToLedgerSign } from '../services/signConversion.js';
@@ -704,6 +704,69 @@ router.post('/commit', (req: Request, res: Response) => {
   } catch (err) {
     console.error('POST /simplefin/commit error:', err);
     res.status(500).json({ error: 'Failed to commit sync data' });
+  }
+});
+
+// GET /api/simplefin/balances — lightweight balance fetch for all linked accounts
+router.get('/balances', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+
+    // Get all connections this user can access (shared + personal)
+    const connections = db.select().from(simplefinConnections)
+      .where(
+        or(
+          isNull(simplefinConnections.user_id),
+          eq(simplefinConnections.user_id, userId),
+        )!
+      ).all();
+
+    if (connections.length === 0) {
+      res.json({ data: [] });
+      return;
+    }
+
+    const results: { accountId: number; accountName: string; simplefinBalance: number; balanceDate: string }[] = [];
+
+    for (const conn of connections) {
+      const response = await fetchAccounts(conn.access_url);
+
+      // Get links for this connection
+      const links = db.select({
+        id: simplefinLinks.id,
+        simplefin_account_id: simplefinLinks.simplefin_account_id,
+        account_id: simplefinLinks.account_id,
+      }).from(simplefinLinks)
+        .where(eq(simplefinLinks.simplefin_connection_id, conn.id))
+        .all();
+      const linkMap = new Map(links.map(l => [l.simplefin_account_id, l]));
+
+      for (const sfAcct of response.accounts) {
+        const link = linkMap.get(sfAcct.id);
+        if (!link) continue;
+
+        // Get account name
+        const acct = db.select({ name: accounts.name, classification: accounts.classification })
+          .from(accounts).where(eq(accounts.id, link.account_id)).get();
+        if (!acct) continue;
+
+        // Convert balance to Ledger sign convention
+        const rawBalance = parseFloat(sfAcct.balance);
+        const balance = -rawBalance; // All classifications flip sign
+
+        results.push({
+          accountId: link.account_id,
+          accountName: acct.name,
+          simplefinBalance: balance,
+          balanceDate: sfAcct['balance-date'] ? new Date(sfAcct['balance-date'] * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        });
+      }
+    }
+
+    res.json({ data: results });
+  } catch (err: any) {
+    console.error('GET /simplefin/balances error:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch balances' });
   }
 });
 
