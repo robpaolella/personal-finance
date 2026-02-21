@@ -329,6 +329,7 @@ export default function TransactionsPage() {
   const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [pendingSave, setPendingSave] = useState<Record<string, unknown> | null>(null);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -418,6 +419,28 @@ export default function TransactionsPage() {
 
   const handleSave = async (data: Record<string, unknown>) => {
     try {
+      // On new transactions, check for duplicates before saving
+      if (editing === 'new' && !pendingSave) {
+        try {
+          const dupeRes = await apiFetch<{ data: { status: string; match?: { date: string; description: string; amount: number } } }>(
+            '/transactions/check-duplicate',
+            { method: 'POST', body: JSON.stringify({ date: data.date, amount: data.amount, description: data.description }) }
+          );
+          if (dupeRes.data.status !== 'none' && dupeRes.data.match) {
+            const m = dupeRes.data.match;
+            setPendingSave(data);
+            addToast(
+              `Similar to existing: ${m.date} "${m.description}" ($${Math.abs(m.amount).toFixed(2)}). Save again to confirm.`,
+              'info'
+            );
+            return;
+          }
+        } catch {
+          // Duplicate check failed — proceed with save
+        }
+      }
+      setPendingSave(null);
+
       if (editing === 'new') {
         await apiFetch('/transactions', { method: 'POST', body: JSON.stringify(data) });
       } else if (editing) {
