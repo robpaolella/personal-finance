@@ -1,8 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import DuplicateBadge from '../components/DuplicateBadge';
+import DuplicateComparison from '../components/DuplicateComparison';
+import TransferBadge from '../components/TransferBadge';
 
 interface Account {
   id: number;
@@ -42,6 +45,19 @@ interface CategorizedRow {
   categoryId: number | null;
   groupName: string | null;
   subName: string | null;
+  // Duplicate detection
+  duplicateStatus: 'exact' | 'possible' | 'none';
+  duplicateMatch: {
+    id: number;
+    date: string;
+    description: string;
+    amount: number;
+    accountName: string | null;
+    category: string | null;
+  } | null;
+  // Transfer detection
+  isLikelyTransfer: boolean;
+  transferTooltip?: string;
 }
 
 const STEPS = ['Upload File', 'Map Columns', 'Review & Categorize'];
@@ -77,7 +93,7 @@ export default function ImportPage() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [modalAccountId, setModalAccountId] = useState<number | ''>('');
-
+  const [expandedDupeRow, setExpandedDupeRow] = useState<number | null>(null);
   useEffect(() => {
     if (notification) { const t = setTimeout(() => setNotification(null), 5000); return () => clearTimeout(t); }
   }, [notification]);
@@ -239,11 +255,43 @@ export default function ImportPage() {
         categoryId: cat.suggestedCategoryId,
         groupName: cat.suggestedGroupName,
         subName: cat.suggestedSubName,
+        duplicateStatus: 'none' as CategorizedRow['duplicateStatus'],
+        duplicateMatch: null as CategorizedRow['duplicateMatch'],
+        isLikelyTransfer: false,
       };
     });
 
+    // Run duplicate detection in batch
+    try {
+      const dupeCheckItems = merged.map((r) => ({ date: r.date, amount: r.amount, description: r.description }));
+      const dupeRes = await apiFetch<{ data: { index: number; status: 'exact' | 'possible' | 'none'; matchId: number | null; matchDescription?: string; matchDate?: string }[] }>(
+        '/import/check-duplicates',
+        { method: 'POST', body: JSON.stringify({ items: dupeCheckItems }) }
+      );
+      for (const d of dupeRes.data) {
+        if (d.status !== 'none' && merged[d.index]) {
+          merged[d.index].duplicateStatus = d.status;
+          if (d.matchId) {
+            merged[d.index].duplicateMatch = {
+              id: d.matchId,
+              date: d.matchDate || '',
+              description: d.matchDescription || '',
+              amount: merged[d.index].amount,
+              accountName: null,
+              category: null,
+            };
+          }
+        }
+      }
+    } catch {
+      // Duplicate detection failed — continue without it
+    }
+
     setCategorizedRows(merged);
-    setSelectedImportRows(new Set(merged.map((_, i) => i)));
+    // Auto-uncheck exact duplicates
+    const selected = new Set(merged.map((_, i) => i));
+    merged.forEach((r, i) => { if (r.duplicateStatus === 'exact') selected.delete(i); });
+    setSelectedImportRows(selected);
     setStep(2);
   };
 
@@ -526,11 +574,12 @@ export default function ImportPage() {
           <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '40px' }} />
-              <col style={{ width: '110px' }} />
+              <col style={{ width: '100px' }} />
               <col />
-              <col style={{ width: '110px' }} />
-              <col style={{ width: '220px' }} />
-              <col style={{ width: '70px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '140px' }} />
+              <col style={{ width: '200px' }} />
+              <col style={{ width: '55px' }} />
             </colgroup>
             <thead>
               <tr>
@@ -546,57 +595,88 @@ export default function ImportPage() {
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-center">Conf.</th>
               </tr>
             </thead>
             <tbody>
               {categorizedRows.map((r, i) => (
-                <tr key={i} className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${!r.categoryId && selectedImportRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
-                  <td className="px-2 py-2 text-center">
-                    <input type="checkbox" checked={selectedImportRows.has(i)}
-                      onChange={() => {
-                        setSelectedImportRows(prev => {
-                          const next = new Set(prev);
-                          if (next.has(i)) next.delete(i); else next.add(i);
-                          return next;
-                        });
-                      }}
-                      className="cursor-pointer" />
-                  </td>
-                  <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)] truncate">{r.date}</td>
-                  <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate">{r.description}</td>
-                  <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
-                    {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
-                  </td>
-                  <td className="px-2.5 py-1.5">
-                    {r.groupName && r.categoryId && (
-                      <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
-                    )}
-                    <select
-                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
-                      value={r.categoryId || ''}
-                      onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
-                    >
-                      <option value="">Select...</option>
-                      {Array.from(catGroups.entries()).map(([group, cats]) => (
-                        <optgroup key={group} label={group}>
-                          {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                <React.Fragment key={i}>
+                  <tr className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${!r.categoryId && selectedImportRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
+                    <td className="px-2 py-2 text-center">
+                      <input type="checkbox" checked={selectedImportRows.has(i)}
+                        onChange={() => {
+                          setSelectedImportRows(prev => {
+                            const next = new Set(prev);
+                            if (next.has(i)) next.delete(i); else next.add(i);
+                            return next;
+                          });
+                        }}
+                        className="cursor-pointer" />
+                    </td>
+                    <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)] truncate">{r.date}</td>
+                    <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate">{r.description}</td>
+                    <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
+                      {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
+                    </td>
+                    <td className="px-2.5 py-1.5">
+                      <div className="flex flex-wrap gap-1">
+                        <DuplicateBadge status={r.duplicateStatus}
+                          onClick={() => setExpandedDupeRow(expandedDupeRow === i ? null : i)} />
+                        <TransferBadge isLikelyTransfer={r.isLikelyTransfer} tooltipText={r.transferTooltip} />
+                      </div>
+                    </td>
+                    <td className="px-2.5 py-1.5">
+                      {r.groupName && r.categoryId && (
+                        <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                      )}
+                      <select
+                        className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                        value={r.categoryId || ''}
+                        onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
+                      >
+                        <option value="">Select...</option>
+                        {Array.from(catGroups.entries()).map(([group, cats]) => (
+                          <optgroup key={group} label={group}>
+                            {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                          </optgroup>
+                        ))}
+                        <optgroup label="Income">
+                          {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
                         </optgroup>
-                      ))}
-                      <optgroup label="Income">
-                        {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                      </optgroup>
-                    </select>
-                  </td>
-                  <td className="px-2.5 py-2 text-center">
-                    <span className={`text-[11px] font-semibold font-mono ${
-                      r.confidence > 0.9 ? 'text-[#10b981]' : r.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
-                    }`}>
-                      {Math.round(r.confidence * 100)}%
-                    </span>
-                  </td>
-                </tr>
+                      </select>
+                    </td>
+                    <td className="px-2.5 py-2 text-center">
+                      <span className={`text-[11px] font-semibold font-mono ${
+                        r.confidence > 0.9 ? 'text-[#10b981]' : r.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+                      }`}>
+                        {Math.round(r.confidence * 100)}%
+                      </span>
+                    </td>
+                  </tr>
+                  {expandedDupeRow === i && r.duplicateMatch && (
+                    <tr>
+                      <td colSpan={7} className="px-2.5 py-1">
+                        <DuplicateComparison
+                          incoming={{ date: r.date, description: r.description, amount: r.amount,
+                            accountName: accounts.find(a => a.id === selectedAccountId)?.name || null }}
+                          existing={{ date: r.duplicateMatch.date, description: r.duplicateMatch.description,
+                            amount: r.duplicateMatch.amount, accountName: r.duplicateMatch.accountName,
+                            category: r.duplicateMatch.category }}
+                          onImportAnyway={() => {
+                            setSelectedImportRows(prev => { const next = new Set(prev); next.add(i); return next; });
+                            setExpandedDupeRow(null);
+                          }}
+                          onSkip={() => {
+                            setSelectedImportRows(prev => { const next = new Set(prev); next.delete(i); return next; });
+                            setExpandedDupeRow(null);
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

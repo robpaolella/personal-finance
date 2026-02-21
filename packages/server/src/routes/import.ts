@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { transactions, categories } from '../db/schema.js';
 import { eq, sql, like } from 'drizzle-orm';
 import { parseVenmoCSV } from '../services/venmoParser.js';
+import { detectDuplicates } from '../services/duplicateDetector.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -276,6 +277,22 @@ router.post('/commit', (req: Request, res: Response) => {
   } catch (err) {
     console.error('POST /import/commit error:', err);
     res.status(500).json({ error: 'Failed to import transactions' });
+  }
+});
+
+// POST /api/import/check-duplicates — batch duplicate check for CSV import
+router.post('/check-duplicates', (req: Request, res: Response) => {
+  try {
+    const { items } = req.body as { items: { date: string; amount: number; description: string }[] };
+    if (!items || !Array.isArray(items)) {
+      res.status(400).json({ error: 'items array is required' });
+      return;
+    }
+    const results = detectDuplicates(items);
+    res.json({ data: results });
+  } catch (err) {
+    console.error('POST /import/check-duplicates error:', err);
+    res.status(500).json({ error: 'Duplicate check failed' });
   }
 });
 
