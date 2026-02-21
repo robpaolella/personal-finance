@@ -493,7 +493,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                           {t.description}
                         </td>
                         <td className="px-2.5 py-2">
-                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--badge-mono-text)] font-mono truncate block">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--badge-mono-text)] font-mono inline-block max-w-full truncate">
                             {t.accountName}
                           </span>
                         </td>
