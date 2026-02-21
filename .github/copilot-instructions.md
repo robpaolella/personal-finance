@@ -259,3 +259,9 @@ Form Input → Storage → Display:
 **Problem:** Hardcoding bank-specific patterns is fragile across different users' banks
 **Resolution:** Generic keywords plus dynamic matching against the user's own Ledger account names.
 **Rule going forward:** Never hardcode bank-specific transfer patterns. Match against the user's actual account names for dynamic detection.
+
+### Sign Conversion Applies to Transactions Only (2026-02-21)
+**Context:** SimpleFIN returns both transactions and account balances
+**Problem:** The sign conversion logic (which flips signs based on account classification) was being applied to balances, causing assets to show as negative and liabilities as positive
+**Resolution:** Sign conversion must ONLY be applied to transactions. Balances, holdings market values, and cost basis values are passed through as-is from SimpleFIN — they already use the correct real-world convention (positive = asset, negative = liability).
+**Rule going forward:** Never apply the transaction sign conversion function to balance or holdings data. Only transaction amounts get converted.

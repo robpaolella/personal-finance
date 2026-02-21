@@ -750,9 +750,9 @@ router.get('/balances', async (req: Request, res: Response) => {
           .from(accounts).where(eq(accounts.id, link.account_id)).get();
         if (!acct) continue;
 
-        // Convert balance to Ledger sign convention
-        const rawBalance = parseFloat(sfAcct.balance);
-        const balance = -rawBalance; // All classifications flip sign
+        // Balances are NOT sign-converted — they already use real-world convention
+        // (positive = asset, negative = liability)
+        const balance = parseFloat(sfAcct.balance);
 
         results.push({
           accountId: link.account_id,
