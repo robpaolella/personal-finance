@@ -643,8 +643,6 @@ function ConnectionRow({
           </button>
           <ConfirmDeleteButton
             onConfirm={onDelete}
-            label=""
-            confirmLabel="Remove?"
           />
         </div>
       </div>
