@@ -1,8 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiFetch } from '../lib/api';
-import { fmtTransaction } from '../lib/formatters';
+import { fmt, fmtTransaction } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
+
+interface DuplicateMatch {
+  id: number;
+  date: string;
+  description: string;
+  amount: number;
+  notes: string | null;
+  accountName: string | null;
+  category: string | null;
+}
 
 interface TransactionAccount {
   id: number;
@@ -86,6 +96,7 @@ function TransactionForm({
   onSave,
   onDelete,
   onClose,
+  duplicateMatch,
 }: {
   transaction?: Transaction;
   accounts: Account[];
@@ -93,6 +104,7 @@ function TransactionForm({
   onSave: (data: Record<string, unknown>) => void;
   onDelete?: () => void;
   onClose: () => void;
+  duplicateMatch?: DuplicateMatch | null;
 }) {
   const [date, setDate] = useState(transaction?.date ?? new Date().toISOString().slice(0, 10));
   const [accountId, setAccountId] = useState<number>(transaction?.account.id ?? (accounts[0]?.id ?? 0));
@@ -300,6 +312,42 @@ function TransactionForm({
             className={`${inputCls(!!errAmount)} font-mono`} />
         </Field>
       </div>
+
+      {/* Duplicate Warning */}
+      {duplicateMatch && (
+        <div className="mt-4 rounded-lg border border-[#f59e0b] bg-[#fefce8] dark:bg-[#422006]/30 p-3">
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-[#f59e0b] mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div className="flex-1">
+              <p className="text-[12px] font-semibold text-[#92400e] dark:text-[#fbbf24] m-0">
+                Possible duplicate detected — click Save again to confirm
+              </p>
+              <div className="mt-2 rounded-md bg-white/60 dark:bg-black/20 border border-[#fde68a] dark:border-[#854d0e] p-2.5">
+                <p className="text-[11px] text-[#78716c] dark:text-[#a8a29e] m-0 mb-1 uppercase tracking-[0.04em] font-semibold">Existing Transaction</p>
+                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
+                  <span className="text-[#78716c] dark:text-[#a8a29e]">Date</span>
+                  <span className="font-mono text-[#1c1917] dark:text-[#e7e5e4]">{duplicateMatch.date}</span>
+                  <span className="text-[#78716c] dark:text-[#a8a29e]">Description</span>
+                  <span className="text-[#1c1917] dark:text-[#e7e5e4]">{duplicateMatch.description}</span>
+                  <span className="text-[#78716c] dark:text-[#a8a29e]">Amount</span>
+                  <span className="font-mono font-semibold text-[#1c1917] dark:text-[#e7e5e4]">{fmt(Math.abs(duplicateMatch.amount))}</span>
+                  {duplicateMatch.accountName && <>
+                    <span className="text-[#78716c] dark:text-[#a8a29e]">Account</span>
+                    <span className="text-[#1c1917] dark:text-[#e7e5e4]">{duplicateMatch.accountName}</span>
+                  </>}
+                  {duplicateMatch.category && <>
+                    <span className="text-[#78716c] dark:text-[#a8a29e]">Category</span>
+                    <span className="text-[#1c1917] dark:text-[#e7e5e4]">{duplicateMatch.category}</span>
+                  </>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-2 mt-5 justify-end">
         {transaction && onDelete && (
           <div className="mr-auto">
@@ -313,10 +361,12 @@ function TransactionForm({
         <button onClick={handleSaveClick}
           className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none ${
             isValid
-              ? 'bg-[var(--bg-primary-btn)] text-white cursor-pointer'
+              ? duplicateMatch
+                ? 'bg-[#f59e0b] text-white cursor-pointer'
+                : 'bg-[var(--bg-primary-btn)] text-white cursor-pointer'
               : 'bg-[var(--text-muted)] text-white cursor-not-allowed'
           }`}>
-          Save
+          {duplicateMatch ? 'Save Anyway' : 'Save'}
         </button>
       </div>
     </Modal>
@@ -330,6 +380,7 @@ export default function TransactionsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [pendingSave, setPendingSave] = useState<Record<string, unknown> | null>(null);
+  const [duplicateMatch, setDuplicateMatch] = useState<DuplicateMatch | null>(null);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -422,17 +473,13 @@ export default function TransactionsPage() {
       // On new transactions, check for duplicates before saving
       if (editing === 'new' && !pendingSave) {
         try {
-          const dupeRes = await apiFetch<{ data: { status: string; match?: { date: string; description: string; amount: number } } }>(
+          const dupeRes = await apiFetch<{ data: { status: string; match?: DuplicateMatch } }>(
             '/transactions/check-duplicate',
             { method: 'POST', body: JSON.stringify({ date: data.date, amount: data.amount, description: data.description }) }
           );
           if (dupeRes.data.status !== 'none' && dupeRes.data.match) {
-            const m = dupeRes.data.match;
             setPendingSave(data);
-            addToast(
-              `Similar to existing: ${m.date} "${m.description}" ($${Math.abs(m.amount).toFixed(2)}). Save again to confirm.`,
-              'info'
-            );
+            setDuplicateMatch(dupeRes.data.match);
             return;
           }
         } catch {
@@ -440,6 +487,7 @@ export default function TransactionsPage() {
         }
       }
       setPendingSave(null);
+      setDuplicateMatch(null);
 
       if (editing === 'new') {
         await apiFetch('/transactions', { method: 'POST', body: JSON.stringify(data) });
@@ -796,7 +844,8 @@ export default function TransactionsPage() {
           categories={categories}
           onSave={handleSave}
           onDelete={editing !== 'new' ? handleDelete : undefined}
-          onClose={() => setEditing(null)}
+          onClose={() => { setEditing(null); setPendingSave(null); setDuplicateMatch(null); }}
+          duplicateMatch={duplicateMatch}
         />
       )}
     </div>
