@@ -156,7 +156,13 @@ export default function NetWorthPage() {
   const [editingAssetId, setEditingAssetId] = useState<number | 'new' | null>(null);
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
   const [showBalanceModal, setShowBalanceModal] = useState(false);
+  const [balanceTab, setBalanceTab] = useState<'manual' | 'sync'>('manual');
   const [balanceInputs, setBalanceInputs] = useState<Record<number, string>>({});
+  const [syncBalances, setSyncBalances] = useState<{ accountId: number; accountName: string; simplefinBalance: number; balanceDate: string }[]>([]);
+  const [syncBalanceSelected, setSyncBalanceSelected] = useState<Set<number>>(new Set());
+  const [syncBalanceLoading, setSyncBalanceLoading] = useState(false);
+  const [syncBalanceError, setSyncBalanceError] = useState<string | null>(null);
+  const [hasSimplefinConnections, setHasSimplefinConnections] = useState(false);
   const [holdingsMap, setHoldingsMap] = useState<Map<number, AccountHoldings>>(new Map());
   const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(new Set());
 
@@ -179,6 +185,41 @@ export default function NetWorthPage() {
   }, []);
 
   useEffect(() => { loadData(); loadHoldings(); }, [loadData, loadHoldings]);
+
+  useEffect(() => {
+    apiFetch<{ data: { id: number }[] }>('/simplefin/connections')
+      .then(r => setHasSimplefinConnections(r.data.length > 0))
+      .catch(() => setHasSimplefinConnections(false));
+  }, []);
+
+  const fetchSyncBalances = useCallback(async () => {
+    setSyncBalanceLoading(true);
+    setSyncBalanceError(null);
+    try {
+      const res = await apiFetch<{ data: typeof syncBalances }>('/simplefin/balances');
+      setSyncBalances(res.data);
+      setSyncBalanceSelected(new Set(res.data.map(b => b.accountId)));
+    } catch (err: any) {
+      setSyncBalanceError(err.message || 'Failed to fetch balances from SimpleFIN');
+    } finally {
+      setSyncBalanceLoading(false);
+    }
+  }, []);
+
+  const applySyncBalances = async () => {
+    if (!data) return;
+    const selected = syncBalances.filter(b => syncBalanceSelected.has(b.accountId));
+    const promises = selected.map(b =>
+      apiFetch('/networth/balance-snapshots', {
+        method: 'POST',
+        body: JSON.stringify({ accountId: b.accountId, balance: b.simplefinBalance, date: b.balanceDate }),
+      })
+    );
+    await Promise.all(promises);
+    addToast(`Updated ${selected.length} account balance${selected.length !== 1 ? 's' : ''}`, 'success');
+    setShowBalanceModal(false);
+    loadData();
+  };
 
   const startEditAsset = (asset: Asset) => {
     setEditingAssetId(asset.id);
@@ -315,7 +356,10 @@ export default function NetWorthPage() {
                 const inputs: Record<number, string> = {};
                 data.accounts.forEach((a) => { inputs[a.accountId] = String(a.balance); });
                 setBalanceInputs(inputs);
+                const defaultTab = hasSimplefinConnections ? 'sync' : 'manual';
+                setBalanceTab(defaultTab);
                 setShowBalanceModal(true);
+                if (defaultTab === 'sync') fetchSyncBalances();
               }}
               className="text-[12px] px-3 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg border-none cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
             >
@@ -431,31 +475,149 @@ export default function NetWorthPage() {
       {/* Update Balances Modal */}
       {showBalanceModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowBalanceModal(false)}>
-          <div className="bg-[var(--bg-card)] rounded-xl shadow-lg w-[500px] max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[var(--bg-card)] rounded-xl shadow-lg w-[560px] max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[16px] font-bold text-[var(--text-primary)] m-0 mb-4">Update Account Balances</h3>
-            <p className="text-[12px] text-[var(--text-secondary)] m-0 mb-4">Enter current balances for each account. Leave unchanged to skip.</p>
-            <div className="flex flex-col gap-3">
-              {data.accounts.map((a) => (
-                <div key={a.accountId} className="flex items-center gap-3">
-                  <span className="flex-1 text-[13px] text-[var(--text-body)]">
-                    {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={balanceInputs[a.accountId] ?? ''}
-                    onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
-                    className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none focus:border-[#3b82f6] text-[var(--text-body)] bg-[var(--bg-input)]"
-                  />
+
+            {/* Tab Switcher — only if SimpleFIN connections exist */}
+            {hasSimplefinConnections && (
+              <div className="flex bg-[var(--bg-secondary-btn)] rounded-lg p-0.5 mb-4">
+                {(['manual', 'sync'] as const).map(tab => (
+                  <button key={tab}
+                    onClick={() => { setBalanceTab(tab); if (tab === 'sync' && syncBalances.length === 0) fetchSyncBalances(); }}
+                    className={`flex-1 text-[12px] font-semibold py-1.5 rounded-md border-none cursor-pointer transition-colors ${
+                      balanceTab === tab
+                        ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
+                        : 'bg-transparent text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    {tab === 'manual' ? 'Manual' : 'Bank Sync'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Manual Tab */}
+            {balanceTab === 'manual' && (
+              <>
+                <p className="text-[12px] text-[var(--text-secondary)] m-0 mb-4">Enter current balances for each account. Leave unchanged to skip.</p>
+                <div className="flex flex-col gap-3">
+                  {data.accounts.map((a) => (
+                    <div key={a.accountId} className="flex items-center gap-3">
+                      <span className="flex-1 text-[13px] text-[var(--text-body)]">
+                        {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={balanceInputs[a.accountId] ?? ''}
+                        onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
+                        className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none focus:border-[#3b82f6] text-[var(--text-body)] bg-[var(--bg-input)]"
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex gap-2 mt-4 justify-end">
-              <button onClick={() => setShowBalanceModal(false)}
-                className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
-              <button onClick={saveBalances}
-                className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
-            </div>
+                <div className="flex gap-2 mt-4 justify-end">
+                  <button onClick={() => setShowBalanceModal(false)}
+                    className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
+                  <button onClick={saveBalances}
+                    className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
+                </div>
+              </>
+            )}
+
+            {/* Bank Sync Tab */}
+            {balanceTab === 'sync' && (
+              <>
+                {syncBalanceLoading && (
+                  <div className="flex items-center justify-center py-8 gap-2 text-[var(--text-secondary)] text-[13px]">
+                    <Spinner /> Fetching balances from SimpleFIN…
+                  </div>
+                )}
+                {syncBalanceError && (
+                  <div className="rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] p-3 text-[12px] text-[var(--error-text)] mb-3">
+                    <p className="m-0 font-semibold mb-1">Failed to fetch balances</p>
+                    <p className="m-0 mb-2">{syncBalanceError}</p>
+                    <button onClick={fetchSyncBalances}
+                      className="text-[11px] font-semibold text-[var(--error-text)] underline cursor-pointer bg-transparent border-none p-0">Retry</button>
+                    <p className="m-0 mt-2 text-[11px] text-[var(--text-muted)]">You can still update balances manually using the other tab.</p>
+                  </div>
+                )}
+                {!syncBalanceLoading && !syncBalanceError && syncBalances.length === 0 && (
+                  <p className="text-[13px] text-[var(--text-muted)] text-center py-6">No linked accounts found. Link accounts in Settings → Bank Sync.</p>
+                )}
+                {!syncBalanceLoading && !syncBalanceError && syncBalances.length > 0 && (
+                  <>
+                    <table className="w-full border-collapse text-[13px] mb-3">
+                      <thead>
+                        <tr>
+                          <th className="w-8 px-2 py-2 border-b-2 border-[var(--table-border)]">
+                            <input type="checkbox"
+                              checked={syncBalanceSelected.size === syncBalances.length}
+                              onChange={() => {
+                                if (syncBalanceSelected.size === syncBalances.length) setSyncBalanceSelected(new Set());
+                                else setSyncBalanceSelected(new Set(syncBalances.map(b => b.accountId)));
+                              }}
+                              className="cursor-pointer" />
+                          </th>
+                          <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                          <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Current</th>
+                          <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">SimpleFIN</th>
+                          <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Difference</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {syncBalances.map((b) => {
+                          const current = data.accounts.find(a => a.accountId === b.accountId)?.balance ?? null;
+                          const diff = current !== null ? b.simplefinBalance - current : null;
+                          const noChange = diff !== null && Math.abs(diff) < 0.01;
+                          return (
+                            <tr key={b.accountId} className={`border-b border-[var(--table-row-border)] ${noChange ? 'opacity-50' : ''}`}>
+                              <td className="px-2 py-2 text-center">
+                                <input type="checkbox"
+                                  checked={syncBalanceSelected.has(b.accountId)}
+                                  onChange={() => setSyncBalanceSelected(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(b.accountId)) next.delete(b.accountId); else next.add(b.accountId);
+                                    return next;
+                                  })}
+                                  className="cursor-pointer" />
+                              </td>
+                              <td className="px-2.5 py-2 font-medium text-[var(--text-primary)]">{b.accountName}</td>
+                              <td className="px-2.5 py-2 text-right font-mono text-[var(--text-body)]">
+                                {current !== null ? fmt(current) : '—'}
+                              </td>
+                              <td className="px-2.5 py-2 text-right font-mono font-semibold text-[var(--text-primary)]">
+                                {fmt(b.simplefinBalance)}
+                              </td>
+                              <td className="px-2.5 py-2 text-right font-mono text-[12px]">
+                                {noChange ? (
+                                  <span className="text-[var(--text-muted)]">No change</span>
+                                ) : diff !== null ? (
+                                  <span className={diff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}>
+                                    {diff >= 0 ? '+' : ''}{fmt(diff)}
+                                  </span>
+                                ) : (
+                                  <span className="text-[var(--text-muted)]">New</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setShowBalanceModal(false)}
+                        className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
+                      <button onClick={applySyncBalances}
+                        disabled={syncBalanceSelected.size === 0}
+                        className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50">
+                        Apply {syncBalanceSelected.size} Update{syncBalanceSelected.size !== 1 ? 's' : ''}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
