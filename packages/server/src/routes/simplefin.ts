@@ -252,6 +252,63 @@ router.get('/connections/:id/accounts', async (req: Request, res: Response) => {
 
 // === Link CRUD ===
 
+// GET /api/simplefin/linked-accounts — all linked accounts grouped by connection
+router.get('/linked-accounts', (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const rows = sqlite.prepare(`
+      SELECT
+        sc.id as connection_id,
+        sc.label as connection_label,
+        sl.id as link_id,
+        sl.account_id,
+        sl.simplefin_account_id,
+        sl.simplefin_account_name,
+        sl.simplefin_org_name,
+        sl.last_synced_at,
+        a.name as ledger_account_name
+      FROM simplefin_connections sc
+      JOIN simplefin_links sl ON sl.simplefin_connection_id = sc.id
+      JOIN accounts a ON sl.account_id = a.id
+      WHERE sc.user_id IS NULL OR sc.user_id = ?
+      ORDER BY sc.label, sl.simplefin_account_name
+    `).all(userId) as {
+      connection_id: number;
+      connection_label: string;
+      link_id: number;
+      account_id: number;
+      simplefin_account_id: string;
+      simplefin_account_name: string;
+      simplefin_org_name: string | null;
+      last_synced_at: string | null;
+      ledger_account_name: string;
+    }[];
+
+    // Group by connection
+    const grouped = new Map<number, {
+      connectionId: number;
+      connectionLabel: string;
+      accounts: typeof rows;
+    }>();
+
+    for (const r of rows) {
+      if (!grouped.has(r.connection_id)) {
+        grouped.set(r.connection_id, {
+          connectionId: r.connection_id,
+          connectionLabel: r.connection_label,
+          accounts: [],
+        });
+      }
+      grouped.get(r.connection_id)!.accounts.push(r);
+    }
+
+    res.json({ data: Array.from(grouped.values()) });
+  } catch (err) {
+    console.error('GET /simplefin/linked-accounts error:', err);
+    res.status(500).json({ error: 'Failed to fetch linked accounts' });
+  }
+});
+
 // POST /api/simplefin/links
 router.post('/links', (req: Request, res: Response) => {
   try {
@@ -643,6 +700,64 @@ router.post('/commit', (req: Request, res: Response) => {
   } catch (err) {
     console.error('POST /simplefin/commit error:', err);
     res.status(500).json({ error: 'Failed to commit sync data' });
+  }
+});
+
+// GET /api/simplefin/holdings — holdings grouped by account for Net Worth
+router.get('/holdings', (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const rows = sqlite.prepare(`
+      SELECT
+        sl.account_id,
+        a.name as account_name,
+        sh.symbol, sh.description, sh.shares, sh.cost_basis, sh.market_value, sh.updated_at
+      FROM simplefin_holdings sh
+      JOIN simplefin_links sl ON sh.simplefin_link_id = sl.id
+      JOIN simplefin_connections sc ON sl.simplefin_connection_id = sc.id
+      JOIN accounts a ON sl.account_id = a.id
+      WHERE sc.user_id IS NULL OR sc.user_id = ?
+      ORDER BY a.name, sh.symbol
+    `).all(userId) as {
+      account_id: number;
+      account_name: string;
+      symbol: string;
+      description: string;
+      shares: number;
+      cost_basis: number;
+      market_value: number;
+      updated_at: string;
+    }[];
+
+    const grouped = new Map<number, {
+      accountId: number;
+      accountName: string;
+      holdings: { symbol: string; description: string; shares: number; costBasis: number; marketValue: number }[];
+      updatedAt: string | null;
+    }>();
+
+    for (const r of rows) {
+      if (!grouped.has(r.account_id)) {
+        grouped.set(r.account_id, {
+          accountId: r.account_id,
+          accountName: r.account_name,
+          holdings: [],
+          updatedAt: r.updated_at,
+        });
+      }
+      grouped.get(r.account_id)!.holdings.push({
+        symbol: r.symbol,
+        description: r.description,
+        shares: r.shares,
+        costBasis: r.cost_basis,
+        marketValue: r.market_value,
+      });
+    }
+
+    res.json({ data: { accountHoldings: Array.from(grouped.values()) } });
+  } catch (err) {
+    console.error('GET /simplefin/holdings error:', err);
+    res.status(500).json({ error: 'Failed to fetch holdings' });
   }
 });
 

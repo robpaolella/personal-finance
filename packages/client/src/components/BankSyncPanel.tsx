@@ -1,0 +1,665 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { fmt } from '../lib/formatters';
+import { useToast } from '../context/ToastContext';
+import DuplicateBadge from '../components/DuplicateBadge';
+import DuplicateComparison from '../components/DuplicateComparison';
+import TransferBadge from '../components/TransferBadge';
+
+interface Category {
+  id: number;
+  group_name: string;
+  sub_name: string;
+  display_name: string;
+  type: string;
+}
+
+interface LinkedAccountGroup {
+  connectionId: number;
+  connectionLabel: string;
+  accounts: {
+    link_id: number;
+    account_id: number;
+    simplefin_account_id: string;
+    simplefin_account_name: string;
+    simplefin_org_name: string | null;
+    last_synced_at: string | null;
+    ledger_account_name: string;
+  }[];
+}
+
+interface SyncTransaction {
+  simplefinId: string;
+  accountId: number;
+  accountName: string;
+  date: string;
+  description: string;
+  rawDescription: string;
+  amount: number;
+  suggestedCategoryId: number | null;
+  suggestedGroupName: string | null;
+  suggestedSubName: string | null;
+  confidence: number;
+  duplicateStatus: 'exact' | 'possible' | 'none';
+  duplicateMatchId: number | null;
+  isLikelyTransfer: boolean;
+  // User overrides
+  categoryId: number | null;
+  groupName: string | null;
+  subName: string | null;
+}
+
+interface SyncBalanceUpdate {
+  accountId: number;
+  accountName: string;
+  currentBalance: number;
+  previousBalance: number | null;
+  balanceDate: string;
+  selected: boolean;
+}
+
+interface SyncHoldingsUpdate {
+  accountId: number;
+  accountName: string;
+  holdings: { symbol: string; description: string; shares: number; costBasis: number; marketValue: number }[];
+  selected: boolean;
+}
+
+const DATE_PRESETS = [
+  { label: 'Last 7 Days', days: 7 },
+  { label: 'Last 14 Days', days: 14 },
+  { label: 'Last 30 Days', days: 30 },
+  { label: 'Last 60 Days', days: 60 },
+  { label: 'Custom Range', days: 0 },
+];
+
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'Never';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+const STEPS = ['Select & Fetch', 'Review & Import'];
+
+export default function BankSyncPanel({ categories }: { categories: Category[] }) {
+  const { addToast } = useToast();
+  const navigate = useNavigate();
+  const [step, setStep] = useState(0);
+
+  // Step 1 state
+  const [linkedGroups, setLinkedGroups] = useState<LinkedAccountGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<number>>(new Set());
+  const [datePreset, setDatePreset] = useState(30);
+  const [customStart, setCustomStart] = useState(daysAgo(30));
+  const [customEnd, setCustomEnd] = useState(new Date().toISOString().slice(0, 10));
+  const [fetching, setFetching] = useState(false);
+
+  // Step 2 state
+  const [syncTxns, setSyncTxns] = useState<SyncTransaction[]>([]);
+  const [balanceUpdates, setBalanceUpdates] = useState<SyncBalanceUpdate[]>([]);
+  const [holdingsUpdates, setHoldingsUpdates] = useState<SyncHoldingsUpdate[]>([]);
+  const [selectedTxnRows, setSelectedTxnRows] = useState<Set<number>>(new Set());
+  const [expandedDupeRow, setExpandedDupeRow] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  // Category grouping
+  const expenseCats = categories.filter((c) => c.type === 'expense');
+  const incomeCats = categories.filter((c) => c.type === 'income');
+  const catGroups = new Map<string, Category[]>();
+  for (const c of expenseCats) {
+    if (!catGroups.has(c.group_name)) catGroups.set(c.group_name, []);
+    catGroups.get(c.group_name)!.push(c);
+  }
+
+  const loadLinkedAccounts = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ data: LinkedAccountGroup[] }>('/simplefin/linked-accounts');
+      setLinkedGroups(res.data);
+      // Select all by default
+      const allIds = new Set<number>();
+      for (const g of res.data) {
+        for (const a of g.accounts) allIds.add(a.account_id);
+      }
+      setSelectedAccountIds(allIds);
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadLinkedAccounts(); }, [loadLinkedAccounts]);
+
+  const totalLinkedAccounts = linkedGroups.reduce((sum, g) => sum + g.accounts.length, 0);
+
+  const getDateRange = () => {
+    if (datePreset === 0) return { startDate: customStart, endDate: customEnd };
+    return { startDate: daysAgo(datePreset), endDate: new Date().toISOString().slice(0, 10) };
+  };
+
+  const handleFetch = async () => {
+    setFetching(true);
+    try {
+      const { startDate, endDate } = getDateRange();
+      const res = await apiFetch<{
+        data: {
+          transactions: Omit<SyncTransaction, 'categoryId' | 'groupName' | 'subName'>[];
+          balanceUpdates: Omit<SyncBalanceUpdate, 'selected'>[];
+          holdingsUpdates: Omit<SyncHoldingsUpdate, 'selected'>[];
+        };
+      }>('/simplefin/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          accountIds: Array.from(selectedAccountIds),
+          startDate,
+          endDate,
+        }),
+      });
+
+      const txns: SyncTransaction[] = res.data.transactions.map((t) => ({
+        ...t,
+        categoryId: t.suggestedCategoryId,
+        groupName: t.suggestedGroupName,
+        subName: t.suggestedSubName,
+      }));
+
+      setSyncTxns(txns);
+      setBalanceUpdates(res.data.balanceUpdates.map((b) => ({ ...b, selected: true })));
+      setHoldingsUpdates(res.data.holdingsUpdates.map((h) => ({ ...h, selected: true })));
+
+      // Auto-select: uncheck exact duplicates
+      const selected = new Set(txns.map((_, i) => i));
+      txns.forEach((t, i) => { if (t.duplicateStatus === 'exact') selected.delete(i); });
+      setSelectedTxnRows(selected);
+
+      setStep(1);
+    } catch (err) {
+      addToast('Failed to fetch from SimpleFIN. Check your connection in Settings.', 'error');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const updateTxnCategory = (idx: number, catId: number) => {
+    const cat = categories.find((c) => c.id === catId);
+    if (!cat) return;
+    setSyncTxns((prev) => prev.map((t, i) => i === idx ? {
+      ...t,
+      categoryId: catId,
+      groupName: cat.group_name,
+      subName: cat.sub_name,
+      confidence: 1.0,
+    } : t));
+  };
+
+  const handleImport = async () => {
+    const selectedTxns = syncTxns.filter((_, i) => selectedTxnRows.has(i) && syncTxns[i].categoryId != null);
+    const selectedBalances = balanceUpdates.filter((b) => b.selected);
+    const selectedHoldings = holdingsUpdates.filter((h) => h.selected);
+
+    if (selectedTxns.length === 0 && selectedBalances.length === 0 && selectedHoldings.length === 0) return;
+
+    setImporting(true);
+    try {
+      const res = await apiFetch<{ data: { transactionsImported: number; balancesUpdated: number; holdingsUpdated: number } }>(
+        '/simplefin/commit',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            transactions: selectedTxns.map((t) => ({
+              simplefinId: t.simplefinId,
+              accountId: t.accountId,
+              date: t.date,
+              description: t.description,
+              rawDescription: t.rawDescription,
+              amount: t.amount,
+              categoryId: t.categoryId,
+            })),
+            balanceUpdates: selectedBalances.map((b) => ({
+              accountId: b.accountId,
+              balance: b.currentBalance,
+              date: b.balanceDate,
+            })),
+            holdingsUpdates: selectedHoldings.map((h) => ({
+              accountId: h.accountId,
+              holdings: h.holdings,
+            })),
+          }),
+        }
+      );
+
+      const parts = [];
+      if (res.data.transactionsImported > 0) parts.push(`${res.data.transactionsImported} transactions`);
+      if (res.data.balancesUpdated > 0) parts.push(`${res.data.balancesUpdated} balances`);
+      addToast(`Imported ${parts.join(', updated ')}`);
+
+      const { startDate, endDate } = getDateRange();
+      navigate(`/transactions?startDate=${startDate}&endDate=${endDate}`);
+    } catch {
+      addToast('Import failed', 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  if (loading) return null;
+
+  // No linked accounts — not configured
+  if (totalLinkedAccounts === 0) {
+    return (
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-10 text-center shadow-[var(--card-shadow)]">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mx-auto text-[var(--text-muted)] mb-3">
+          <path d="M3 21h18" /><path d="M3 10h18" /><path d="M5 6l7-3 7 3" /><path d="M4 10v11" /><path d="M20 10v11" /><path d="M8 14v4" /><path d="M12 14v4" /><path d="M16 14v4" />
+        </svg>
+        <h3 className="text-[16px] font-bold text-[var(--text-primary)] mb-1">Bank Sync Not Configured</h3>
+        <p className="text-[13px] text-[var(--text-secondary)] mb-4 max-w-md mx-auto">
+          Connect your bank accounts via SimpleFIN to automatically pull transactions and balances
+        </p>
+        <Link to="/settings"
+          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[var(--bg-primary-btn)] text-white rounded-lg text-[13px] font-semibold no-underline">
+          Set Up in Settings →
+        </Link>
+        <p className="text-[11px] text-[var(--text-muted)] mt-3">
+          SimpleFIN connects to 16,000+ financial institutions for $1.50/month
+        </p>
+      </div>
+    );
+  }
+
+  const validTxnCount = syncTxns.filter((t, i) => selectedTxnRows.has(i) && t.categoryId != null).length;
+  const selectedBalanceCount = balanceUpdates.filter((b) => b.selected).length;
+  const selectedHoldingsCount = holdingsUpdates.filter((h) => h.selected).length;
+
+  return (
+    <div>
+      {/* Step Indicator */}
+      <div className="flex gap-1 mb-6">
+        {STEPS.map((s, i) => (
+          <div key={s} className="flex-1 text-center">
+            <div className={`h-[3px] rounded-sm mb-1.5 ${i <= step ? 'bg-[#3b82f6]' : 'bg-[var(--table-border)]'}`} />
+            <span className={`text-[11px] ${i === step ? 'text-[var(--badge-blue-text)] font-bold' : i < step ? 'text-[var(--badge-blue-text)]' : 'text-[var(--text-muted)]'}`}>
+              {s}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Step 1: Select & Fetch */}
+      {step === 0 && (
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+          <div className="grid grid-cols-[1fr_300px] gap-6">
+            {/* Account Selection */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Select Accounts</h3>
+                <label className="flex items-center gap-1.5 text-[12px] text-[var(--text-secondary)] cursor-pointer">
+                  <input type="checkbox"
+                    checked={selectedAccountIds.size === totalLinkedAccounts && totalLinkedAccounts > 0}
+                    onChange={() => {
+                      if (selectedAccountIds.size === totalLinkedAccounts) {
+                        setSelectedAccountIds(new Set());
+                      } else {
+                        const all = new Set<number>();
+                        for (const g of linkedGroups) for (const a of g.accounts) all.add(a.account_id);
+                        setSelectedAccountIds(all);
+                      }
+                    }}
+                    className="cursor-pointer" />
+                  Select All
+                </label>
+              </div>
+              {linkedGroups.map((group) => (
+                <div key={group.connectionId} className="mb-3">
+                  <div className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-1.5">
+                    {group.connectionLabel}
+                  </div>
+                  {group.accounts.map((acct) => (
+                    <label key={acct.link_id}
+                      className="flex items-center gap-2.5 py-1.5 px-2 rounded-md cursor-pointer hover:bg-[var(--bg-hover)]">
+                      <input type="checkbox"
+                        checked={selectedAccountIds.has(acct.account_id)}
+                        onChange={() => {
+                          setSelectedAccountIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(acct.account_id)) next.delete(acct.account_id);
+                            else next.add(acct.account_id);
+                            return next;
+                          });
+                        }}
+                        className="cursor-pointer" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-[13px] text-[var(--text-primary)]">
+                            {acct.simplefin_account_name}
+                          </span>
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--badge-mono-text)] font-mono">
+                            {acct.ledger_account_name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                          {acct.simplefin_org_name && <span>{acct.simplefin_org_name}</span>}
+                          <span>·</span>
+                          <span>Last synced: {formatDate(acct.last_synced_at)}</span>
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Date Range */}
+            <div>
+              <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-3">Date Range</h3>
+              <select
+                value={datePreset}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  setDatePreset(v);
+                  if (v > 0) {
+                    setCustomStart(daysAgo(v));
+                    setCustomEnd(new Date().toISOString().slice(0, 10));
+                  }
+                }}
+                className="w-full border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-3 py-2 text-[13px] outline-none mb-3 text-[var(--text-body)]">
+                {DATE_PRESETS.map((p) => (
+                  <option key={p.days} value={p.days}>{p.label}</option>
+                ))}
+              </select>
+              {datePreset === 0 && (
+                <div className="flex gap-2 mb-3">
+                  <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                    className="flex-1 border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] outline-none text-[var(--text-body)]" />
+                  <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                    className="flex-1 border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] outline-none text-[var(--text-body)]" />
+                </div>
+              )}
+              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                SimpleFIN updates data once per day. Date range limited to 60 days per request.
+              </p>
+            </div>
+          </div>
+
+          {/* Fetch Button */}
+          <button
+            onClick={handleFetch}
+            disabled={fetching || selectedAccountIds.size === 0}
+            className="w-full mt-4 py-2.5 bg-[var(--bg-primary-btn)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            {fetching ? (
+              <>
+                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                Fetching...
+              </>
+            ) : (
+              `Fetch Transactions (${selectedAccountIds.size} account${selectedAccountIds.size !== 1 ? 's' : ''})`
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Step 2: Review & Import */}
+      {step === 1 && (
+        <div>
+          {/* Back link */}
+          <button onClick={() => setStep(0)}
+            className="text-[12px] text-[var(--badge-blue-text)] bg-transparent border-none cursor-pointer mb-4 hover:underline">
+            ← Back to Selection
+          </button>
+
+          {/* Transaction Review */}
+          {syncTxns.length === 0 ? (
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-8 text-center shadow-[var(--card-shadow)]">
+              <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1">No new transactions found</p>
+              <p className="text-[13px] text-[var(--text-secondary)]">
+                All transactions have already been imported for the selected date range.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] mb-4">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[13px] text-[var(--text-secondary)]">
+                  {validTxnCount} of {syncTxns.length} transactions selected for import
+                </span>
+              </div>
+
+              <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '40px' }} />
+                  <col style={{ width: '95px' }} />
+                  <col />
+                  <col style={{ width: '130px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '155px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '55px' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="px-2 py-2 border-b-2 border-[var(--table-border)]">
+                      <input type="checkbox"
+                        checked={selectedTxnRows.size === syncTxns.length && syncTxns.length > 0}
+                        onChange={() => {
+                          if (selectedTxnRows.size === syncTxns.length) setSelectedTxnRows(new Set());
+                          else setSelectedTxnRows(new Set(syncTxns.map((_, i) => i)));
+                        }}
+                        className="cursor-pointer" />
+                    </th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Payee</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-center">Conf.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {syncTxns.map((t, i) => (
+                    <React.Fragment key={i}>
+                      <tr className={`border-b border-[var(--table-row-border)] ${!selectedTxnRows.has(i) ? 'opacity-50' : ''} ${!t.categoryId && selectedTxnRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={selectedTxnRows.has(i)}
+                            onChange={() => {
+                              setSelectedTxnRows((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(i)) next.delete(i); else next.add(i);
+                                return next;
+                              });
+                            }}
+                            className="cursor-pointer" />
+                        </td>
+                        <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)] truncate">{t.date}</td>
+                        <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate" title={t.rawDescription !== t.description ? t.rawDescription : undefined}>
+                          {t.description}
+                        </td>
+                        <td className="px-2.5 py-2">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--badge-mono-text)] font-mono truncate block">
+                            {t.accountName}
+                          </span>
+                        </td>
+                        <td className={`px-2.5 py-2 text-right font-mono font-semibold ${t.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
+                          {t.amount < 0 ? '+' : ''}{fmt(Math.abs(t.amount))}
+                        </td>
+                        <td className="px-2.5 py-1.5">
+                          {t.groupName && t.categoryId && (
+                            <div className="text-[10px] text-[var(--text-muted)] mb-0.5 truncate">{t.groupName}</div>
+                          )}
+                          <select
+                            className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                            value={t.categoryId || ''}
+                            onChange={(e) => updateTxnCategory(i, parseInt(e.target.value))}>
+                            <option value="">Select...</option>
+                            {Array.from(catGroups.entries()).map(([group, cats]) => (
+                              <optgroup key={group} label={group}>
+                                {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                              </optgroup>
+                            ))}
+                            <optgroup label="Income">
+                              {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                            </optgroup>
+                          </select>
+                        </td>
+                        <td className="px-2.5 py-1.5">
+                          <div className="flex flex-wrap gap-1">
+                            <DuplicateBadge status={t.duplicateStatus}
+                              onClick={() => setExpandedDupeRow(expandedDupeRow === i ? null : i)} />
+                            <TransferBadge isLikelyTransfer={t.isLikelyTransfer} />
+                          </div>
+                        </td>
+                        <td className="px-2.5 py-2 text-center">
+                          <span className={`text-[11px] font-semibold font-mono ${
+                            t.confidence > 0.9 ? 'text-[#10b981]' : t.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+                          }`}>
+                            {Math.round(t.confidence * 100)}%
+                          </span>
+                        </td>
+                      </tr>
+                      {expandedDupeRow === i && t.duplicateMatchId && (
+                        <tr>
+                          <td colSpan={8} className="px-2.5 py-1">
+                            <DuplicateComparison
+                              incoming={{ date: t.date, description: t.description, amount: t.amount, accountName: t.accountName }}
+                              existing={{ date: t.date, description: '', amount: t.amount, accountName: null }}
+                              onImportAnyway={() => {
+                                setSelectedTxnRows((prev) => { const next = new Set(prev); next.add(i); return next; });
+                                setExpandedDupeRow(null);
+                              }}
+                              onSkip={() => {
+                                setSelectedTxnRows((prev) => { const next = new Set(prev); next.delete(i); return next; });
+                                setExpandedDupeRow(null);
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Balance Updates */}
+          {balanceUpdates.length > 0 && (
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] mb-4">
+              <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Balance Updates</h3>
+              <p className="text-[13px] text-[var(--text-secondary)] mb-3">Approving updates will create new balance snapshots on the Net Worth page</p>
+              <table className="w-full border-collapse text-[13px]">
+                <thead>
+                  <tr>
+                    <th className="w-[40px] px-2 py-2 border-b-2 border-[var(--table-border)]" />
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Previous</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">New Balance</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {balanceUpdates.map((b, i) => {
+                    const change = b.previousBalance !== null ? b.currentBalance - b.previousBalance : null;
+                    const noChange = change !== null && Math.abs(change) < 0.005;
+                    const pct = b.previousBalance && b.previousBalance !== 0 && change !== null
+                      ? ((change / Math.abs(b.previousBalance)) * 100) : null;
+                    return (
+                      <tr key={i} className={`border-b border-[var(--table-row-border)] ${noChange ? 'opacity-60' : ''}`}>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={b.selected}
+                            onChange={() => setBalanceUpdates((prev) => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
+                            className="cursor-pointer" />
+                        </td>
+                        <td className="px-2.5 py-2 font-medium text-[var(--text-primary)]">{b.accountName}</td>
+                        <td className="px-2.5 py-2 text-right font-mono text-[var(--text-body)]">
+                          {b.previousBalance !== null ? fmt(b.previousBalance) : '—'}
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-mono font-semibold text-[var(--text-primary)]">
+                          {fmt(b.currentBalance)}
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-mono text-[12px]">
+                          {noChange ? (
+                            <span className="text-[var(--text-muted)]">No change</span>
+                          ) : change !== null ? (
+                            <span className={change >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}>
+                              {change >= 0 ? '+' : ''}{fmt(change)}
+                              {pct !== null && <span className="text-[11px]"> ({change >= 0 ? '+' : ''}{pct.toFixed(1)}%)</span>}
+                            </span>
+                          ) : (
+                            <span className="text-[var(--text-muted)]">New</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Holdings Updates */}
+          {holdingsUpdates.length > 0 && (
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] mb-4">
+              <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-3">Holdings Updates</h3>
+              {holdingsUpdates.map((hu, hi) => (
+                <div key={hi} className="mb-3">
+                  <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                    <input type="checkbox" checked={hu.selected}
+                      onChange={() => setHoldingsUpdates((prev) => prev.map((x, j) => j === hi ? { ...x, selected: !x.selected } : x))}
+                      className="cursor-pointer" />
+                    <span className="font-semibold text-[13px] text-[var(--text-primary)]">{hu.accountName}</span>
+                  </label>
+                  <table className="w-full border-collapse text-[12px] ml-6">
+                    <thead>
+                      <tr>
+                        <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase px-2 py-1 border-b border-[var(--table-border)] text-left">Symbol</th>
+                        <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase px-2 py-1 border-b border-[var(--table-border)] text-left">Fund</th>
+                        <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase px-2 py-1 border-b border-[var(--table-border)] text-right">Shares</th>
+                        <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase px-2 py-1 border-b border-[var(--table-border)] text-right">Cost Basis</th>
+                        <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase px-2 py-1 border-b border-[var(--table-border)] text-right">Market Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hu.holdings.map((h, j) => (
+                        <tr key={j} className="border-b border-[var(--table-row-border)]">
+                          <td className="px-2 py-1 font-mono font-semibold text-[var(--text-primary)]">{h.symbol}</td>
+                          <td className="px-2 py-1 text-[var(--text-secondary)] truncate">{h.description}</td>
+                          <td className="px-2 py-1 text-right font-mono text-[var(--text-body)]">{h.shares.toFixed(2)}</td>
+                          <td className="px-2 py-1 text-right font-mono text-[var(--text-muted)]">{fmt(h.costBasis)}</td>
+                          <td className="px-2 py-1 text-right font-mono font-semibold text-[var(--text-primary)]">{fmt(h.marketValue)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Import Button */}
+          {(syncTxns.length > 0 || balanceUpdates.length > 0 || holdingsUpdates.length > 0) && (
+            <button
+              onClick={handleImport}
+              disabled={importing || (validTxnCount === 0 && selectedBalanceCount === 0 && selectedHoldingsCount === 0)}
+              className="w-full py-2.5 bg-[#10b981] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              {importing ? 'Importing...' : (() => {
+                const parts = [];
+                if (validTxnCount > 0) parts.push(`${validTxnCount} Transaction${validTxnCount !== 1 ? 's' : ''}`);
+                if (selectedBalanceCount > 0) parts.push(`${selectedBalanceCount} Balance${selectedBalanceCount !== 1 ? 's' : ''}`);
+                if (selectedHoldingsCount > 0) parts.push('Holdings');
+                return `Import ${parts.join(' & Update ')}`;
+              })()}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
