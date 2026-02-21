@@ -323,11 +323,11 @@ function TransactionForm({
             </svg>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <p className="text-[12px] font-semibold text-[#92400e] dark:text-[#fbbf24] m-0">
+                <p className="text-[12px] font-semibold text-[#78350f] dark:text-[#fbbf24] m-0">
                   Possible duplicate detected — click Save again to confirm
                 </p>
                 <button onClick={() => setDupeExpanded(!dupeExpanded)}
-                  className="bg-transparent border-none cursor-pointer p-0.5 text-[#92400e] dark:text-[#fbbf24]">
+                  className="bg-transparent border-none cursor-pointer p-0.5 text-[#78350f] dark:text-[#fbbf24]">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                     style={{ transform: dupeExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease' }}>
                     <polyline points="9 18 15 12 9 6" />
@@ -336,19 +336,19 @@ function TransactionForm({
               </div>
               {dupeExpanded && (
                 <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
-                  <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Date</span>
-                  <span className="font-mono text-[#92400e] dark:text-[#fde68a]">{duplicateMatch.date}</span>
-                  <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Description</span>
-                  <span className="text-[#92400e] dark:text-[#fde68a]">{duplicateMatch.description}</span>
-                  <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Amount</span>
-                  <span className="font-mono font-semibold text-[#92400e] dark:text-[#fde68a]">{fmt(Math.abs(duplicateMatch.amount))}</span>
+                  <span className="text-[#92400e] dark:text-[#fbbf24]/60">Date</span>
+                  <span className="font-mono text-[#451a03] dark:text-[#fde68a]">{duplicateMatch.date}</span>
+                  <span className="text-[#92400e] dark:text-[#fbbf24]/60">Description</span>
+                  <span className="text-[#451a03] dark:text-[#fde68a]">{duplicateMatch.description}</span>
+                  <span className="text-[#92400e] dark:text-[#fbbf24]/60">Amount</span>
+                  <span className="font-mono font-semibold text-[#451a03] dark:text-[#fde68a]">{fmt(Math.abs(duplicateMatch.amount))}</span>
                   {duplicateMatch.accountName && <>
-                    <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Account</span>
-                    <span className="text-[#92400e] dark:text-[#fde68a]">{duplicateMatch.accountName}</span>
+                    <span className="text-[#92400e] dark:text-[#fbbf24]/60">Account</span>
+                    <span className="text-[#451a03] dark:text-[#fde68a]">{duplicateMatch.accountName}</span>
                   </>}
                   {duplicateMatch.category && <>
-                    <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Category</span>
-                    <span className="text-[#92400e] dark:text-[#fde68a]">{duplicateMatch.category}</span>
+                    <span className="text-[#92400e] dark:text-[#fbbf24]/60">Category</span>
+                    <span className="text-[#451a03] dark:text-[#fde68a]">{duplicateMatch.category}</span>
                   </>}
                 </div>
               )}
