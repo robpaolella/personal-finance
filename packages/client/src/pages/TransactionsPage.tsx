@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api';
 import { fmt, fmtTransaction } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
+import SortableHeader from '../components/SortableHeader';
 
 interface DuplicateMatch {
   id: number;
@@ -336,19 +337,19 @@ function TransactionForm({
               </div>
               {dupeExpanded && (
                 <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
-                  <span className="text-[#92400e] dark:text-[#fbbf24]/60">Date</span>
-                  <span className="font-mono text-[#451a03] dark:text-[#fde68a]">{duplicateMatch.date}</span>
-                  <span className="text-[#92400e] dark:text-[#fbbf24]/60">Description</span>
-                  <span className="text-[#451a03] dark:text-[#fde68a]">{duplicateMatch.description}</span>
-                  <span className="text-[#92400e] dark:text-[#fbbf24]/60">Amount</span>
-                  <span className="font-mono font-semibold text-[#451a03] dark:text-[#fde68a]">{fmt(Math.abs(duplicateMatch.amount))}</span>
+                  <span className="text-[var(--dupe-key)]">Date</span>
+                  <span className="font-mono text-[var(--dupe-value)]">{duplicateMatch.date}</span>
+                  <span className="text-[var(--dupe-key)]">Description</span>
+                  <span className="text-[var(--dupe-value)]">{duplicateMatch.description}</span>
+                  <span className="text-[var(--dupe-key)]">Amount</span>
+                  <span className="font-mono font-semibold text-[var(--dupe-value)]">{fmt(Math.abs(duplicateMatch.amount))}</span>
                   {duplicateMatch.accountName && <>
-                    <span className="text-[#92400e] dark:text-[#fbbf24]/60">Account</span>
-                    <span className="text-[#451a03] dark:text-[#fde68a]">{duplicateMatch.accountName}</span>
+                    <span className="text-[var(--dupe-key)]">Account</span>
+                    <span className="text-[var(--dupe-value)]">{duplicateMatch.accountName}</span>
                   </>}
                   {duplicateMatch.category && <>
-                    <span className="text-[#92400e] dark:text-[#fbbf24]/60">Category</span>
-                    <span className="text-[#451a03] dark:text-[#fde68a]">{duplicateMatch.category}</span>
+                    <span className="text-[var(--dupe-key)]">Category</span>
+                    <span className="text-[var(--dupe-value)]">{duplicateMatch.category}</span>
                   </>}
                 </div>
               )}
@@ -400,6 +401,8 @@ export default function TransactionsPage() {
   const [customEnd, setCustomEnd] = useState('');
 
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState(() => {
     const stored = localStorage.getItem('ledger-page-size');
     return stored ? parseInt(stored, 10) : 50;
@@ -458,11 +461,13 @@ export default function TransactionsPage() {
     if (search) params.set('search', search);
     if (filterAccount !== 'All') params.set('accountId', filterAccount);
     if (filterType !== 'All') params.set('type', filterType.toLowerCase());
+    params.set('sortBy', sortBy);
+    params.set('sortOrder', sortOrder);
 
     const res = await apiFetch<{ data: Transaction[]; total: number }>(`/transactions?${params.toString()}`);
     setTransactions(res.data);
     setTotal(res.total);
-  }, [getDateRange, search, filterAccount, filterType, page, pageSize]);
+  }, [getDateRange, search, filterAccount, filterType, page, pageSize, sortBy, sortOrder]);
 
   const loadMeta = useCallback(async () => {
     const [acctRes, catRes] = await Promise.all([
@@ -472,6 +477,16 @@ export default function TransactionsPage() {
     setAccounts(acctRes.data);
     setCategories(catRes.data);
   }, []);
+
+  const handleSort = (key: string) => {
+    if (key === sortBy) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(key);
+      setSortOrder('asc');
+    }
+    setPage(1);
+  };
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
   useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType]);
@@ -756,12 +771,12 @@ export default function TransactionsPage() {
                     onChange={toggleSelectAll} className="cursor-pointer" />
                 </th>
               )}
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+              <SortableHeader label="Date" sortKey="date" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Description" sortKey="description" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Account" sortKey="account" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Category" sortKey="category" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
               <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
+              <SortableHeader label="Amount" sortKey="amount" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} align="right" />
             </tr>
           </thead>
           <tbody>

@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import DuplicateBadge from '../components/DuplicateBadge';
 import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
+import SortableHeader from '../components/SortableHeader';
 
 interface Category {
   id: number;
@@ -109,6 +110,8 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
   const [selectedTxnRows, setSelectedTxnRows] = useState<Set<number>>(new Set());
   const [expandedDupeRow, setExpandedDupeRow] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
+  const [reviewSortBy, setReviewSortBy] = useState('date');
+  const [reviewSortDir, setReviewSortDir] = useState<'asc' | 'desc'>('desc');
 
   // Category grouping
   const expenseCats = categories.filter((c) => c.type === 'expense');
@@ -118,6 +121,33 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
     if (!catGroups.has(c.group_name)) catGroups.set(c.group_name, []);
     catGroups.get(c.group_name)!.push(c);
   }
+
+  const handleReviewSort = (key: string) => {
+    if (key === reviewSortBy) setReviewSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setReviewSortBy(key); setReviewSortDir('asc'); }
+  };
+
+  // Build sorted index for review table
+  const sortedTxnIndices = React.useMemo(() => {
+    const indices = syncTxns.map((_, i) => i);
+    const dir = reviewSortDir === 'asc' ? 1 : -1;
+    indices.sort((a, b) => {
+      const ta = syncTxns[a], tb = syncTxns[b];
+      switch (reviewSortBy) {
+        case 'date': return dir * ta.date.localeCompare(tb.date);
+        case 'payee': return dir * (ta.description || '').localeCompare(tb.description || '');
+        case 'amount': return dir * (ta.amount - tb.amount);
+        case 'category': {
+          const ca = categories.find(c => c.id === ta.categoryId)?.display_name || '';
+          const cb = categories.find(c => c.id === tb.categoryId)?.display_name || '';
+          return dir * ca.localeCompare(cb);
+        }
+        case 'confidence': return dir * ((ta.confidence || 0) - (tb.confidence || 0));
+        default: return 0;
+      }
+    });
+    return indices;
+  }, [syncTxns, reviewSortBy, reviewSortDir, categories]);
 
   const loadLinkedAccounts = useCallback(async () => {
     try {
@@ -464,17 +494,19 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                         }}
                         className="cursor-pointer" />
                     </th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Payee</th>
+                    <SortableHeader label="Date" sortKey="date" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
+                    <SortableHeader label="Payee" sortKey="payee" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
                     <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+                    <SortableHeader label="Amount" sortKey="amount" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} align="right" />
+                    <SortableHeader label="Category" sortKey="category" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
                     <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-center">Conf.</th>
+                    <SortableHeader label="Conf." sortKey="confidence" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} align="center" />
                   </tr>
                 </thead>
                 <tbody>
-                  {syncTxns.map((t, i) => (
+                  {sortedTxnIndices.map((i) => {
+                    const t = syncTxns[i];
+                    return (
                     <React.Fragment key={i}>
                       <tr className={`border-b border-[var(--table-row-border)] ${!selectedTxnRows.has(i) ? 'opacity-50' : ''} ${!t.categoryId && selectedTxnRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
                         <td className="px-2 py-2 text-center">
@@ -553,7 +585,8 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                         </tr>
                       )}
                     </React.Fragment>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

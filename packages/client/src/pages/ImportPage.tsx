@@ -7,6 +7,7 @@ import DuplicateBadge from '../components/DuplicateBadge';
 import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
 import BankSyncPanel from '../components/BankSyncPanel';
+import SortableHeader from '../components/SortableHeader';
 
 interface Account {
   id: number;
@@ -98,6 +99,8 @@ export default function ImportPage() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [modalAccountId, setModalAccountId] = useState<number | ''>('');
   const [expandedDupeRow, setExpandedDupeRow] = useState<number | null>(null);
+  const [csvSortBy, setCsvSortBy] = useState('date');
+  const [csvSortDir, setCsvSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     if (notification) { const t = setTimeout(() => setNotification(null), 5000); return () => clearTimeout(t); }
@@ -114,6 +117,32 @@ export default function ImportPage() {
       if (!searchParams.get('tab') && has) setActiveTab('sync');
     }).catch(() => setHasConnections(false));
   }, []);
+
+  const handleCsvSort = (key: string) => {
+    if (key === csvSortBy) setCsvSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setCsvSortBy(key); setCsvSortDir('asc'); }
+  };
+
+  const sortedCsvIndices = React.useMemo(() => {
+    const indices = categorizedRows.map((_, i) => i);
+    const dir = csvSortDir === 'asc' ? 1 : -1;
+    indices.sort((a, b) => {
+      const ra = categorizedRows[a], rb = categorizedRows[b];
+      switch (csvSortBy) {
+        case 'date': return dir * ra.date.localeCompare(rb.date);
+        case 'description': return dir * ra.description.localeCompare(rb.description);
+        case 'amount': return dir * (ra.amount - rb.amount);
+        case 'category': {
+          const ca = categories.find(c => c.id === ra.categoryId)?.display_name || '';
+          const cb = categories.find(c => c.id === rb.categoryId)?.display_name || '';
+          return dir * ca.localeCompare(cb);
+        }
+        case 'confidence': return dir * ((ra.confidence || 0) - (rb.confidence || 0));
+        default: return 0;
+      }
+    });
+    return indices;
+  }, [categorizedRows, csvSortBy, csvSortDir, categories]);
 
   const handleFile = async (f: File) => {
     if (!selectedAccountId) {
@@ -634,16 +663,18 @@ export default function ImportPage() {
                     }}
                     className="cursor-pointer" />
                 </th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
+                <SortableHeader label="Date" sortKey="date" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                <SortableHeader label="Description" sortKey="description" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                <SortableHeader label="Amount" sortKey="amount" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} align="right" />
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-center">Conf.</th>
+                <SortableHeader label="Category" sortKey="category" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                <SortableHeader label="Conf." sortKey="confidence" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} align="center" />
               </tr>
             </thead>
             <tbody>
-              {categorizedRows.map((r, i) => (
+              {sortedCsvIndices.map((i) => {
+                const r = categorizedRows[i];
+                return (
                 <React.Fragment key={i}>
                   <tr className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${!r.categoryId && selectedImportRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
                     <td className="px-2 py-2 text-center">
@@ -719,7 +750,8 @@ export default function ImportPage() {
                     </tr>
                   )}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
