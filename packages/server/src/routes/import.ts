@@ -96,7 +96,7 @@ router.post('/parse', upload.single('file'), (req: Request, res: Response) => {
 // POST /api/import/categorize
 router.post('/categorize', (req: Request, res: Response) => {
   try {
-    const { items } = req.body as { items: { description: string; amount: number }[] };
+    const { items } = req.body as { items: { description: string; amount: number; payee?: string }[] };
     if (!items || !Array.isArray(items)) {
       res.status(400).json({ error: 'items array is required' });
       return;
@@ -132,22 +132,25 @@ router.post('/categorize', (req: Request, res: Response) => {
     // Keyword rules for common merchants
     const RULES: { pattern: RegExp; groupName: string; subName: string }[] = [
       { pattern: /shell|chevron|exxon|mobil|bp |sunoco|gas|fuel|wawa.*gas/i, groupName: 'Auto/Transportation', subName: 'Fuel' },
-      { pattern: /costco|giant|groceries|grocery|aldi|trader joe|whole foods|safeway|kroger|publix|wegmans|food lion/i, groupName: 'Daily Living', subName: 'Groceries' },
+      { pattern: /costco gas/i, groupName: 'Auto/Transportation', subName: 'Fuel' },
+      { pattern: /costco|giant|groceries|grocery|aldi|trader joe|whole foods|safeway|kroger|publix|wegmans|food lion|jimbo/i, groupName: 'Daily Living', subName: 'Groceries' },
       { pattern: /amazon|amzn/i, groupName: 'Daily Living', subName: 'Online Shopping' },
       { pattern: /walmart|target|dollar/i, groupName: 'Daily Living', subName: 'General Merchandise' },
       { pattern: /netflix|hulu|disney|spotify|apple.*music|hbo|paramount|peacock/i, groupName: 'Dues/Subscriptions', subName: 'Streaming Services' },
-      { pattern: /restaurant|mcdonald|wendy|burger|chick-fil|chipotle|panera|starbucks|dunkin|coffee|pizza|taco bell|diner/i, groupName: 'Daily Living', subName: 'Dining Out' },
-      { pattern: /uber eats|doordash|grubhub|postmates/i, groupName: 'Daily Living', subName: 'Dining Out' },
+      { pattern: /restaurant|mcdonald|wendy|burger|chick-fil|chipotle|panera|starbucks|dunkin|coffee|pizza|taco bell|diner|jersey mike|in-n-out|del taco|subway|on the border|chili|peet/i, groupName: 'Daily Living', subName: 'Dining/Eating Out' },
+      { pattern: /uber eats|doordash|grubhub|postmates/i, groupName: 'Daily Living', subName: 'Dining/Eating Out' },
       { pattern: /uber|lyft|taxi|cab/i, groupName: 'Auto/Transportation', subName: 'Ride Share' },
       { pattern: /geico|progressive|allstate|state farm|insurance/i, groupName: 'Insurance', subName: 'Auto Insurance' },
       { pattern: /at&t|verizon|t-mobile|sprint|comcast|xfinity|internet|wifi/i, groupName: 'Utilities', subName: 'Cellphone' },
-      { pattern: /electric|power|energy|ppl|duke energy/i, groupName: 'Utilities', subName: 'Electric' },
+      { pattern: /electric|power|energy|ppl|duke energy|sd gas|sdge/i, groupName: 'Utilities', subName: 'Electric' },
       { pattern: /water.*sewer|water bill|sewer/i, groupName: 'Utilities', subName: 'Water/Sewer' },
       { pattern: /home depot|lowes|hardware/i, groupName: 'Household', subName: 'Improvements' },
       { pattern: /cvs|walgreens|pharmacy|rx|doctor|dr\.|medical|hospital|urgent care/i, groupName: 'Health', subName: 'Medical' },
       { pattern: /gym|fitness|planet fitness|equinox|yoga/i, groupName: 'Health', subName: 'Gym/Fitness' },
       { pattern: /payroll|direct deposit|salary|wages/i, groupName: 'Income', subName: 'Take Home Pay' },
-      { pattern: /interest.*payment|interest.*earned|interest$/i, groupName: 'Income', subName: 'Interest Income' },
+      { pattern: /interest.*payment|interest.*earned|interest paid|interest$/i, groupName: 'Income', subName: 'Interest Income' },
+      { pattern: /cloudflare|github|namecheap|elevenlabs|steam/i, groupName: 'Dues/Subscriptions', subName: 'Online Services' },
+      { pattern: /southwest|american airlines|united airlines|delta|frontier/i, groupName: 'Discretionary', subName: 'Travel' },
     ];
 
     // Get all categories for ID lookup
@@ -155,25 +158,44 @@ router.post('/categorize', (req: Request, res: Response) => {
     const catLookup = new Map(allCats.map((c) => [`${c.group_name}:${c.sub_name}`, c.id]));
 
     const results = items.map((item) => {
+      // Use payee as primary match text when available (bank sync), fall back to description (CSV)
+      const primaryText = item.payee || item.description;
+      const primaryLower = primaryText.toLowerCase().trim();
       const descLower = item.description.toLowerCase().trim();
 
-      // 1. Exact match from history
-      const exact = descCatMap.get(descLower);
-      if (exact) {
+      // 1. Exact match from history — check payee first, then description
+      const exactPayee = descCatMap.get(primaryLower);
+      if (exactPayee) {
         return {
           description: item.description,
-          suggestedCategoryId: exact.categoryId,
-          suggestedGroupName: exact.groupName,
-          suggestedSubName: exact.subName,
+          payee: item.payee,
+          suggestedCategoryId: exactPayee.categoryId,
+          suggestedGroupName: exactPayee.groupName,
+          suggestedSubName: exactPayee.subName,
           confidence: 1.0,
         };
       }
-
-      // 2. Partial match from history — check if description contains a known description
-      for (const [key, val] of descCatMap.entries()) {
-        if (descLower.includes(key) || key.includes(descLower)) {
+      if (item.payee) {
+        const exactDesc = descCatMap.get(descLower);
+        if (exactDesc) {
           return {
             description: item.description,
+            payee: item.payee,
+            suggestedCategoryId: exactDesc.categoryId,
+            suggestedGroupName: exactDesc.groupName,
+            suggestedSubName: exactDesc.subName,
+            confidence: 0.9,
+          };
+        }
+      }
+
+      // 2. Partial match from history — check both payee and description
+      for (const [key, val] of descCatMap.entries()) {
+        if (primaryLower.includes(key) || key.includes(primaryLower) ||
+            (item.payee && (descLower.includes(key) || key.includes(descLower)))) {
+          return {
+            description: item.description,
+            payee: item.payee,
             suggestedCategoryId: val.categoryId,
             suggestedGroupName: val.groupName,
             suggestedSubName: val.subName,
@@ -182,12 +204,13 @@ router.post('/categorize', (req: Request, res: Response) => {
         }
       }
 
-      // 3. Rule-based matching
+      // 3. Rule-based matching — check payee first, then description
       for (const rule of RULES) {
-        if (rule.pattern.test(item.description)) {
+        if (rule.pattern.test(primaryText) || (item.payee && rule.pattern.test(item.description))) {
           const catId = catLookup.get(`${rule.groupName}:${rule.subName}`);
           return {
             description: item.description,
+            payee: item.payee,
             suggestedCategoryId: catId || null,
             suggestedGroupName: rule.groupName,
             suggestedSubName: rule.subName,
@@ -199,6 +222,7 @@ router.post('/categorize', (req: Request, res: Response) => {
       // 4. No match
       return {
         description: item.description,
+        payee: item.payee,
         suggestedCategoryId: null,
         suggestedGroupName: null,
         suggestedSubName: null,
