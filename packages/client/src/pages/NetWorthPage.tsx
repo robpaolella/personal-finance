@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtShort } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
@@ -47,6 +48,21 @@ interface AssetForm {
 
 const emptyAssetForm: AssetForm = { name: '', purchaseDate: '', cost: '', lifespanYears: '', salvageValue: '' };
 
+interface Holding {
+  symbol: string;
+  description: string;
+  shares: number;
+  costBasis: number;
+  marketValue: number;
+}
+
+interface AccountHoldings {
+  accountId: number;
+  accountName: string;
+  holdings: Holding[];
+  updatedAt: string | null;
+}
+
 function SectionHeader({ label, total, color, neg }: { label: string; total: number; color: string; neg?: boolean }) {
   return (
     <div className="flex justify-between py-2 pb-1 mt-3.5" style={{ borderBottom: `2px solid ${color}30` }}>
@@ -60,26 +76,77 @@ function SectionHeader({ label, total, color, neg }: { label: string; total: num
   );
 }
 
-function AccountRow({ a, neg }: { a: Account; neg?: boolean }) {
+function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?: boolean; holdings?: AccountHoldings; expanded?: boolean; onToggle?: () => void }) {
+  const hasHoldings = holdings && holdings.holdings.length > 0;
   return (
-    <div className="flex justify-between items-center py-1.5 pl-3.5 border-b border-[var(--table-row-border)]">
-      <div className="flex items-center gap-1.5">
-        <span className="text-[13px] text-[var(--text-body)]">
-          {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
+    <React.Fragment>
+      <div className="flex justify-between items-center py-1.5 pl-3.5 border-b border-[var(--table-row-border)]">
+        <div className="flex items-center gap-1.5">
+          {hasHoldings ? (
+            <button onClick={onToggle} className="bg-transparent border-none cursor-pointer p-0 flex items-center text-[var(--text-muted)] -ml-3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease' }}>
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          ) : null}
+          <span className="text-[13px] text-[var(--text-body)]">
+            {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
+          </span>
+          {(a.owners || []).map((o) => (
+            <span key={o.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${
+              o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
+            }`}>{o.displayName}</span>
+          ))}
+          {a.isShared && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
+          )}
+        </div>
+        <span className={`font-mono text-[13px] font-semibold ${neg && a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
+          {a.balance < 0 ? `(${fmt(Math.abs(a.balance))})` : fmt(a.balance)}
         </span>
-        {(a.owners || []).map((o) => (
-          <span key={o.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-            o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-          }`}>{o.displayName}</span>
-        ))}
-        {a.isShared && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
-        )}
       </div>
-      <span className={`font-mono text-[13px] font-semibold ${neg && a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
-        {a.balance < 0 ? `(${fmt(Math.abs(a.balance))})` : fmt(a.balance)}
-      </span>
-    </div>
+      {expanded && hasHoldings && (
+        <div className="bg-[var(--bg-hover)] border-b border-[var(--table-row-border)] pl-7 pr-3 py-2">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-left">Symbol</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-left">Fund Name</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Shares</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Cost Basis</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Mkt Value</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Gain/Loss</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdings!.holdings.map((h) => {
+                const gain = h.marketValue - h.costBasis;
+                const pct = h.costBasis !== 0 ? (gain / h.costBasis) * 100 : 0;
+                const isPos = gain >= 0;
+                return (
+                  <tr key={h.symbol}>
+                    <td className="px-2 py-1 font-mono font-bold text-[11px] text-[var(--text-primary)]">{h.symbol}</td>
+                    <td className="px-2 py-1 text-[11px] text-[var(--text-body)]">{h.description}</td>
+                    <td className="px-2 py-1 font-mono text-[11px] text-right text-[var(--text-body)]">{h.shares.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-1 font-mono text-[11px] text-right text-[var(--text-muted)]">{fmt(h.costBasis)}</td>
+                    <td className="px-2 py-1 font-mono text-[11px] text-right font-bold text-[var(--text-primary)]">{fmt(h.marketValue)}</td>
+                    <td className={`px-2 py-1 font-mono text-[11px] text-right font-semibold ${isPos ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                      {isPos ? '+' : '-'}{fmt(Math.abs(gain))} ({isPos ? '+' : '-'}{Math.abs(pct).toFixed(1)}%)
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {holdings!.updatedAt && (
+            <p className="text-[10px] text-[var(--text-muted)] m-0 mt-1.5 text-right">
+              Last updated: {new Date(holdings!.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+          )}
+        </div>
+      )}
+    </React.Fragment>
   );
 }
 
@@ -90,13 +157,28 @@ export default function NetWorthPage() {
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
   const [showBalanceModal, setShowBalanceModal] = useState(false);
   const [balanceInputs, setBalanceInputs] = useState<Record<number, string>>({});
+  const [holdingsMap, setHoldingsMap] = useState<Map<number, AccountHoldings>>(new Map());
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(new Set());
 
   const loadData = useCallback(async () => {
     const res = await apiFetch<{ data: NetWorthData }>('/networth/summary');
     setData(res.data);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const loadHoldings = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ data: { accountHoldings: AccountHoldings[] } }>('/simplefin/holdings');
+      const map = new Map<number, AccountHoldings>();
+      for (const ah of res.data.accountHoldings) {
+        map.set(ah.accountId, ah);
+      }
+      setHoldingsMap(map);
+    } catch {
+      // Holdings not available — no SimpleFIN connections or no holdings data
+    }
+  }, []);
+
+  useEffect(() => { loadData(); loadHoldings(); }, [loadData, loadHoldings]);
 
   const startEditAsset = (asset: Asset) => {
     setEditingAssetId(asset.id);
@@ -184,6 +266,15 @@ export default function NetWorthPage() {
 
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+  const toggleAccount = (accountId: number) => {
+    setExpandedAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) next.delete(accountId);
+      else next.add(accountId);
+      return next;
+    });
+  };
+
   return (
     <div>
       {/* Header */}
@@ -233,11 +324,11 @@ export default function NetWorthPage() {
           </div>
           <div className="mt-3">
             <SectionHeader label="Liquid Assets" total={data.liquidTotal} color="#38bdf8" />
-            {liquid.map((a) => <AccountRow key={a.accountId} a={a} />)}
+            {liquid.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
             <SectionHeader label="Investments & Retirement" total={data.investmentTotal} color="#a78bfa" />
-            {investment.map((a) => <AccountRow key={a.accountId} a={a} />)}
+            {investment.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
             <SectionHeader label="Liabilities" total={-data.liabilityTotal} color="#f87171" neg />
-            {liability.map((a) => <AccountRow key={a.accountId} a={a} neg />)}
+            {liability.map((a) => <AccountRow key={a.accountId} a={a} neg holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
           </div>
         </div>
 
