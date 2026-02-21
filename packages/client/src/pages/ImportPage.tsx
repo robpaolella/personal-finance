@@ -305,7 +305,7 @@ export default function ImportPage() {
     // Run duplicate detection in batch
     try {
       const dupeCheckItems = merged.map((r) => ({ date: r.date, amount: r.amount, description: r.description }));
-      const dupeRes = await apiFetch<{ data: { index: number; status: 'exact' | 'possible' | 'none'; matchId: number | null; matchDescription?: string; matchDate?: string }[] }>(
+      const dupeRes = await apiFetch<{ data: { index: number; status: 'exact' | 'possible' | 'none'; matchId: number | null; matchDescription?: string; matchDate?: string; matchAmount?: number; matchAccountName?: string }[] }>(
         '/import/check-duplicates',
         { method: 'POST', body: JSON.stringify({ items: dupeCheckItems }) }
       );
@@ -317,8 +317,8 @@ export default function ImportPage() {
               id: d.matchId,
               date: d.matchDate || '',
               description: d.matchDescription || '',
-              amount: merged[d.index].amount,
-              accountName: null,
+              amount: d.matchAmount ?? merged[d.index].amount,
+              accountName: d.matchAccountName || null,
               category: null,
             };
           }
