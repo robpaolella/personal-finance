@@ -50,6 +50,7 @@ export interface Transaction {
   note: string | null;
   category_id: number;
   amount: number;
+  simplefin_transaction_id: string | null;
   created_at: string;
 }
 
@@ -101,4 +102,74 @@ export interface AuthPayload {
   userId: number;
   username: string;
   displayName: string;
+}
+
+// === SimpleFIN Types ===
+
+export interface SimpleFINConnection {
+  id: number;
+  label: string;
+  isShared: boolean;
+  linkedAccountCount: number;
+  lastSyncedAt: string | null;
+}
+
+export interface SimpleFINLink {
+  id: number;
+  simplefinConnectionId: number;
+  simplefinAccountId: string;
+  accountId: number;
+  simplefinAccountName: string;
+  simplefinOrgName: string | null;
+  lastSyncedAt: string | null;
+}
+
+export interface SimpleFINHolding {
+  id: number;
+  simplefinLinkId: number;
+  symbol: string;
+  description: string;
+  shares: number;
+  costBasis: number;
+  marketValue: number;
+  updatedAt: string;
+}
+
+export type DuplicateStatus = 'exact' | 'possible' | 'none';
+
+export interface SyncTransaction {
+  simplefinId: string;
+  accountId: number;
+  accountName: string;
+  date: string;
+  description: string;
+  rawDescription: string;
+  amount: number;
+  suggestedCategoryId: number | null;
+  suggestedGroupName: string | null;
+  suggestedSubName: string | null;
+  confidence: number;
+  duplicateStatus: DuplicateStatus;
+  duplicateMatchId: number | null;
+  isLikelyTransfer: boolean;
+}
+
+export interface SyncBalanceUpdate {
+  accountId: number;
+  accountName: string;
+  currentBalance: number;
+  previousBalance: number | null;
+  balanceDate: string;
+}
+
+export interface SyncHoldingsUpdate {
+  accountId: number;
+  accountName: string;
+  holdings: {
+    symbol: string;
+    description: string;
+    shares: number;
+    costBasis: number;
+    marketValue: number;
+  }[];
 }
