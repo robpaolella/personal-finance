@@ -151,6 +151,10 @@ export interface SyncTransaction {
   confidence: number;
   duplicateStatus: DuplicateStatus;
   duplicateMatchId: number | null;
+  duplicateMatchDescription?: string;
+  duplicateMatchDate?: string;
+  duplicateMatchAmount?: number;
+  duplicateMatchAccountName?: string;
   isLikelyTransfer: boolean;
 }
 
