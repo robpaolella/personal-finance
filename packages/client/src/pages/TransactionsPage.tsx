@@ -1,8 +1,19 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiFetch } from '../lib/api';
-import { fmtTransaction } from '../lib/formatters';
+import { fmt, fmtTransaction } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
+import SortableHeader from '../components/SortableHeader';
+
+interface DuplicateMatch {
+  id: number;
+  date: string;
+  description: string;
+  amount: number;
+  notes: string | null;
+  accountName: string | null;
+  category: string | null;
+}
 
 interface TransactionAccount {
   id: number;
@@ -86,6 +97,7 @@ function TransactionForm({
   onSave,
   onDelete,
   onClose,
+  duplicateMatch,
 }: {
   transaction?: Transaction;
   accounts: Account[];
@@ -93,6 +105,7 @@ function TransactionForm({
   onSave: (data: Record<string, unknown>) => void;
   onDelete?: () => void;
   onClose: () => void;
+  duplicateMatch?: DuplicateMatch | null;
 }) {
   const [date, setDate] = useState(transaction?.date ?? new Date().toISOString().slice(0, 10));
   const [accountId, setAccountId] = useState<number>(transaction?.account.id ?? (accounts[0]?.id ?? 0));
@@ -116,6 +129,7 @@ function TransactionForm({
     transaction?.category.type === 'income' ? 'income' : 'expense'
   );
   const [showErrors, setShowErrors] = useState(false);
+  const [dupeExpanded, setDupeExpanded] = useState(false);
 
   // Refs for focusing first invalid field
   const dateRef = useRef<HTMLInputElement>(null);
@@ -148,14 +162,13 @@ function TransactionForm({
   const accountsByOwner = useMemo(() => {
     const map = new Map<string, Account[]>();
     for (const a of accounts) {
-      const ownerNames = (a.owners && a.owners.length > 0)
-        ? a.owners.map((o) => o.displayName)
-        : [a.owner];
-      for (const name of ownerNames) {
+      if (a.isShared) {
+        if (!map.has('Shared')) map.set('Shared', []);
+        map.get('Shared')!.push(a);
+      } else {
+        const name = a.owners?.[0]?.displayName || a.owner;
         if (!map.has(name)) map.set(name, []);
-        if (!map.get(name)!.some((x) => x.id === a.id)) {
-          map.get(name)!.push(a);
-        }
+        map.get(name)!.push(a);
       }
     }
     return map;
@@ -301,6 +314,50 @@ function TransactionForm({
             className={`${inputCls(!!errAmount)} font-mono`} />
         </Field>
       </div>
+
+      {/* Duplicate Warning */}
+      {duplicateMatch && (
+        <div className="mt-4 rounded-lg border border-[#f59e0b] p-3" style={{ background: 'rgb(234 189 154 / 30%)' }}>
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-[#f59e0b] mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <p className="text-[12px] font-semibold text-[#78350f] dark:text-[#fbbf24] m-0">
+                  Possible duplicate detected — click Save again to confirm
+                </p>
+                <button onClick={() => setDupeExpanded(!dupeExpanded)}
+                  className="bg-transparent border-none cursor-pointer p-0.5 text-[#78350f] dark:text-[#fbbf24]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transform: dupeExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease' }}>
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
+              {dupeExpanded && (
+                <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
+                  <span className="text-[var(--dupe-key)]">Date</span>
+                  <span className="font-mono text-[var(--dupe-value)]">{duplicateMatch.date}</span>
+                  <span className="text-[var(--dupe-key)]">Description</span>
+                  <span className="text-[var(--dupe-value)]">{duplicateMatch.description}</span>
+                  <span className="text-[var(--dupe-key)]">Amount</span>
+                  <span className="font-mono font-semibold text-[var(--dupe-value)]">{fmt(Math.abs(duplicateMatch.amount))}</span>
+                  {duplicateMatch.accountName && <>
+                    <span className="text-[var(--dupe-key)]">Account</span>
+                    <span className="text-[var(--dupe-value)]">{duplicateMatch.accountName}</span>
+                  </>}
+                  {duplicateMatch.category && <>
+                    <span className="text-[var(--dupe-key)]">Category</span>
+                    <span className="text-[var(--dupe-value)]">{duplicateMatch.category}</span>
+                  </>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-2 mt-5 justify-end">
         {transaction && onDelete && (
           <div className="mr-auto">
@@ -314,10 +371,12 @@ function TransactionForm({
         <button onClick={handleSaveClick}
           className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none ${
             isValid
-              ? 'bg-[var(--bg-primary-btn)] text-white cursor-pointer'
+              ? duplicateMatch
+                ? 'bg-[#f59e0b] text-white cursor-pointer'
+                : 'bg-[var(--bg-primary-btn)] text-white cursor-pointer'
               : 'bg-[var(--text-muted)] text-white cursor-not-allowed'
           }`}>
-          Save
+          {duplicateMatch ? 'Save Anyway' : 'Save'}
         </button>
       </div>
     </Modal>
@@ -330,6 +389,8 @@ export default function TransactionsPage() {
   const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [pendingSave, setPendingSave] = useState<Record<string, unknown> | null>(null);
+  const [duplicateMatch, setDuplicateMatch] = useState<DuplicateMatch | null>(null);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -340,6 +401,8 @@ export default function TransactionsPage() {
   const [customEnd, setCustomEnd] = useState('');
 
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState(() => {
     const stored = localStorage.getItem('ledger-page-size');
     return stored ? parseInt(stored, 10) : 50;
@@ -398,11 +461,13 @@ export default function TransactionsPage() {
     if (search) params.set('search', search);
     if (filterAccount !== 'All') params.set('accountId', filterAccount);
     if (filterType !== 'All') params.set('type', filterType.toLowerCase());
+    params.set('sortBy', sortBy);
+    params.set('sortOrder', sortOrder);
 
     const res = await apiFetch<{ data: Transaction[]; total: number }>(`/transactions?${params.toString()}`);
     setTransactions(res.data);
     setTotal(res.total);
-  }, [getDateRange, search, filterAccount, filterType, page, pageSize]);
+  }, [getDateRange, search, filterAccount, filterType, page, pageSize, sortBy, sortOrder]);
 
   const loadMeta = useCallback(async () => {
     const [acctRes, catRes] = await Promise.all([
@@ -413,12 +478,41 @@ export default function TransactionsPage() {
     setCategories(catRes.data);
   }, []);
 
+  const handleSort = (key: string) => {
+    if (key === sortBy) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(key);
+      setSortOrder('asc');
+    }
+    setPage(1);
+  };
+
   useEffect(() => { loadMeta(); }, [loadMeta]);
   useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType]);
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
 
   const handleSave = async (data: Record<string, unknown>) => {
     try {
+      // On new transactions, check for duplicates before saving
+      if (editing === 'new' && !pendingSave) {
+        try {
+          const dupeRes = await apiFetch<{ data: { status: string; match?: DuplicateMatch } }>(
+            '/transactions/check-duplicate',
+            { method: 'POST', body: JSON.stringify({ date: data.date, amount: data.amount, description: data.description }) }
+          );
+          if (dupeRes.data.status !== 'none' && dupeRes.data.match) {
+            setPendingSave(data);
+            setDuplicateMatch(dupeRes.data.match);
+            return;
+          }
+        } catch {
+          // Duplicate check failed — proceed with save
+        }
+      }
+      setPendingSave(null);
+      setDuplicateMatch(null);
+
       if (editing === 'new') {
         await apiFetch('/transactions', { method: 'POST', body: JSON.stringify(data) });
       } else if (editing) {
@@ -677,12 +771,12 @@ export default function TransactionsPage() {
                     onChange={toggleSelectAll} className="cursor-pointer" />
                 </th>
               )}
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+              <SortableHeader label="Date" sortKey="date" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Description" sortKey="description" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Account" sortKey="account" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Category" sortKey="category" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
               <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
+              <SortableHeader label="Amount" sortKey="amount" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} align="right" />
             </tr>
           </thead>
           <tbody>
@@ -774,7 +868,8 @@ export default function TransactionsPage() {
           categories={categories}
           onSave={handleSave}
           onDelete={editing !== 'new' ? handleDelete : undefined}
-          onClose={() => setEditing(null)}
+          onClose={() => { setEditing(null); setPendingSave(null); setDuplicateMatch(null); }}
+          duplicateMatch={duplicateMatch}
         />
       )}
     </div>

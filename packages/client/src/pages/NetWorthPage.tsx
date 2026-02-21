@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtShort } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
@@ -47,6 +48,21 @@ interface AssetForm {
 
 const emptyAssetForm: AssetForm = { name: '', purchaseDate: '', cost: '', lifespanYears: '', salvageValue: '' };
 
+interface Holding {
+  symbol: string;
+  description: string;
+  shares: number;
+  costBasis: number;
+  marketValue: number;
+}
+
+interface AccountHoldings {
+  accountId: number;
+  accountName: string;
+  holdings: Holding[];
+  updatedAt: string | null;
+}
+
 function SectionHeader({ label, total, color, neg }: { label: string; total: number; color: string; neg?: boolean }) {
   return (
     <div className="flex justify-between py-2 pb-1 mt-3.5" style={{ borderBottom: `2px solid ${color}30` }}>
@@ -60,26 +76,77 @@ function SectionHeader({ label, total, color, neg }: { label: string; total: num
   );
 }
 
-function AccountRow({ a, neg }: { a: Account; neg?: boolean }) {
+function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?: boolean; holdings?: AccountHoldings; expanded?: boolean; onToggle?: () => void }) {
+  const hasHoldings = holdings && holdings.holdings.length > 0;
   return (
-    <div className="flex justify-between items-center py-1.5 pl-3.5 border-b border-[var(--table-row-border)]">
-      <div className="flex items-center gap-1.5">
-        <span className="text-[13px] text-[var(--text-body)]">
-          {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
+    <React.Fragment>
+      <div className="flex justify-between items-center py-1.5 pl-3.5 border-b border-[var(--table-row-border)]">
+        <div className="flex items-center gap-1.5">
+          {hasHoldings ? (
+            <button onClick={onToggle} className="bg-transparent border-none cursor-pointer p-0 flex items-center text-[var(--text-muted)] -ml-3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease' }}>
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          ) : null}
+          <span className="text-[13px] text-[var(--text-body)]">
+            {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
+          </span>
+          {(a.owners || []).map((o) => (
+            <span key={o.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${
+              o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
+            }`}>{o.displayName}</span>
+          ))}
+          {a.isShared && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
+          )}
+        </div>
+        <span className={`font-mono text-[13px] font-semibold ${neg && a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
+          {a.balance < 0 ? `(${fmt(Math.abs(a.balance))})` : fmt(a.balance)}
         </span>
-        {(a.owners || []).map((o) => (
-          <span key={o.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-            o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-          }`}>{o.displayName}</span>
-        ))}
-        {a.isShared && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
-        )}
       </div>
-      <span className={`font-mono text-[13px] font-semibold ${neg && a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
-        {a.balance < 0 ? `(${fmt(Math.abs(a.balance))})` : fmt(a.balance)}
-      </span>
-    </div>
+      {expanded && hasHoldings && (
+        <div className="bg-[var(--bg-hover)] border-b border-[var(--table-row-border)] pl-7 pr-3 py-2">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-left">Symbol</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-left">Fund Name</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Shares</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Cost Basis</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Mkt Value</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right" title="Total return since purchase, based on cost basis vs current market value">Total Return</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdings!.holdings.map((h) => {
+                const gain = h.marketValue - h.costBasis;
+                const pct = h.costBasis !== 0 ? (gain / h.costBasis) * 100 : 0;
+                const isPos = gain >= 0;
+                return (
+                  <tr key={h.symbol}>
+                    <td className="px-2 py-1 font-mono font-bold text-[11px] text-[var(--text-primary)]">{h.symbol}</td>
+                    <td className="px-2 py-1 text-[11px] text-[var(--text-body)]">{h.description}</td>
+                    <td className="px-2 py-1 font-mono text-[11px] text-right text-[var(--text-body)]">{h.shares.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-1 font-mono text-[11px] text-right text-[var(--text-muted)]">{fmt(h.costBasis)}</td>
+                    <td className="px-2 py-1 font-mono text-[11px] text-right font-bold text-[var(--text-primary)]">{fmt(h.marketValue)}</td>
+                    <td className={`px-2 py-1 font-mono text-[11px] text-right font-semibold ${isPos ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                      {isPos ? '+' : '-'}{fmt(Math.abs(gain))} ({isPos ? '+' : '-'}{Math.abs(pct).toFixed(1)}%)
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {holdings!.updatedAt && (
+            <p className="text-[10px] text-[var(--text-muted)] m-0 mt-1.5 text-right">
+              Last updated: {new Date(holdings!.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+          )}
+        </div>
+      )}
+    </React.Fragment>
   );
 }
 
@@ -89,14 +156,70 @@ export default function NetWorthPage() {
   const [editingAssetId, setEditingAssetId] = useState<number | 'new' | null>(null);
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
   const [showBalanceModal, setShowBalanceModal] = useState(false);
+  const [balanceTab, setBalanceTab] = useState<'manual' | 'sync'>('manual');
   const [balanceInputs, setBalanceInputs] = useState<Record<number, string>>({});
+  const [syncBalances, setSyncBalances] = useState<{ accountId: number; accountName: string; simplefinBalance: number; balanceDate: string }[]>([]);
+  const [syncBalanceSelected, setSyncBalanceSelected] = useState<Set<number>>(new Set());
+  const [syncBalanceLoading, setSyncBalanceLoading] = useState(false);
+  const [syncBalanceError, setSyncBalanceError] = useState<string | null>(null);
+  const [hasSimplefinConnections, setHasSimplefinConnections] = useState(false);
+  const [holdingsMap, setHoldingsMap] = useState<Map<number, AccountHoldings>>(new Map());
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(new Set());
 
   const loadData = useCallback(async () => {
     const res = await apiFetch<{ data: NetWorthData }>('/networth/summary');
     setData(res.data);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const loadHoldings = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ data: { accountHoldings: AccountHoldings[] } }>('/simplefin/holdings');
+      const map = new Map<number, AccountHoldings>();
+      for (const ah of res.data.accountHoldings) {
+        map.set(ah.accountId, ah);
+      }
+      setHoldingsMap(map);
+    } catch {
+      // Holdings not available — no SimpleFIN connections or no holdings data
+    }
+  }, []);
+
+  useEffect(() => { loadData(); loadHoldings(); }, [loadData, loadHoldings]);
+
+  useEffect(() => {
+    apiFetch<{ data: { id: number }[] }>('/simplefin/connections')
+      .then(r => setHasSimplefinConnections(r.data.length > 0))
+      .catch(() => setHasSimplefinConnections(false));
+  }, []);
+
+  const fetchSyncBalances = useCallback(async () => {
+    setSyncBalanceLoading(true);
+    setSyncBalanceError(null);
+    try {
+      const res = await apiFetch<{ data: typeof syncBalances }>('/simplefin/balances');
+      setSyncBalances(res.data);
+      setSyncBalanceSelected(new Set(res.data.map(b => b.accountId)));
+    } catch (err: any) {
+      setSyncBalanceError(err.message || 'Failed to fetch balances from SimpleFIN');
+    } finally {
+      setSyncBalanceLoading(false);
+    }
+  }, []);
+
+  const applySyncBalances = async () => {
+    if (!data) return;
+    const selected = syncBalances.filter(b => syncBalanceSelected.has(b.accountId));
+    const promises = selected.map(b =>
+      apiFetch('/networth/balance-snapshots', {
+        method: 'POST',
+        body: JSON.stringify({ accountId: b.accountId, balance: b.simplefinBalance, date: b.balanceDate }),
+      })
+    );
+    await Promise.all(promises);
+    addToast(`Updated ${selected.length} account balance${selected.length !== 1 ? 's' : ''}`, 'success');
+    setShowBalanceModal(false);
+    loadData();
+  };
 
   const startEditAsset = (asset: Asset) => {
     setEditingAssetId(asset.id);
@@ -184,6 +307,15 @@ export default function NetWorthPage() {
 
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+  const toggleAccount = (accountId: number) => {
+    setExpandedAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) next.delete(accountId);
+      else next.add(accountId);
+      return next;
+    });
+  };
+
   return (
     <div>
       {/* Header */}
@@ -224,7 +356,10 @@ export default function NetWorthPage() {
                 const inputs: Record<number, string> = {};
                 data.accounts.forEach((a) => { inputs[a.accountId] = String(a.balance); });
                 setBalanceInputs(inputs);
+                const defaultTab = hasSimplefinConnections ? 'sync' : 'manual';
+                setBalanceTab(defaultTab);
                 setShowBalanceModal(true);
+                if (defaultTab === 'sync') fetchSyncBalances();
               }}
               className="text-[12px] px-3 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg border-none cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
             >
@@ -233,11 +368,11 @@ export default function NetWorthPage() {
           </div>
           <div className="mt-3">
             <SectionHeader label="Liquid Assets" total={data.liquidTotal} color="#38bdf8" />
-            {liquid.map((a) => <AccountRow key={a.accountId} a={a} />)}
+            {liquid.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
             <SectionHeader label="Investments & Retirement" total={data.investmentTotal} color="#a78bfa" />
-            {investment.map((a) => <AccountRow key={a.accountId} a={a} />)}
+            {investment.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
             <SectionHeader label="Liabilities" total={-data.liabilityTotal} color="#f87171" neg />
-            {liability.map((a) => <AccountRow key={a.accountId} a={a} neg />)}
+            {liability.map((a) => <AccountRow key={a.accountId} a={a} neg holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
           </div>
         </div>
 
@@ -340,31 +475,149 @@ export default function NetWorthPage() {
       {/* Update Balances Modal */}
       {showBalanceModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowBalanceModal(false)}>
-          <div className="bg-[var(--bg-card)] rounded-xl shadow-lg w-[500px] max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[var(--bg-card)] rounded-xl shadow-lg w-[560px] max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[16px] font-bold text-[var(--text-primary)] m-0 mb-4">Update Account Balances</h3>
-            <p className="text-[12px] text-[var(--text-secondary)] m-0 mb-4">Enter current balances for each account. Leave unchanged to skip.</p>
-            <div className="flex flex-col gap-3">
-              {data.accounts.map((a) => (
-                <div key={a.accountId} className="flex items-center gap-3">
-                  <span className="flex-1 text-[13px] text-[var(--text-body)]">
-                    {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={balanceInputs[a.accountId] ?? ''}
-                    onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
-                    className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none focus:border-[#3b82f6] text-[var(--text-body)] bg-[var(--bg-input)]"
-                  />
+
+            {/* Tab Switcher — only if SimpleFIN connections exist */}
+            {hasSimplefinConnections && (
+              <div className="flex bg-[var(--bg-secondary-btn)] rounded-lg p-0.5 mb-4">
+                {(['manual', 'sync'] as const).map(tab => (
+                  <button key={tab}
+                    onClick={() => { setBalanceTab(tab); if (tab === 'sync' && syncBalances.length === 0) fetchSyncBalances(); }}
+                    className={`flex-1 text-[12px] font-semibold py-1.5 rounded-md border-none cursor-pointer transition-colors ${
+                      balanceTab === tab
+                        ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
+                        : 'bg-transparent text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    {tab === 'manual' ? 'Manual' : 'Bank Sync'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Manual Tab */}
+            {balanceTab === 'manual' && (
+              <>
+                <p className="text-[12px] text-[var(--text-secondary)] m-0 mb-4">Enter current balances for each account. Leave unchanged to skip.</p>
+                <div className="flex flex-col gap-3">
+                  {data.accounts.map((a) => (
+                    <div key={a.accountId} className="flex items-center gap-3">
+                      <span className="flex-1 text-[13px] text-[var(--text-body)]">
+                        {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={balanceInputs[a.accountId] ?? ''}
+                        onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
+                        className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none focus:border-[#3b82f6] text-[var(--text-body)] bg-[var(--bg-input)]"
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex gap-2 mt-4 justify-end">
-              <button onClick={() => setShowBalanceModal(false)}
-                className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
-              <button onClick={saveBalances}
-                className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
-            </div>
+                <div className="flex gap-2 mt-4 justify-end">
+                  <button onClick={() => setShowBalanceModal(false)}
+                    className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
+                  <button onClick={saveBalances}
+                    className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
+                </div>
+              </>
+            )}
+
+            {/* Bank Sync Tab */}
+            {balanceTab === 'sync' && (
+              <>
+                {syncBalanceLoading && (
+                  <div className="flex items-center justify-center py-8 gap-2 text-[var(--text-secondary)] text-[13px]">
+                    <Spinner /> Fetching balances from SimpleFIN…
+                  </div>
+                )}
+                {syncBalanceError && (
+                  <div className="rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] p-3 text-[12px] text-[var(--error-text)] mb-3">
+                    <p className="m-0 font-semibold mb-1">Failed to fetch balances</p>
+                    <p className="m-0 mb-2">{syncBalanceError}</p>
+                    <button onClick={fetchSyncBalances}
+                      className="text-[11px] font-semibold text-[var(--error-text)] underline cursor-pointer bg-transparent border-none p-0">Retry</button>
+                    <p className="m-0 mt-2 text-[11px] text-[var(--text-muted)]">You can still update balances manually using the other tab.</p>
+                  </div>
+                )}
+                {!syncBalanceLoading && !syncBalanceError && syncBalances.length === 0 && (
+                  <p className="text-[13px] text-[var(--text-muted)] text-center py-6">No linked accounts found. Link accounts in Settings → Bank Sync.</p>
+                )}
+                {!syncBalanceLoading && !syncBalanceError && syncBalances.length > 0 && (
+                  <>
+                    <table className="w-full border-collapse text-[13px] mb-3">
+                      <thead>
+                        <tr>
+                          <th className="w-8 px-2 py-2 border-b-2 border-[var(--table-border)]">
+                            <input type="checkbox"
+                              checked={syncBalanceSelected.size === syncBalances.length}
+                              onChange={() => {
+                                if (syncBalanceSelected.size === syncBalances.length) setSyncBalanceSelected(new Set());
+                                else setSyncBalanceSelected(new Set(syncBalances.map(b => b.accountId)));
+                              }}
+                              className="cursor-pointer" />
+                          </th>
+                          <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                          <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Current</th>
+                          <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">SimpleFIN</th>
+                          <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Difference</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {syncBalances.map((b) => {
+                          const current = data.accounts.find(a => a.accountId === b.accountId)?.balance ?? null;
+                          const diff = current !== null ? b.simplefinBalance - current : null;
+                          const noChange = diff !== null && Math.abs(diff) < 0.01;
+                          return (
+                            <tr key={b.accountId} className={`border-b border-[var(--table-row-border)] ${noChange ? 'opacity-50' : ''}`}>
+                              <td className="px-2 py-2 text-center">
+                                <input type="checkbox"
+                                  checked={syncBalanceSelected.has(b.accountId)}
+                                  onChange={() => setSyncBalanceSelected(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(b.accountId)) next.delete(b.accountId); else next.add(b.accountId);
+                                    return next;
+                                  })}
+                                  className="cursor-pointer" />
+                              </td>
+                              <td className="px-2.5 py-2 font-medium text-[var(--text-primary)]">{b.accountName}</td>
+                              <td className="px-2.5 py-2 text-right font-mono text-[var(--text-body)]">
+                                {current !== null ? fmt(current) : '—'}
+                              </td>
+                              <td className="px-2.5 py-2 text-right font-mono font-semibold text-[var(--text-primary)]">
+                                {fmt(b.simplefinBalance)}
+                              </td>
+                              <td className="px-2.5 py-2 text-right font-mono text-[12px]">
+                                {noChange ? (
+                                  <span className="text-[var(--text-muted)]">No change</span>
+                                ) : diff !== null ? (
+                                  <span className={diff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}>
+                                    {diff >= 0 ? '+' : ''}{fmt(diff)}
+                                  </span>
+                                ) : (
+                                  <span className="text-[var(--text-muted)]">New</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setShowBalanceModal(false)}
+                        className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
+                      <button onClick={applySyncBalances}
+                        disabled={syncBalanceSelected.size === 0}
+                        className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50">
+                        Apply {syncBalanceSelected.size} Update{syncBalanceSelected.size !== 1 ? 's' : ''}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

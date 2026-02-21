@@ -1,8 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import DuplicateBadge from '../components/DuplicateBadge';
+import DuplicateComparison from '../components/DuplicateComparison';
+import TransferBadge from '../components/TransferBadge';
+import BankSyncPanel from '../components/BankSyncPanel';
+import SortableHeader from '../components/SortableHeader';
 
 interface Account {
   id: number;
@@ -42,6 +47,19 @@ interface CategorizedRow {
   categoryId: number | null;
   groupName: string | null;
   subName: string | null;
+  // Duplicate detection
+  duplicateStatus: 'exact' | 'possible' | 'none';
+  duplicateMatch: {
+    id: number;
+    date: string;
+    description: string;
+    amount: number;
+    accountName: string | null;
+    category: string | null;
+  } | null;
+  // Transfer detection
+  isLikelyTransfer: boolean;
+  transferTooltip?: string;
 }
 
 const STEPS = ['Upload File', 'Map Columns', 'Review & Categorize'];
@@ -58,7 +76,10 @@ function normalizeAmount(raw: string): number {
 export default function ImportPage() {
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState<'csv' | 'sync'>(searchParams.get('tab') === 'csv' ? 'csv' : searchParams.get('tab') === 'sync' ? 'sync' : 'csv');
+  const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [step, setStep] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -77,6 +98,9 @@ export default function ImportPage() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [modalAccountId, setModalAccountId] = useState<number | ''>('');
+  const [expandedDupeRow, setExpandedDupeRow] = useState<number | null>(null);
+  const [csvSortBy, setCsvSortBy] = useState('date');
+  const [csvSortDir, setCsvSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     if (notification) { const t = setTimeout(() => setNotification(null), 5000); return () => clearTimeout(t); }
@@ -85,7 +109,40 @@ export default function ImportPage() {
   useEffect(() => {
     apiFetch<{ data: Account[] }>('/accounts').then((r) => setAccounts(r.data));
     apiFetch<{ data: Category[] }>('/categories').then((r) => setCategories(r.data));
+    // Check if SimpleFIN connections exist to set default tab
+    apiFetch<{ data: { id: number }[] }>('/simplefin/connections').then((r) => {
+      const has = r.data.length > 0;
+      setHasConnections(has);
+      // Set default tab if not specified in URL
+      if (!searchParams.get('tab') && has) setActiveTab('sync');
+    }).catch(() => setHasConnections(false));
   }, []);
+
+  const handleCsvSort = (key: string) => {
+    if (key === csvSortBy) setCsvSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setCsvSortBy(key); setCsvSortDir('asc'); }
+  };
+
+  const sortedCsvIndices = React.useMemo(() => {
+    const indices = categorizedRows.map((_, i) => i);
+    const dir = csvSortDir === 'asc' ? 1 : -1;
+    indices.sort((a, b) => {
+      const ra = categorizedRows[a], rb = categorizedRows[b];
+      switch (csvSortBy) {
+        case 'date': return dir * ra.date.localeCompare(rb.date);
+        case 'description': return dir * ra.description.localeCompare(rb.description);
+        case 'amount': return dir * (ra.amount - rb.amount);
+        case 'category': {
+          const ca = categories.find(c => c.id === ra.categoryId)?.display_name || '';
+          const cb = categories.find(c => c.id === rb.categoryId)?.display_name || '';
+          return dir * ca.localeCompare(cb);
+        }
+        case 'confidence': return dir * ((ra.confidence || 0) - (rb.confidence || 0));
+        default: return 0;
+      }
+    });
+    return indices;
+  }, [categorizedRows, csvSortBy, csvSortDir, categories]);
 
   const handleFile = async (f: File) => {
     if (!selectedAccountId) {
@@ -239,11 +296,43 @@ export default function ImportPage() {
         categoryId: cat.suggestedCategoryId,
         groupName: cat.suggestedGroupName,
         subName: cat.suggestedSubName,
+        duplicateStatus: 'none' as CategorizedRow['duplicateStatus'],
+        duplicateMatch: null as CategorizedRow['duplicateMatch'],
+        isLikelyTransfer: false,
       };
     });
 
+    // Run duplicate detection in batch
+    try {
+      const dupeCheckItems = merged.map((r) => ({ date: r.date, amount: r.amount, description: r.description }));
+      const dupeRes = await apiFetch<{ data: { index: number; status: 'exact' | 'possible' | 'none'; matchId: number | null; matchDescription?: string; matchDate?: string; matchAmount?: number; matchAccountName?: string }[] }>(
+        '/import/check-duplicates',
+        { method: 'POST', body: JSON.stringify({ items: dupeCheckItems }) }
+      );
+      for (const d of dupeRes.data) {
+        if (d.status !== 'none' && merged[d.index]) {
+          merged[d.index].duplicateStatus = d.status;
+          if (d.matchId) {
+            merged[d.index].duplicateMatch = {
+              id: d.matchId,
+              date: d.matchDate || '',
+              description: d.matchDescription || '',
+              amount: d.matchAmount ?? merged[d.index].amount,
+              accountName: d.matchAccountName || null,
+              category: null,
+            };
+          }
+        }
+      }
+    } catch {
+      // Duplicate detection failed — continue without it
+    }
+
     setCategorizedRows(merged);
-    setSelectedImportRows(new Set(merged.map((_, i) => i)));
+    // Auto-uncheck exact duplicates
+    const selected = new Set(merged.map((_, i) => i));
+    merged.forEach((r, i) => { if (r.duplicateStatus === 'exact') selected.delete(i); });
+    setSelectedImportRows(selected);
     setStep(2);
   };
 
@@ -300,14 +389,44 @@ export default function ImportPage() {
 
   const validImportCount = categorizedRows.filter((r, i) => selectedImportRows.has(i) && r.categoryId != null).length;
 
+  const switchTab = (tab: 'csv' | 'sync') => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'csv' ? {} : { tab: 'sync' });
+  };
+
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Import Transactions</h1>
-        <p className="text-[var(--text-secondary)] text-[13px] mt-1">Import CSV from your bank, credit card, or Venmo</p>
+        <p className="text-[var(--text-secondary)] text-[13px] mt-1">
+          {activeTab === 'csv' ? 'Import CSV from your bank, credit card, or Venmo' : 'Pull transactions directly from your connected bank accounts'}
+        </p>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="inline-flex bg-[var(--bg-secondary-btn)] rounded-lg p-0.5 mb-6">
+        {[
+          { id: 'csv' as const, label: 'CSV Import' },
+          { id: 'sync' as const, label: 'Bank Sync' },
+        ].map((tab) => (
+          <button key={tab.id} onClick={() => switchTab(tab.id)}
+            className={`px-4 py-1.5 text-[13px] font-semibold rounded-md border-none cursor-pointer transition-all ${
+              activeTab === tab.id
+                ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
+                : 'bg-transparent text-[var(--text-secondary)]'
+            }`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Bank Sync Tab */}
+      {activeTab === 'sync' && <BankSyncPanel categories={categories} />}
+
+      {/* CSV Import Tab */}
+      {activeTab === 'csv' && (
+        <>
       {/* Step Indicator */}
       <div className="flex gap-1 mb-6">
         {STEPS.map((s, i) => (
@@ -526,11 +645,12 @@ export default function ImportPage() {
           <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '40px' }} />
-              <col style={{ width: '110px' }} />
+              <col style={{ width: '100px' }} />
               <col />
-              <col style={{ width: '110px' }} />
-              <col style={{ width: '220px' }} />
-              <col style={{ width: '70px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '140px' }} />
+              <col style={{ width: '200px' }} />
+              <col style={{ width: '55px' }} />
             </colgroup>
             <thead>
               <tr>
@@ -543,61 +663,95 @@ export default function ImportPage() {
                     }}
                     className="cursor-pointer" />
                 </th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-center">Conf.</th>
+                <SortableHeader label="Date" sortKey="date" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                <SortableHeader label="Description" sortKey="description" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                <SortableHeader label="Amount" sortKey="amount" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} align="right" />
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
+                <SortableHeader label="Category" sortKey="category" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                <SortableHeader label="Conf." sortKey="confidence" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} align="center" />
               </tr>
             </thead>
             <tbody>
-              {categorizedRows.map((r, i) => (
-                <tr key={i} className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${!r.categoryId && selectedImportRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
-                  <td className="px-2 py-2 text-center">
-                    <input type="checkbox" checked={selectedImportRows.has(i)}
-                      onChange={() => {
-                        setSelectedImportRows(prev => {
-                          const next = new Set(prev);
-                          if (next.has(i)) next.delete(i); else next.add(i);
-                          return next;
-                        });
-                      }}
-                      className="cursor-pointer" />
-                  </td>
-                  <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)] truncate">{r.date}</td>
-                  <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate">{r.description}</td>
-                  <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
-                    {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
-                  </td>
-                  <td className="px-2.5 py-1.5">
-                    {r.groupName && r.categoryId && (
-                      <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
-                    )}
-                    <select
-                      className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
-                      value={r.categoryId || ''}
-                      onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
-                    >
-                      <option value="">Select...</option>
-                      {Array.from(catGroups.entries()).map(([group, cats]) => (
-                        <optgroup key={group} label={group}>
-                          {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+              {sortedCsvIndices.map((i) => {
+                const r = categorizedRows[i];
+                return (
+                <React.Fragment key={i}>
+                  <tr className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${!r.categoryId && selectedImportRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
+                    <td className="px-2 py-2 text-center">
+                      <input type="checkbox" checked={selectedImportRows.has(i)}
+                        onChange={() => {
+                          setSelectedImportRows(prev => {
+                            const next = new Set(prev);
+                            if (next.has(i)) next.delete(i); else next.add(i);
+                            return next;
+                          });
+                        }}
+                        className="cursor-pointer" />
+                    </td>
+                    <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)] truncate">{r.date}</td>
+                    <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate">{r.description}</td>
+                    <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
+                      {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
+                    </td>
+                    <td className="px-2.5 py-1.5">
+                      <div className="flex flex-wrap gap-1">
+                        <DuplicateBadge status={r.duplicateStatus}
+                          onClick={() => setExpandedDupeRow(expandedDupeRow === i ? null : i)} />
+                        <TransferBadge isLikelyTransfer={r.isLikelyTransfer} tooltipText={r.transferTooltip} />
+                      </div>
+                    </td>
+                    <td className="px-2.5 py-1.5">
+                      {r.groupName && r.categoryId && (
+                        <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                      )}
+                      <select
+                        className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                        value={r.categoryId || ''}
+                        onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
+                      >
+                        <option value="">Select...</option>
+                        {Array.from(catGroups.entries()).map(([group, cats]) => (
+                          <optgroup key={group} label={group}>
+                            {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                          </optgroup>
+                        ))}
+                        <optgroup label="Income">
+                          {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
                         </optgroup>
-                      ))}
-                      <optgroup label="Income">
-                        {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                      </optgroup>
-                    </select>
-                  </td>
-                  <td className="px-2.5 py-2 text-center">
-                    <span className={`text-[11px] font-semibold font-mono ${
-                      r.confidence > 0.9 ? 'text-[#10b981]' : r.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
-                    }`}>
-                      {Math.round(r.confidence * 100)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                      </select>
+                    </td>
+                    <td className="px-2.5 py-2 text-center">
+                      <span className={`text-[11px] font-semibold font-mono ${
+                        r.confidence > 0.9 ? 'text-[#10b981]' : r.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+                      }`}>
+                        {Math.round(r.confidence * 100)}%
+                      </span>
+                    </td>
+                  </tr>
+                  {expandedDupeRow === i && r.duplicateMatch && (
+                    <tr>
+                      <td colSpan={7} className="px-2.5 py-1">
+                        <DuplicateComparison
+                          incoming={{ date: r.date, description: r.description, amount: r.amount,
+                            accountName: accounts.find(a => a.id === selectedAccountId)?.name || null }}
+                          existing={{ date: r.duplicateMatch.date, description: r.duplicateMatch.description,
+                            amount: r.duplicateMatch.amount, accountName: r.duplicateMatch.accountName,
+                            category: r.duplicateMatch.category }}
+                          onImportAnyway={() => {
+                            setSelectedImportRows(prev => { const next = new Set(prev); next.add(i); return next; });
+                            setExpandedDupeRow(null);
+                          }}
+                          onSkip={() => {
+                            setSelectedImportRows(prev => { const next = new Set(prev); next.delete(i); return next; });
+                            setExpandedDupeRow(null);
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -635,6 +789,8 @@ export default function ImportPage() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

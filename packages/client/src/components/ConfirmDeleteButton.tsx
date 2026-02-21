@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 interface ConfirmDeleteButtonProps {
   onConfirm: () => void | Promise<void>;
+  onFirstClick?: () => void;
   label?: string;
   confirmLabel?: string;
   timeout?: number;
@@ -9,6 +10,7 @@ interface ConfirmDeleteButtonProps {
 
 export default function ConfirmDeleteButton({
   onConfirm,
+  onFirstClick,
   label = 'Delete',
   confirmLabel = 'Confirm Delete?',
   timeout = 3000,
@@ -22,10 +24,10 @@ export default function ConfirmDeleteButton({
   }, [confirming, timeout]);
 
   const handleClick = useCallback(() => {
-    if (!confirming) { setConfirming(true); return; }
+    if (!confirming) { setConfirming(true); onFirstClick?.(); return; }
     onConfirm();
     setConfirming(false);
-  }, [confirming, onConfirm]);
+  }, [confirming, onConfirm, onFirstClick]);
 
   return (
     <div className="flex items-center gap-2">
