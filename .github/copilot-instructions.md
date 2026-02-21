@@ -229,3 +229,33 @@ Form Input → Storage → Display:
 **Problem:** The original schema used a single `owner` text field, which couldn't represent shared ownership. This affected the Budget page owner filter — shared account transactions would only appear under one person.
 **Resolution:** Created an `account_owners` junction table supporting many-to-many relationships. Individual owner views on the Budget page include both sole and shared accounts. The "All" view remains the source of truth with no double-counting. Shared accounts display a "Shared" badge and multiple owner badges.
 **Rule going forward:** Always use the account_owners junction table for ownership. Never assume an account has exactly one owner. When filtering by owner, include accounts where the user is ANY of the owners, not just the sole owner. The legacy `owner` column on `accounts` is kept for backward compat but should not be used in new app logic.
+
+### SimpleFIN Connection Scoping (2026-02-20)
+**Context:** Designing SimpleFIN integration for a multi-user household app
+**Problem:** A single global connection doesn't support households where each person has their own SimpleFIN account, but per-user-only doesn't support shared connections
+**Resolution:** simplefin_connections supports both: user_id = NULL for shared (all users can sync), user_id set for personal. Multiple connections allowed.
+**Rule going forward:** Always scope SimpleFIN queries to connections the current user has access to (shared + their own). Never expose one user's personal connection to another user.
+
+### SimpleFIN Sign Conventions (2026-02-20)
+**Context:** SimpleFIN API returns amounts in each bank's native convention
+**Problem:** Checking accounts use positive = deposit. Credit cards use negative = charge. This is inconsistent across account types and differs from Ledger's internal convention.
+**Resolution:** Convert all amounts during sync based on linked Ledger account classification. All classifications flip sign (-simplefinAmount).
+**Rule going forward:** Never store raw SimpleFIN amounts. Always convert to internal convention (positive = money out, negative = money in) before display or storage.
+
+### SimpleFIN Transaction IDs for Dedup (2026-02-20)
+**Context:** Bank sync can be run multiple times for overlapping date ranges
+**Problem:** Without tracking imported SimpleFIN transaction IDs, re-syncing creates duplicates
+**Resolution:** Store simplefin_transaction_id on each imported transaction. Filter out already-imported IDs before showing review screen. Separate from fuzzy duplicate detection.
+**Rule going forward:** Always check simplefin_transaction_id first (exact dedup), then run fuzzy detection (date + amount + description) for cross-source matching.
+
+### SimpleFIN API Limits (2026-02-20)
+**Context:** Integrating with SimpleFIN Bridge API
+**Problem:** Rate limited to 24 requests/day, 60 days max per request
+**Resolution:** User-initiated sync only (no auto-polling). Split ranges > 60 days. Clear errors on rate limit.
+**Rule going forward:** Never auto-poll SimpleFIN. Always user-initiated. Split date ranges > 60 days. Show clear errors if rate limited.
+
+### Transfer Detection Should Be Dynamic (2026-02-20)
+**Context:** Detecting credit card payments and inter-account transfers during import
+**Problem:** Hardcoding bank-specific patterns is fragile across different users' banks
+**Resolution:** Generic keywords plus dynamic matching against the user's own Ledger account names.
+**Rule going forward:** Never hardcode bank-specific transfer patterns. Match against the user's actual account names for dynamic detection.
