@@ -659,7 +659,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                       className="cursor-pointer" />
                     <span className="font-semibold text-[13px] text-[var(--text-primary)]">{hu.accountName}</span>
                   </label>
-                  <table className="w-full border-collapse text-[12px] ml-6">
+                  <table className="w-full border-collapse text-[12px] ml-6" style={{ width: 'calc(100% - 24px)' }}>
                     <thead>
                       <tr>
                         <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase px-2 py-1 border-b border-[var(--table-border)] text-left">Symbol</th>
