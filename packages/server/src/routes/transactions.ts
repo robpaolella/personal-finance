@@ -60,6 +60,8 @@ router.get('/', (req: Request, res: Response) => {
     const sortColumn =
       sortBy === 'amount' ? transactions.amount :
       sortBy === 'description' ? transactions.description :
+      sortBy === 'account' ? accounts.name :
+      sortBy === 'category' ? categories.group_name :
       transactions.date;
     const orderFn = sortOrder === 'asc' ? asc : desc;
 
