@@ -20,6 +20,7 @@ import balanceRoutes from './routes/balances.js';
 import assetRoutes from './routes/assets.js';
 import networthRoutes from './routes/networth.js';
 import importRoutes from './routes/import.js';
+import simplefinRoutes from './routes/simplefin.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -64,6 +65,7 @@ app.use('/api/balances', balanceRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/networth', networthRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/simplefin', simplefinRoutes);
 
 // Global error handler (must be after all routes)
 app.use(errorHandler);
