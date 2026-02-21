@@ -116,7 +116,7 @@ function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?
                 <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Shares</th>
                 <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Cost Basis</th>
                 <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Mkt Value</th>
-                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Gain/Loss</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right" title="Total return since purchase, based on cost basis vs current market value">Total Return</th>
               </tr>
             </thead>
             <tbody>
