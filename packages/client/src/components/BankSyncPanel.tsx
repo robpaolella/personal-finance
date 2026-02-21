@@ -375,15 +375,25 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                 ))}
               </select>
               {datePreset === 0 && (
-                <div className="flex gap-2 mb-3">
+                <div className="flex gap-2 mb-2">
                   <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
                     className="flex-1 border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] outline-none text-[var(--text-body)]" />
                   <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
                     className="flex-1 border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] outline-none text-[var(--text-body)]" />
                 </div>
               )}
+              {datePreset === 0 && customStart && customEnd && (() => {
+                const diffDays = Math.round((new Date(customEnd).getTime() - new Date(customStart).getTime()) / (1000 * 60 * 60 * 24));
+                return diffDays > 60 ? (
+                  <div className="rounded-lg border border-[#f59e0b] p-2.5 mb-2" style={{ background: 'rgb(234 189 154 / 30%)' }}>
+                    <p className="text-[11px] font-semibold text-[#78350f] dark:text-[#fbbf24] m-0">
+                      SimpleFIN limits data to 60 days per request. Only the most recent 60 days of your range will be fetched.
+                    </p>
+                  </div>
+                ) : null;
+              })()}
               <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-                SimpleFIN updates data once per day. Date range limited to 60 days per request.
+                SimpleFIN updates data once per day. Maximum range: 60 days per request.
               </p>
             </div>
           </div>
