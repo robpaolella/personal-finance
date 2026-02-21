@@ -128,6 +128,7 @@ function TransactionForm({
     transaction?.category.type === 'income' ? 'income' : 'expense'
   );
   const [showErrors, setShowErrors] = useState(false);
+  const [dupeExpanded, setDupeExpanded] = useState(false);
 
   // Refs for focusing first invalid field
   const dateRef = useRef<HTMLInputElement>(null);
@@ -315,34 +316,42 @@ function TransactionForm({
 
       {/* Duplicate Warning */}
       {duplicateMatch && (
-        <div className="mt-4 rounded-lg border border-[#f59e0b] bg-[#fefce8] dark:bg-[#422006]/30 p-3">
+        <div className="mt-4 rounded-lg border border-[#f59e0b] p-3" style={{ background: 'rgb(234 189 154 / 30%)' }}>
           <div className="flex items-start gap-2">
             <svg className="w-4 h-4 text-[#f59e0b] mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
             <div className="flex-1">
-              <p className="text-[12px] font-semibold text-[#92400e] dark:text-[#fbbf24] m-0">
-                Possible duplicate detected — click Save again to confirm
-              </p>
-              <div className="mt-2 rounded-md bg-white/60 dark:bg-black/20 border border-[#fde68a] dark:border-[#854d0e] p-2.5">
-                <p className="text-[11px] text-[#78716c] dark:text-[#a8a29e] m-0 mb-1 uppercase tracking-[0.04em] font-semibold">Existing Transaction</p>
-                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
-                  <span className="text-[#78716c] dark:text-[#a8a29e]">Date</span>
-                  <span className="font-mono text-[#1c1917] dark:text-[#e7e5e4]">{duplicateMatch.date}</span>
-                  <span className="text-[#78716c] dark:text-[#a8a29e]">Description</span>
-                  <span className="text-[#1c1917] dark:text-[#e7e5e4]">{duplicateMatch.description}</span>
-                  <span className="text-[#78716c] dark:text-[#a8a29e]">Amount</span>
-                  <span className="font-mono font-semibold text-[#1c1917] dark:text-[#e7e5e4]">{fmt(Math.abs(duplicateMatch.amount))}</span>
+              <div className="flex items-center justify-between">
+                <p className="text-[12px] font-semibold text-[#92400e] dark:text-[#fbbf24] m-0">
+                  Possible duplicate detected — click Save again to confirm
+                </p>
+                <button onClick={() => setDupeExpanded(!dupeExpanded)}
+                  className="bg-transparent border-none cursor-pointer p-0.5 text-[#92400e] dark:text-[#fbbf24]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transform: dupeExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease' }}>
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
+              {dupeExpanded && (
+                <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
+                  <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Date</span>
+                  <span className="font-mono text-[#92400e] dark:text-[#fde68a]">{duplicateMatch.date}</span>
+                  <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Description</span>
+                  <span className="text-[#92400e] dark:text-[#fde68a]">{duplicateMatch.description}</span>
+                  <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Amount</span>
+                  <span className="font-mono font-semibold text-[#92400e] dark:text-[#fde68a]">{fmt(Math.abs(duplicateMatch.amount))}</span>
                   {duplicateMatch.accountName && <>
-                    <span className="text-[#78716c] dark:text-[#a8a29e]">Account</span>
-                    <span className="text-[#1c1917] dark:text-[#e7e5e4]">{duplicateMatch.accountName}</span>
+                    <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Account</span>
+                    <span className="text-[#92400e] dark:text-[#fde68a]">{duplicateMatch.accountName}</span>
                   </>}
                   {duplicateMatch.category && <>
-                    <span className="text-[#78716c] dark:text-[#a8a29e]">Category</span>
-                    <span className="text-[#1c1917] dark:text-[#e7e5e4]">{duplicateMatch.category}</span>
+                    <span className="text-[#92400e]/70 dark:text-[#fbbf24]/60">Category</span>
+                    <span className="text-[#92400e] dark:text-[#fde68a]">{duplicateMatch.category}</span>
                   </>}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
