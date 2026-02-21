@@ -98,7 +98,15 @@ async function fetchAccountsSingle(
   if (startDate) url.searchParams.set('start-date', String(startDate));
   if (endDate) url.searchParams.set('end-date', String(endDate));
 
-  const response = await fetch(url.toString());
+  // Extract credentials from URL — fetch() rejects URLs with embedded credentials
+  const headers: Record<string, string> = {};
+  if (url.username) {
+    headers['Authorization'] = 'Basic ' + Buffer.from(`${url.username}:${url.password}`).toString('base64');
+    url.username = '';
+    url.password = '';
+  }
+
+  const response = await fetch(url.toString(), { headers });
 
   if (response.status === 403) {
     throw new Error('SimpleFIN authentication failed. You may need to reauthenticate.');
