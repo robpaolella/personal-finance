@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import DuplicateBadge from '../components/DuplicateBadge';
 import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
+import BankSyncPanel from '../components/BankSyncPanel';
 
 interface Account {
   id: number;
@@ -74,7 +75,10 @@ function normalizeAmount(raw: string): number {
 export default function ImportPage() {
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState<'csv' | 'sync'>(searchParams.get('tab') === 'csv' ? 'csv' : searchParams.get('tab') === 'sync' ? 'sync' : 'csv');
+  const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [step, setStep] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -94,6 +98,7 @@ export default function ImportPage() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [modalAccountId, setModalAccountId] = useState<number | ''>('');
   const [expandedDupeRow, setExpandedDupeRow] = useState<number | null>(null);
+
   useEffect(() => {
     if (notification) { const t = setTimeout(() => setNotification(null), 5000); return () => clearTimeout(t); }
   }, [notification]);
@@ -101,6 +106,13 @@ export default function ImportPage() {
   useEffect(() => {
     apiFetch<{ data: Account[] }>('/accounts').then((r) => setAccounts(r.data));
     apiFetch<{ data: Category[] }>('/categories').then((r) => setCategories(r.data));
+    // Check if SimpleFIN connections exist to set default tab
+    apiFetch<{ data: { id: number }[] }>('/simplefin/connections').then((r) => {
+      const has = r.data.length > 0;
+      setHasConnections(has);
+      // Set default tab if not specified in URL
+      if (!searchParams.get('tab') && has) setActiveTab('sync');
+    }).catch(() => setHasConnections(false));
   }, []);
 
   const handleFile = async (f: File) => {
@@ -348,14 +360,44 @@ export default function ImportPage() {
 
   const validImportCount = categorizedRows.filter((r, i) => selectedImportRows.has(i) && r.categoryId != null).length;
 
+  const switchTab = (tab: 'csv' | 'sync') => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'csv' ? {} : { tab: 'sync' });
+  };
+
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Import Transactions</h1>
-        <p className="text-[var(--text-secondary)] text-[13px] mt-1">Import CSV from your bank, credit card, or Venmo</p>
+        <p className="text-[var(--text-secondary)] text-[13px] mt-1">
+          {activeTab === 'csv' ? 'Import CSV from your bank, credit card, or Venmo' : 'Pull transactions directly from your connected bank accounts'}
+        </p>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="inline-flex bg-[var(--bg-secondary-btn)] rounded-lg p-0.5 mb-6">
+        {[
+          { id: 'csv' as const, label: 'CSV Import' },
+          { id: 'sync' as const, label: 'Bank Sync' },
+        ].map((tab) => (
+          <button key={tab.id} onClick={() => switchTab(tab.id)}
+            className={`px-4 py-1.5 text-[13px] font-semibold rounded-md border-none cursor-pointer transition-all ${
+              activeTab === tab.id
+                ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
+                : 'bg-transparent text-[var(--text-secondary)]'
+            }`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Bank Sync Tab */}
+      {activeTab === 'sync' && <BankSyncPanel categories={categories} />}
+
+      {/* CSV Import Tab */}
+      {activeTab === 'csv' && (
+        <>
       {/* Step Indicator */}
       <div className="flex gap-1 mb-6">
         {STEPS.map((s, i) => (
@@ -715,6 +757,8 @@ export default function ImportPage() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
