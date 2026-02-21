@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
-import { transactions } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { transactions, accounts } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
 import type { DuplicateStatus } from '@ledger/shared/src/types.js';
 
 export interface DuplicateResult {
@@ -9,6 +9,8 @@ export interface DuplicateResult {
   matchId: number | null;
   matchDescription?: string;
   matchDate?: string;
+  matchAmount?: number;
+  matchAccountName?: string;
 }
 
 export interface IncomingTransaction {
@@ -70,7 +72,7 @@ export function detectDuplicates(incoming: IncomingTransaction[]): DuplicateResu
   const dates = [...new Set(incoming.map((t) => t.date))];
 
   // Fetch all existing transactions on those dates
-  const existing: { id: number; date: string; amount: number; description: string; account_id: number }[] = [];
+  const existing: { id: number; date: string; amount: number; description: string; account_id: number; account_name: string | null }[] = [];
   for (const date of dates) {
     const rows = db.select({
       id: transactions.id,
@@ -78,8 +80,10 @@ export function detectDuplicates(incoming: IncomingTransaction[]): DuplicateResu
       amount: transactions.amount,
       description: transactions.description,
       account_id: transactions.account_id,
+      account_name: accounts.name,
     })
       .from(transactions)
+      .leftJoin(accounts, eq(transactions.account_id, accounts.id))
       .where(eq(transactions.date, date))
       .all();
     existing.push(...rows);
@@ -109,6 +113,8 @@ export function detectDuplicates(incoming: IncomingTransaction[]): DuplicateResu
           matchId: ex.id,
           matchDescription: ex.description,
           matchDate: ex.date,
+          matchAmount: ex.amount,
+          matchAccountName: ex.account_name || undefined,
         };
         break; // Found exact match, stop checking
       } else if (results[i].status !== 'exact') {
@@ -118,6 +124,8 @@ export function detectDuplicates(incoming: IncomingTransaction[]): DuplicateResu
           matchId: ex.id,
           matchDescription: ex.description,
           matchDate: ex.date,
+          matchAmount: ex.amount,
+          matchAccountName: ex.account_name || undefined,
         };
       }
     }

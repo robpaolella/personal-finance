@@ -518,6 +518,10 @@ router.post('/sync', async (req: Request, res: Response) => {
                 confidence: cat.confidence,
                 duplicateStatus: dup.status,
                 duplicateMatchId: dup.matchId,
+                duplicateMatchDescription: dup.matchDescription,
+                duplicateMatchDate: dup.matchDate,
+                duplicateMatchAmount: dup.matchAmount,
+                duplicateMatchAccountName: dup.matchAccountName,
                 isLikelyTransfer: isTransfer,
               });
             }

@@ -44,6 +44,10 @@ interface SyncTransaction {
   confidence: number;
   duplicateStatus: 'exact' | 'possible' | 'none';
   duplicateMatchId: number | null;
+  duplicateMatchDescription?: string;
+  duplicateMatchDate?: string;
+  duplicateMatchAmount?: number;
+  duplicateMatchAccountName?: string;
   isLikelyTransfer: boolean;
   // User overrides
   categoryId: number | null;
@@ -571,7 +575,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                           <td colSpan={8} className="px-2.5 py-1">
                             <DuplicateComparison
                               incoming={{ date: t.date, description: t.description, amount: t.amount, accountName: t.accountName }}
-                              existing={{ date: t.date, description: '', amount: t.amount, accountName: null }}
+                              existing={{ date: t.duplicateMatchDate || t.date, description: t.duplicateMatchDescription || '', amount: t.duplicateMatchAmount ?? t.amount, accountName: t.duplicateMatchAccountName || null }}
                               onImportAnyway={() => {
                                 setSelectedTxnRows((prev) => { const next = new Set(prev); next.add(i); return next; });
                                 setExpandedDupeRow(null);
