@@ -86,12 +86,14 @@ function NewAccountForm({
   defaults,
   users,
   currentUserId,
+  isShared,
   onSave,
   onClose,
 }: {
   defaults: { name: string; lastFour: string; type: string; classification: string };
   users: { id: number; displayName: string }[];
   currentUserId: number;
+  isShared: boolean;
   onSave: (data: Record<string, unknown>) => Promise<void>;
   onClose: () => void;
 }) {
@@ -99,7 +101,7 @@ function NewAccountForm({
   const [lastFour, setLastFour] = useState(defaults.lastFour);
   const [type, setType] = useState(defaults.type);
   const [classification, setClassification] = useState(defaults.classification);
-  const [selectedOwnerIds, setSelectedOwnerIds] = useState<Set<number>>(new Set([currentUserId]));
+  const [selectedOwnerIds, setSelectedOwnerIds] = useState<Set<number>>(new Set(isShared ? [] : [currentUserId]));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -191,12 +193,14 @@ function NewAccountForm({
 // --- Account Linking Table ---
 function AccountLinkingTable({
   connectionId,
+  isShared,
   accounts,
   users,
   currentUserId,
   onAccountCreated,
 }: {
   connectionId: number;
+  isShared: boolean;
   accounts: LedgerAccount[];
   users: { id: number; displayName: string }[];
   currentUserId: number;
@@ -409,6 +413,7 @@ function AccountLinkingTable({
             defaults={{ name, lastFour, type, classification: classificationForType(type) }}
             users={users}
             currentUserId={currentUserId}
+            isShared={isShared}
             onSave={(data) => handleCreateAndLink(creatingForSfId, data)}
             onClose={() => setCreatingForSfId(null)}
           />
@@ -667,6 +672,7 @@ function ConnectionRow({
         <div className="border-t border-[var(--table-border)] px-3 py-2 bg-[var(--bg-input)]">
           <AccountLinkingTable
             connectionId={connection.id}
+            isShared={connection.isShared}
             accounts={accounts}
             users={users}
             currentUserId={currentUserId}
