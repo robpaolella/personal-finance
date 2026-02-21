@@ -389,7 +389,7 @@ router.post('/check-duplicate', (req: Request, res: Response) => {
     let match = null;
     if (result.matchId) {
       match = sqlite.prepare(`
-        SELECT t.id, t.date, t.description, t.amount, t.notes,
+        SELECT t.id, t.date, t.description, t.amount, t.note,
                a.name as account_name,
                c.group_name, c.sub_name
         FROM transactions t
@@ -397,7 +397,7 @@ router.post('/check-duplicate', (req: Request, res: Response) => {
         LEFT JOIN categories c ON t.category_id = c.id
         WHERE t.id = ?
       `).get(result.matchId) as {
-        id: number; date: string; description: string; amount: number; notes: string | null;
+        id: number; date: string; description: string; amount: number; note: string | null;
         account_name: string | null; group_name: string | null; sub_name: string | null;
       } | undefined;
     }
@@ -410,7 +410,7 @@ router.post('/check-duplicate', (req: Request, res: Response) => {
           date: match.date,
           description: match.description,
           amount: match.amount,
-          notes: match.notes,
+          notes: match.note,
           accountName: match.account_name,
           category: match.group_name && match.sub_name ? `${match.group_name} → ${match.sub_name}` : null,
         } : null,
