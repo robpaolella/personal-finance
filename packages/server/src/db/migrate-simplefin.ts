@@ -56,7 +56,8 @@ export function migrateSimplefin(sqlite: Database.Database): void {
   const cols = sqlite.prepare("PRAGMA table_info('transactions')").all() as { name: string }[];
   const hasCol = cols.some((c) => c.name === 'simplefin_transaction_id');
   if (!hasCol) {
-    sqlite.exec('ALTER TABLE transactions ADD COLUMN simplefin_transaction_id TEXT UNIQUE');
+    sqlite.exec('ALTER TABLE transactions ADD COLUMN simplefin_transaction_id TEXT');
+    sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_simplefin_id ON transactions(simplefin_transaction_id) WHERE simplefin_transaction_id IS NOT NULL');
     console.log('Added simplefin_transaction_id column to transactions table.');
   }
 
