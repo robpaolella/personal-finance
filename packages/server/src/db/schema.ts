@@ -49,6 +49,7 @@ export const transactions = sqliteTable('transactions', {
   note: text('note'),
   category_id: integer('category_id').notNull().references(() => categories.id),
   amount: real('amount').notNull(),
+  simplefin_transaction_id: text('simplefin_transaction_id').unique(),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
 
@@ -69,6 +70,40 @@ export const balanceSnapshots = sqliteTable('balance_snapshots', {
   date: text('date').notNull(),
   balance: real('balance').notNull(),
   note: text('note'),
+});
+
+// === SimpleFIN Connections ===
+export const simplefinConnections = sqliteTable('simplefin_connections', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  user_id: integer('user_id').references(() => users.id),
+  access_url: text('access_url').notNull(),
+  label: text('label').notNull(),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+  updated_at: text('updated_at').default('CURRENT_TIMESTAMP'),
+});
+
+// === SimpleFIN Account Links ===
+export const simplefinLinks = sqliteTable('simplefin_links', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  simplefin_connection_id: integer('simplefin_connection_id').notNull().references(() => simplefinConnections.id),
+  simplefin_account_id: text('simplefin_account_id').notNull().unique(),
+  account_id: integer('account_id').notNull().references(() => accounts.id),
+  simplefin_account_name: text('simplefin_account_name').notNull(),
+  simplefin_org_name: text('simplefin_org_name'),
+  last_synced_at: text('last_synced_at'),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+});
+
+// === SimpleFIN Holdings ===
+export const simplefinHoldings = sqliteTable('simplefin_holdings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  simplefin_link_id: integer('simplefin_link_id').notNull().references(() => simplefinLinks.id),
+  symbol: text('symbol').notNull(),
+  description: text('description').notNull(),
+  shares: real('shares').notNull(),
+  cost_basis: real('cost_basis').notNull(),
+  market_value: real('market_value').notNull(),
+  updated_at: text('updated_at').notNull(),
 });
 
 // === Assets ===
