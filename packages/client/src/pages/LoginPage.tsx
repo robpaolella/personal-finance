@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import InlineNotification from '../components/InlineNotification';
 
 export default function LoginPage() {
   const { login, user } = useAuth();
@@ -51,9 +52,7 @@ export default function LoginPage() {
           <p className="text-sm text-[var(--text-secondary)] mb-6">Enter your credentials to continue</p>
 
           {error && (
-            <div className="bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)] text-sm rounded-lg px-4 py-2.5 mb-4">
-              {error}
-            </div>
+            <InlineNotification type="error" message={error} className="mb-4" />
           )}
 
           <div className="mb-4">

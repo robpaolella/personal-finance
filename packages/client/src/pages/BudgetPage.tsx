@@ -4,6 +4,7 @@ import { fmt, fmtWhole } from '../lib/formatters';
 import KPICard from '../components/KPICard';
 import OwnerFilter from '../components/OwnerFilter';
 import Spinner from '../components/Spinner';
+import InlineNotification from '../components/InlineNotification';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
@@ -157,12 +158,7 @@ export default function BudgetPage() {
 
       {/* Owner Info Bar */}
       {owner !== 'All' && (
-        <div className="bg-[var(--badge-category-bg)] border border-[#bfdbfe] rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-          </svg>
-          <span className="text-[13px] text-[#1e40af]">Showing data from <strong>{owner}'s</strong> accounts (including shared accounts)</span>
-        </div>
+        <InlineNotification type="info" message={`Showing data from ${owner}'s accounts (including shared accounts)`} className="mb-4" />
       )}
 
       {/* KPI Cards */}
