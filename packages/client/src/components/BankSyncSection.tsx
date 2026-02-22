@@ -158,8 +158,8 @@ function NewAccountForm({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${
                   selectedOwnerIds.has(u.id)
-                    ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)]'
-                    : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'
+                    ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)] btn-primary'
+                    : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)] btn-secondary'
                 }`}>
                 {u.displayName}
               </button>
@@ -169,7 +169,7 @@ function NewAccountForm({
       </div>
       <div className="flex gap-2 mt-5 justify-end">
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Cancel
         </button>
         <button disabled={saving} onClick={async () => {
@@ -183,7 +183,7 @@ function NewAccountForm({
             setSaving(false);
           }
         }}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer disabled:opacity-50">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer disabled:opacity-50 btn-primary">
           {saving ? 'Creating...' : 'Create & Link'}
         </button>
       </div>
@@ -499,7 +499,7 @@ export default function BankSyncSection({
         </div>
         {hasConnections && (
           <button onClick={() => setShowAddModal(true)}
-            className="text-[12px] font-semibold text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer hover:underline">
+            className="text-[12px] font-semibold text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline">
             + Add Connection
           </button>
         )}
@@ -511,7 +511,7 @@ export default function BankSyncSection({
       {!hasConnections ? (
         <div className="text-center py-6">
           <button onClick={() => setShowAddModal(true)}
-            className="px-5 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            className="px-5 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-primary">
             Add Connection
           </button>
           <p className="text-[11px] text-[var(--text-muted)] mt-3">
@@ -751,8 +751,8 @@ function ConnectionFormModal({
                 disabled={!!connection}
                 className={`flex-1 py-2 px-3 rounded-lg text-left border cursor-pointer transition-colors ${
                   shared === opt.value
-                    ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)]'
-                    : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'
+                    ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)] btn-primary'
+                    : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)] btn-secondary'
                 } ${connection ? 'opacity-60 cursor-not-allowed' : ''}`}>
                 <div className="text-[12px] font-semibold">{opt.label}</div>
                 <div className={`text-[10px] mt-0.5 ${shared === opt.value ? '' : 'text-[var(--text-muted)]'}`}
@@ -770,7 +770,7 @@ function ConnectionFormModal({
               {inputMode === 'token' ? 'Setup Token' : 'Access URL'}
             </label>
             <button type="button" onClick={() => setInputMode(inputMode === 'token' ? 'url' : 'token')}
-              className="text-[11px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer hover:underline">
+              className="text-[11px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline">
               {inputMode === 'token' ? 'I have an Access URL instead' : 'I have a Setup Token'}
             </button>
           </div>
@@ -786,11 +786,11 @@ function ConnectionFormModal({
 
       <div className="flex gap-2 mt-5 justify-end">
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Cancel
         </button>
         <button onClick={handleSubmit} disabled={saving}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer disabled:opacity-50">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer disabled:opacity-50 btn-primary">
           {saving ? 'Connecting...' : connection ? 'Save' : 'Connect'}
         </button>
       </div>

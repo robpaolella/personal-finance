@@ -66,11 +66,11 @@ export default function DuplicateComparison({ incoming, existing, onImportAnyway
       </table>
       <div className="flex justify-end gap-2 mt-2">
         <button onClick={onSkip}
-          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Skip
         </button>
         <button onClick={onImportAnyway}
-          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer">
+          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary">
           Import Anyway
         </button>
       </div>

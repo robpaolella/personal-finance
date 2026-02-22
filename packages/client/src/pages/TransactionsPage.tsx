@@ -288,7 +288,7 @@ function TransactionForm({
               {(['expense', 'income'] as const).map((t) => (
                 <button key={t} onClick={() => handleTypeChange(t)}
                   className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
-                    txType === t ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)]' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)]'
+                    txType === t ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] btn-primary' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] btn-secondary'
                   }`}>
                   {t}
                 </button>
@@ -366,7 +366,7 @@ function TransactionForm({
           </div>
         )}
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Cancel
         </button>
         <button onClick={handleSaveClick}
@@ -374,7 +374,7 @@ function TransactionForm({
             isValid
               ? duplicateMatch
                 ? 'bg-[var(--color-warning)] text-white cursor-pointer'
-                : 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] cursor-pointer'
+                : 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] cursor-pointer btn-primary'
               : 'bg-[var(--text-muted)] text-white cursor-not-allowed'
           }`}>
           {duplicateMatch ? 'Save Anyway' : 'Save'}
@@ -631,17 +631,17 @@ export default function TransactionsPage() {
         <div className="flex gap-2">
           {bulkMode ? (
             <button onClick={exitBulkMode}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
               Exit Bulk Edit
             </button>
           ) : (
             <button onClick={() => setBulkMode(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
               Bulk Edit
             </button>
           )}
           <button onClick={() => setEditing('new')}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Transaction
           </button>
@@ -694,7 +694,7 @@ export default function TransactionsPage() {
         )}
         {hasActiveFilters && (
           <button onClick={resetFilters}
-            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer hover:text-[var(--btn-secondary-text)] whitespace-nowrap flex items-center gap-1">
+            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer btn-ghost whitespace-nowrap flex items-center gap-1">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Reset Filters
           </button>
@@ -712,7 +712,7 @@ export default function TransactionsPage() {
               <input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)}
                 className="px-2 py-1.5 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
               <button onClick={() => applyBulkAction('date')} disabled={!bulkDate || selectedIds.size === 0}
-                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set Date</button>
+                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40 btn-secondary">Set Date</button>
             </div>
             {/* Set Account */}
             <div className="flex items-center gap-1">
@@ -722,7 +722,7 @@ export default function TransactionsPage() {
                 {accounts.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
               </select>
               <button onClick={() => applyBulkAction('account')} disabled={!bulkAccountId || selectedIds.size === 0}
-                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set</button>
+                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40 btn-secondary">Set</button>
             </div>
             {/* Set Category */}
             <div className="flex items-center gap-1">
@@ -736,7 +736,7 @@ export default function TransactionsPage() {
                 ))}
               </select>
               <button onClick={() => applyBulkAction('category')} disabled={!bulkCategoryId || selectedIds.size === 0}
-                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set</button>
+                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40 btn-secondary">Set</button>
             </div>
             {/* Find & Replace */}
             <div className="flex items-center gap-1">
@@ -745,19 +745,19 @@ export default function TransactionsPage() {
               <input value={bulkReplace} onChange={(e) => setBulkReplace(e.target.value)} placeholder="Replace..."
                 className="px-2 py-1.5 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] w-[100px] text-[var(--text-secondary)]" />
               <button onClick={() => applyBulkAction('findReplace')} disabled={!bulkFind || selectedIds.size === 0}
-                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Replace</button>
+                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40 btn-secondary">Replace</button>
             </div>
             <div className="h-4 w-px bg-[var(--table-border)]" />
             {/* Delete */}
             <button onClick={() => applyBulkAction('delete')} disabled={selectedIds.size === 0}
               className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40 ${
-                bulkConfirmDelete ? 'bg-[var(--btn-destructive-bg)] text-[var(--btn-destructive-text)]' : 'bg-[var(--btn-destructive-light-bg)] text-[var(--btn-destructive-light-text)]'
+                bulkConfirmDelete ? 'bg-[var(--btn-destructive-bg)] text-[var(--btn-destructive-text)] btn-destructive' : 'bg-[var(--btn-destructive-light-bg)] text-[var(--btn-destructive-light-text)] btn-destructive-light'
               }`}>
               {bulkConfirmDelete ? 'Confirm Delete?' : 'Delete Selected'}
             </button>
             {bulkConfirmDelete && (
               <button onClick={() => setBulkConfirmDelete(false)}
-                className="text-[11px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer underline">Cancel</button>
+                className="text-[11px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer underline btn-ghost">Cancel</button>
             )}
           </div>
         </div>
@@ -845,12 +845,12 @@ export default function TransactionsPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
-              className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default">
+              className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default btn-secondary">
               ← Prev
             </button>
             <span className="font-mono text-[12px] text-[var(--text-muted)]">{page} / {totalPages}</span>
             <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-              className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default">
+              className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default btn-secondary">
               Next →
             </button>
           </div>

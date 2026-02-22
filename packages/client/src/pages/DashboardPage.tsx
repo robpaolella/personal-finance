@@ -100,12 +100,12 @@ export default function DashboardPage() {
           <p className="text-[var(--text-secondary)] text-[13px] mt-1">{monthName} {now.getFullYear()} Overview</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+          <button className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
             AI Summary
           </button>
           <button onClick={() => navigate('/transactions')}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Transaction
           </button>
@@ -209,7 +209,7 @@ export default function DashboardPage() {
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Recent Transactions</h3>
           <button onClick={() => navigate('/transactions')}
-            className="text-[12px] text-[#3b82f6] font-medium bg-transparent border-none cursor-pointer px-2 py-1 rounded-md hover:bg-[var(--btn-secondary-bg)]">
+            className="text-[12px] text-[#3b82f6] font-medium bg-transparent border-none cursor-pointer px-2 py-1 rounded-md btn-ghost">
             View All →
           </button>
         </div>
