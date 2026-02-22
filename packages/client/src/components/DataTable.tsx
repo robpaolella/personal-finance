@@ -34,7 +34,7 @@ export default function DataTable<T>({ columns, data, onRowClick, rowKey }: Data
           <tr
             key={rowKey(row)}
             onClick={() => onRowClick?.(row)}
-            className={`border-b border-[var(--table-row-border)] ${onRowClick ? 'cursor-pointer' : ''} hover:bg-[var(--bg-hover)]`}
+            className={`border-b border-[var(--table-row-border)] ${onRowClick ? 'cursor-pointer' : ''} hover:bg-[var(--bg-hover)] transition-colors`}
           >
             {columns.map((col) => (
               <td

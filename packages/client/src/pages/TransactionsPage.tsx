@@ -786,7 +786,7 @@ export default function TransactionsPage() {
               return (
                 <tr key={t.id}
                   onClick={() => { if (!bulkMode) { setEditing(t); } }}
-                  className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)]">
+                  className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)] transition-colors">
                   {bulkMode && (
                     <td className="w-8 px-2 py-2">
                       <input type="checkbox" checked={selectedIds.has(t.id)}
