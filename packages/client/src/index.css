@@ -58,13 +58,22 @@
   /* Buttons */
   --btn-primary-bg: #0f172a;
   --btn-primary-text: #ffffff;
+  --btn-primary-hover: #1e293b;
   --btn-secondary-bg: #ebeff3;
   --btn-secondary-text: #334155;
+  --btn-secondary-hover: #dfe3e8;
   --btn-destructive-bg: #ef4444;
   --btn-destructive-text: #ffffff;
+  --btn-destructive-hover: #dc2626;
   --btn-destructive-light-bg: #fef2f2;
   --btn-destructive-light-text: #ef4444;
+  --btn-destructive-light-hover: #fee2e2;
+  --btn-success-hover: #059669;
   --btn-ghost-text: #64748b;
+
+  /* Cards (hover) */
+  --card-hover-border: #cbd5e1;
+  --card-hover-shadow: 0 2px 6px rgba(0,0,0,0.08);
 
   /* Badges */
   --badge-account-bg: #f1f5f9;
@@ -152,13 +161,22 @@
   /* Buttons */
   --btn-primary-bg: #e2e8f0;
   --btn-primary-text: #0f172a;
+  --btn-primary-hover: #cbd5e1;
   --btn-secondary-bg: #1a2234;
   --btn-secondary-text: #94a3b8;
+  --btn-secondary-hover: #243044;
   --btn-destructive-bg: #ef4444;
   --btn-destructive-text: #ffffff;
+  --btn-destructive-hover: #dc2626;
   --btn-destructive-light-bg: #3b1111;
   --btn-destructive-light-text: #fca5a5;
+  --btn-destructive-light-hover: #4a1515;
+  --btn-success-hover: #059669;
   --btn-ghost-text: #64748b;
+
+  /* Cards (hover) */
+  --card-hover-border: #334155;
+  --card-hover-shadow: 0 2px 6px rgba(0,0,0,0.3);
 
   /* Badges */
   --badge-account-bg: #1a2234;
