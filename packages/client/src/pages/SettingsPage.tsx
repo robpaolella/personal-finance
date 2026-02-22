@@ -420,15 +420,17 @@ export default function SettingsPage() {
   };
 
   return (
-    <div>
-      <h1 className="text-[22px] font-bold text-[var(--text-primary)] mb-6">Settings</h1>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+      <h1 className="text-[22px] font-bold text-[var(--text-primary)] mb-6 flex-shrink-0">Settings</h1>
 
       {/* Bank Sync Section */}
-      <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
+      <div className="flex-shrink-0">
+        <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
+      </div>
 
-      <div className="grid grid-cols-2 gap-5 items-start">
+      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
         {/* Accounts */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] h-[598px] flex flex-col">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Accounts</h3>
           <p className="text-[13px] text-[var(--text-secondary)] mb-3">Each account has an owner and classification for filtering and net worth.</p>
           <div className="flex-1 min-h-0">
@@ -478,7 +480,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Categories */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] h-[598px] flex flex-col">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Categories</h3>
           <p className="text-[13px] text-[var(--text-secondary)] mb-3">Parent categories group sub-categories for budgets and reports.</p>
           <div className="flex-1 min-h-0">
