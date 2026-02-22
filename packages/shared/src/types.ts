@@ -76,6 +76,8 @@ export interface Asset {
   cost: number;
   lifespan_years: number;
   salvage_value: number;
+  depreciation_method: 'straight_line' | 'declining_balance';
+  declining_rate: number | null;
   created_at: string;
 }
 
