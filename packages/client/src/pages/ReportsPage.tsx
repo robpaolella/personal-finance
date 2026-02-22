@@ -4,15 +4,9 @@ import { fmtShort, fmtWhole } from '../lib/formatters';
 import KPICard from '../components/KPICard';
 import OwnerFilter from '../components/OwnerFilter';
 import Spinner from '../components/Spinner';
+import { getCategoryColor } from '../lib/categoryColors';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
-  'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
-  'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
-  'Utilities': '#f97316', 'Savings': '#06b6d4',
-};
 
 interface AnnualData {
   incomeByCategory: Record<string, number[]>;
@@ -222,7 +216,8 @@ export default function ReportsPage() {
             {expandExpenses && Object.entries(data.expensesByGroup).sort(([a], [b]) => a.localeCompare(b)).map(([group, subs]) => {
               const gMonthly = MONTHS.map((_, i) => Object.values(subs).reduce((s, a) => s + a[i], 0));
               const isOpen = expandedGroups[group];
-              const color = CATEGORY_COLORS[group] || '#94a3b8';
+              const allGroups = Object.keys(data.expensesByGroup);
+              const color = getCategoryColor(group, allGroups);
               return (
                 <Fragment key={group}>
                   <tr
