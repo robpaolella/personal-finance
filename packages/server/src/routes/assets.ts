@@ -2,16 +2,9 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { assets } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { calculateCurrentValue } from '../utils/depreciation.js';
 
 const router = Router();
-
-function calculateCurrentValue(cost: number, salvageValue: number, lifespanYears: number, purchaseDate: string): number {
-  const now = new Date();
-  const purchased = new Date(purchaseDate);
-  const yearsOwned = (now.getTime() - purchased.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-  const annualDepreciation = (cost - salvageValue) / lifespanYears;
-  return Math.max(salvageValue, cost - (annualDepreciation * Math.min(yearsOwned, lifespanYears)));
-}
 
 // GET /api/assets
 router.get('/', (_req: Request, res: Response) => {
@@ -19,7 +12,11 @@ router.get('/', (_req: Request, res: Response) => {
     const rows = db.select().from(assets).all();
     const data = rows.map((a) => ({
       ...a,
-      currentValue: calculateCurrentValue(a.cost, a.salvage_value, a.lifespan_years, a.purchase_date),
+      currentValue: calculateCurrentValue({
+        cost: a.cost, salvageValue: a.salvage_value, lifespanYears: a.lifespan_years,
+        purchaseDate: a.purchase_date, depreciationMethod: a.depreciation_method as 'straight_line' | 'declining_balance',
+        decliningRate: a.declining_rate,
+      }),
     }));
     res.json({ data });
   } catch (err) {
@@ -40,7 +37,11 @@ router.get('/:id', (req: Request, res: Response) => {
     res.json({
       data: {
         ...asset,
-        currentValue: calculateCurrentValue(asset.cost, asset.salvage_value, asset.lifespan_years, asset.purchase_date),
+        currentValue: calculateCurrentValue({
+          cost: asset.cost, salvageValue: asset.salvage_value, lifespanYears: asset.lifespan_years,
+          purchaseDate: asset.purchase_date, depreciationMethod: asset.depreciation_method as 'straight_line' | 'declining_balance',
+          decliningRate: asset.declining_rate,
+        }),
       },
     });
   } catch (err) {
@@ -52,17 +53,30 @@ router.get('/:id', (req: Request, res: Response) => {
 // POST /api/assets
 router.post('/', (req: Request, res: Response) => {
   try {
-    const { name, purchaseDate, cost, lifespanYears, salvageValue } = req.body;
-    if (!name || !purchaseDate || cost == null || lifespanYears == null || salvageValue == null) {
-      res.status(400).json({ error: 'name, purchaseDate, cost, lifespanYears, and salvageValue are required' });
+    const { name, purchaseDate, cost, lifespanYears, salvageValue, depreciationMethod, decliningRate } = req.body;
+    if (!name || !purchaseDate || cost == null || salvageValue == null) {
+      res.status(400).json({ error: 'name, purchaseDate, cost, and salvageValue are required' });
+      return;
+    }
+    const method = depreciationMethod || 'straight_line';
+    if (method === 'straight_line' && lifespanYears == null) {
+      res.status(400).json({ error: 'lifespanYears is required for straight line depreciation' });
+      return;
+    }
+    if (method === 'declining_balance' && (decliningRate == null || decliningRate <= 0 || decliningRate >= 100)) {
+      res.status(400).json({ error: 'decliningRate (1-99) is required for declining balance depreciation' });
       return;
     }
 
     const result = db.insert(assets)
-      .values({ name, purchase_date: purchaseDate, cost, lifespan_years: lifespanYears, salvage_value: salvageValue })
+      .values({
+        name, purchase_date: purchaseDate, cost, lifespan_years: lifespanYears ?? 0,
+        salvage_value: salvageValue, depreciation_method: method,
+        declining_rate: method === 'declining_balance' ? decliningRate : null,
+      })
       .run();
 
-    res.status(201).json({ data: { id: result.lastInsertRowid, name, purchaseDate, cost, lifespanYears, salvageValue } });
+    res.status(201).json({ data: { id: result.lastInsertRowid, name, purchaseDate, cost, lifespanYears, salvageValue, depreciationMethod: method, decliningRate } });
   } catch (err) {
     console.error('POST /assets error:', err);
     res.status(500).json({ error: 'Failed to create asset' });
@@ -79,13 +93,16 @@ router.put('/:id', (req: Request, res: Response) => {
       return;
     }
 
-    const { name, purchaseDate, cost, lifespanYears, salvageValue } = req.body;
+    const { name, purchaseDate, cost, lifespanYears, salvageValue, depreciationMethod, decliningRate } = req.body;
+    const method = depreciationMethod ?? existing.depreciation_method;
     db.update(assets).set({
       name: name ?? existing.name,
       purchase_date: purchaseDate ?? existing.purchase_date,
       cost: cost ?? existing.cost,
       lifespan_years: lifespanYears ?? existing.lifespan_years,
       salvage_value: salvageValue ?? existing.salvage_value,
+      depreciation_method: method,
+      declining_rate: method === 'declining_balance' ? (decliningRate ?? existing.declining_rate) : null,
     }).where(eq(assets.id, id)).run();
 
     res.json({ data: { id, name: name ?? existing.name } });
