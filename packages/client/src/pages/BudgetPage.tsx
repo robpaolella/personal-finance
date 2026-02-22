@@ -122,9 +122,9 @@ export default function BudgetPage() {
   const expRemaining = totals.budgetedExpenses - totals.actualExpenses;
 
   return (
-    <div>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 flex-shrink-0">
         <div>
           <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Monthly Budget</h1>
           <p className="text-[var(--text-secondary)] text-[13px] mt-1">{monthLabel(month)}</p>
@@ -157,7 +157,7 @@ export default function BudgetPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6 flex-shrink-0">
         <KPICard label="Budgeted Income" value={fmtWhole(totals.budgetedIncome)} />
         <KPICard
           label="Actual Income"
@@ -177,9 +177,9 @@ export default function BudgetPage() {
       </div>
 
       {/* Two Column: Income + Expenses */}
-      <div className="grid grid-cols-2 gap-5 items-start">
+      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
         {/* Income */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] h-[500px] flex flex-col">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
           <div className="flex-1 min-h-0 mt-2">
             <ScrollableList maxHeight="100%">
@@ -248,7 +248,7 @@ export default function BudgetPage() {
         </div>
 
         {/* Expenses */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] h-[500px] flex flex-col">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[#f97316] m-0">Expenses</h3>
           <div className="flex-1 min-h-0 mt-2">
             <ScrollableList maxHeight="100%">
