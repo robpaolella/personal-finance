@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import Spinner from '../components/Spinner';
 import Tooltip from '../components/Tooltip';
+import ScrollableList from '../components/ScrollableList';
 import { OwnerBadge, SharedBadge } from '../components/badges';
 
 interface Account {
@@ -321,15 +322,15 @@ export default function NetWorthPage() {
   };
 
   return (
-    <div>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-6 flex-shrink-0">
         <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Net Worth</h1>
         <p className="text-[var(--text-secondary)] text-[13px] mt-1">As of {today}</p>
       </div>
 
       {/* Hero Card */}
-      <div className="rounded-xl border border-[var(--bg-card-border)] text-center p-8 mb-6 shadow-[var(--bg-card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)]">
+      <div className="rounded-xl border border-[var(--bg-card-border)] text-center p-8 mb-6 shadow-[var(--bg-card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)] flex-shrink-0">
         <p className="text-[13px] text-[var(--text-muted)] m-0 tracking-[0.05em] uppercase">Total Net Worth</p>
         <p className="text-[40px] font-extrabold font-mono text-white my-2 tracking-[-0.02em]">{fmt(data.netWorth)}</p>
         <div className="flex justify-center gap-6 mt-3 flex-wrap">
@@ -350,10 +351,10 @@ export default function NetWorthPage() {
       </div>
 
       {/* Two-Column Layout */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
         {/* Accounts */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-          <div className="flex justify-between items-center">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
+          <div className="flex justify-between items-center flex-shrink-0">
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Accounts</h3>
             <button
               onClick={() => {
@@ -370,19 +371,21 @@ export default function NetWorthPage() {
               Update Balances
             </button>
           </div>
-          <div className="mt-3">
-            <SectionHeader label="Liquid Assets" total={data.liquidTotal} color="#38bdf8" />
-            {liquid.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
-            <SectionHeader label="Investments & Retirement" total={data.investmentTotal} color="#a78bfa" />
-            {investment.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
-            <SectionHeader label="Liabilities" total={-data.liabilityTotal} color="#f87171" neg />
-            {liability.map((a) => <AccountRow key={a.accountId} a={a} neg holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
+          <div className="flex-1 min-h-0 mt-3">
+            <ScrollableList maxHeight="100%">
+              <SectionHeader label="Liquid Assets" total={data.liquidTotal} color="#38bdf8" />
+              {liquid.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
+              <SectionHeader label="Investments & Retirement" total={data.investmentTotal} color="#a78bfa" />
+              {investment.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
+              <SectionHeader label="Liabilities" total={-data.liabilityTotal} color="#f87171" neg />
+              {liability.map((a) => <AccountRow key={a.accountId} a={a} neg holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
+            </ScrollableList>
           </div>
         </div>
 
         {/* Depreciable Assets */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-          <div className="flex justify-between items-center">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
+          <div className="flex justify-between items-center flex-shrink-0">
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Depreciable Assets</h3>
             <button
               onClick={startAddAsset}
@@ -392,8 +395,10 @@ export default function NetWorthPage() {
               Add
             </button>
           </div>
-          <table className="w-full border-collapse mt-3">
-            <thead>
+          <div className="flex-1 min-h-0 mt-3">
+            <ScrollableList maxHeight="100%">
+              <table className="w-full border-collapse">
+                <thead>
               <tr>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Asset</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Cost</th>
@@ -473,6 +478,8 @@ export default function NetWorthPage() {
               </div>
             </div>
           )}
+            </ScrollableList>
+          </div>
         </div>
       </div>
 
