@@ -51,7 +51,7 @@ export default function ScrollableList({ maxHeight, children, className = '' }: 
           {/* Scroll down button */}
           <button
             onClick={scrollDown}
-            className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[28px] h-[28px] rounded-full flex items-center justify-center border border-[var(--bg-card-border)] cursor-pointer"
+            className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[28px] h-[28px] rounded-full flex items-center justify-center border border-[var(--bg-card-border)] cursor-pointer scroll-arrow"
             style={{
               background: 'var(--bg-card)',
               boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
