@@ -30,6 +30,10 @@
 .btn-ghost { transition: none; }
 .btn-ghost:hover { text-decoration: underline; }
 
+/* Clickable badge hover */
+.badge-clickable { transition: filter 150ms ease; cursor: pointer; }
+.badge-clickable:hover { filter: brightness(1.1); }
+
 /* Input focus rings */
 input:focus, select:focus, textarea:focus {
   border-color: var(--color-accent);
