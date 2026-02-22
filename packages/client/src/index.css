@@ -11,83 +11,105 @@
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Date input calendar icon color */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: var(--date-icon-filter);
-}
-
 :root {
   /* Backgrounds */
   --bg-main: #f4f6f9;
   --bg-card: #ffffff;
   --bg-card-border: #e8ecf1;
+  --bg-card-shadow: 0 1px 2px rgba(0,0,0,0.04);
   --bg-sidebar: #0f172a;
-  --bg-sidebar-border: #1e293b;
+  --bg-hover: #f8fafc;
   --bg-input: #f8fafc;
   --bg-input-border: #e2e8f0;
-  --bg-hover: #f8fafc;
-  --owner-select-checked-bg: #eff6ff;
-  --owner-select-circle-border: #cbd5e1;
-  --bg-modal-backdrop: rgba(0,0,0,0.5);
-  --bg-dropdown: #ffffff;
-  --bg-secondary-btn: #f1f5f9;
-  --bg-primary-btn: #0f172a;
-  --bg-primary-btn-text: #ffffff;
-  --bg-secondary-btn-text: #334155;
+  --bg-modal: rgba(0,0,0,0.5);
+  --bg-needs-attention: rgb(255,251,235);
+  --bg-inline-success: #f0fdf4;
+  --bg-inline-success-border: #bbf7d0;
+  --bg-inline-error: #fef2f2;
+  --bg-inline-error-border: #fecaca;
+  --bg-inline-warning: #fffbeb;
+  --bg-inline-warning-border: #fde68a;
+  --bg-inline-info: #eff6ff;
+  --bg-inline-info-border: #bfdbfe;
 
   /* Text */
   --text-primary: #0f172a;
   --text-body: #475569;
   --text-secondary: #64748b;
   --text-muted: #94a3b8;
-  --text-table-header: #64748b;
+  --text-very-muted: #cbd5e1;
+  --text-inline-success: #166534;
+  --text-inline-error: #991b1b;
+  --text-inline-warning: #92400e;
+  --text-inline-info: #1e40af;
+
+  /* Semantic colors (same both modes) */
+  --color-positive: #10b981;
+  --color-negative: #ef4444;
+  --color-accent: #3b82f6;
+  --color-warning: #f59e0b;
+  --color-orange: #f97316;
+
+  /* Buttons */
+  --btn-primary-bg: #0f172a;
+  --btn-primary-text: #ffffff;
+  --btn-secondary-bg: #f1f5f9;
+  --btn-secondary-text: #334155;
+  --btn-destructive-bg: #ef4444;
+  --btn-destructive-text: #ffffff;
+  --btn-destructive-light-bg: #fef2f2;
+  --btn-destructive-light-text: #ef4444;
+  --btn-ghost-text: #64748b;
+
+  /* Badges */
+  --badge-account-bg: #f1f5f9;
+  --badge-account-text: #475569;
+  --badge-category-bg: #eff6ff;
+  --badge-category-text: #3b82f6;
+  --badge-owner-1-bg: #dbeafe;
+  --badge-owner-1-text: #2563eb;
+  --badge-owner-2-bg: #fce7f3;
+  --badge-owner-2-text: #db2777;
+  --badge-shared-bg: #f1f5f9;
+  --badge-shared-text: #64748b;
+  --badge-liquid-bg: #d1fae5;
+  --badge-liquid-text: #059669;
+  --badge-investment-bg: #ede9fe;
+  --badge-investment-text: #7c3aed;
+  --badge-liability-bg: #fef2f2;
+  --badge-liability-text: #dc2626;
+  --badge-duplicate-exact-bg: #fef2f2;
+  --badge-duplicate-exact-text: #dc2626;
+  --badge-duplicate-possible-bg: #fffbeb;
+  --badge-duplicate-possible-text: #b45309;
+  --badge-transfer-bg: #fff7ed;
+  --badge-transfer-text: #c2410c;
+  --badge-connected-bg: #d1fae5;
+  --badge-connected-text: #059669;
 
   /* Table */
   --table-border: #e2e8f0;
   --table-row-border: #f1f5f9;
-  --card-shadow: 0 1px 2px rgba(0,0,0,0.04);
-  --bg-needs-attention: rgb(255, 251, 235);
 
-  /* Badges */
-  --badge-mono-bg: #f1f5f9;
-  --badge-mono-text: #475569;
-  --badge-blue-bg: #eff6ff;
-  --badge-blue-text: #3b82f6;
+  /* Toggle / Filter */
+  --toggle-container-bg: #f1f5f9;
+  --toggle-active-bg: #ffffff;
+  --toggle-active-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --toggle-active-text: #0f172a;
+  --toggle-inactive-text: #64748b;
 
-  /* Duplicate warning */
-  --dupe-key: rgb(98 67 0);
-  --dupe-value: rgb(98 67 0 / 70%);
+  /* Progress bar */
+  --progress-track: #f1f5f9;
 
-  /* Nav */
+  /* Nav (app-specific) */
   --nav-active-bg: rgba(59,130,246,0.15);
   --nav-active-text: #93c5fd;
   --nav-inactive-text: #94a3b8;
   --sidebar-text: #f1f5f9;
 
-  /* Owner filter */
-  --filter-container-bg: #f1f5f9;
-  --filter-active-pill: #ffffff;
-
-  /* Net worth hero */
+  /* Net worth hero (app-specific) */
   --hero-gradient-from: #0f172a;
   --hero-gradient-to: #1e293b;
-
-  /* Notifications */
-  --error-bg: #fef2f2;
-  --error-border: #fecaca;
-  --error-text: #991b1b;
-  --info-bg: #eff6ff;
-  --info-text: #1e40af;
-  --warning-bg: #fffbeb;
-
-  /* Progress bar */
-  --progress-track: #f1f5f9;
-
-  /* Date input icon */
-  --date-icon-filter: invert(46%) sepia(9%) saturate(1044%) hue-rotate(176deg) brightness(92%) contrast(87%);
-
-  /* Login */
-  --login-bg: #f4f6f9;
 }
 
 .dark {
@@ -95,71 +117,91 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --bg-main: #0b0f1a;
   --bg-card: #141926;
   --bg-card-border: #1e293b;
+  --bg-card-shadow: 0 1px 2px rgba(0,0,0,0.2);
   --bg-sidebar: #060a13;
-  --bg-sidebar-border: #1e293b;
+  --bg-hover: #1a2234;
   --bg-input: #0f1629;
   --bg-input-border: #1e293b;
-  --bg-hover: #1a2234;
-  --owner-select-checked-bg: #1e3a5f;
-  --owner-select-circle-border: #475569;
-  --bg-modal-backdrop: rgba(0,0,0,0.7);
-  --bg-dropdown: #141926;
-  --bg-secondary-btn: #1a2234;
-  --bg-primary-btn: rgba(226, 232, 240, 0.5);
-  --bg-primary-btn-text: #ffffff;
-  --bg-secondary-btn-text: #94a3b8;
+  --bg-modal: rgba(0,0,0,0.7);
+  --bg-needs-attention: rgba(250,255,194,0.15);
+  --bg-inline-success: #052e16;
+  --bg-inline-success-border: #166534;
+  --bg-inline-error: #3b1111;
+  --bg-inline-error-border: #7f1d1d;
+  --bg-inline-warning: #3b2506;
+  --bg-inline-warning-border: #78350f;
+  --bg-inline-info: #1e3a5f;
+  --bg-inline-info-border: rgb(87,121,232);
 
   /* Text */
   --text-primary: #f1f5f9;
   --text-body: #94a3b8;
   --text-secondary: #64748b;
   --text-muted: #475569;
-  --text-table-header: #94a3b8;
+  --text-very-muted: #334155;
+  --text-inline-success: #86efac;
+  --text-inline-error: #fca5a5;
+  --text-inline-warning: #fcd34d;
+  --text-inline-info: #93c5fd;
+
+  /* Buttons */
+  --btn-primary-bg: #e2e8f0;
+  --btn-primary-text: #0f172a;
+  --btn-secondary-bg: #1a2234;
+  --btn-secondary-text: #94a3b8;
+  --btn-destructive-bg: #ef4444;
+  --btn-destructive-text: #ffffff;
+  --btn-destructive-light-bg: #3b1111;
+  --btn-destructive-light-text: #fca5a5;
+  --btn-ghost-text: #64748b;
+
+  /* Badges */
+  --badge-account-bg: #1a2234;
+  --badge-account-text: #94a3b8;
+  --badge-category-bg: #1e3a5f;
+  --badge-category-text: #60a5fa;
+  --badge-owner-1-bg: #1e3a5f;
+  --badge-owner-1-text: #60a5fa;
+  --badge-owner-2-bg: #4a1942;
+  --badge-owner-2-text: #f472b6;
+  --badge-shared-bg: #1a2234;
+  --badge-shared-text: #64748b;
+  --badge-liquid-bg: #052e16;
+  --badge-liquid-text: #34d399;
+  --badge-investment-bg: #2e1065;
+  --badge-investment-text: #a78bfa;
+  --badge-liability-bg: #3b1111;
+  --badge-liability-text: #fca5a5;
+  --badge-duplicate-exact-bg: #3b1111;
+  --badge-duplicate-exact-text: #fca5a5;
+  --badge-duplicate-possible-bg: #3b2506;
+  --badge-duplicate-possible-text: #fcd34d;
+  --badge-transfer-bg: #3b1a06;
+  --badge-transfer-text: #fb923c;
+  --badge-connected-bg: #052e16;
+  --badge-connected-text: #34d399;
 
   /* Table */
   --table-border: #1e293b;
   --table-row-border: #141926;
-  --card-shadow: 0 1px 2px rgba(0,0,0,0.2);
-  --bg-needs-attention: rgba(250, 255, 194, 0.15);
 
-  /* Badges */
-  --badge-mono-bg: #1a2234;
-  --badge-mono-text: #94a3b8;
-  --badge-blue-bg: #1e3a5f;
-  --badge-blue-text: #60a5fa;
+  /* Toggle / Filter */
+  --toggle-container-bg: #1a2234;
+  --toggle-active-bg: #0f172a;
+  --toggle-active-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --toggle-active-text: #f1f5f9;
+  --toggle-inactive-text: #64748b;
 
-  /* Duplicate warning */
-  --dupe-key: #fbbf24;
-  --dupe-value: #fde68a;
+  /* Progress bar */
+  --progress-track: #1a2234;
 
-  /* Nav */
+  /* Nav (app-specific) */
   --nav-active-bg: rgba(59,130,246,0.25);
   --nav-active-text: #93c5fd;
   --nav-inactive-text: #94a3b8;
   --sidebar-text: #f1f5f9;
 
-  /* Owner filter */
-  --filter-container-bg: #1a2234;
-  --filter-active-pill: #0f172a;
-
-  /* Net worth hero */
+  /* Net worth hero (app-specific) */
   --hero-gradient-from: #060a13;
   --hero-gradient-to: #0f172a;
-
-  /* Notifications */
-  --error-bg: #3b1111;
-  --error-border: #7f1d1d;
-  --error-text: #fca5a5;
-  --info-bg: #1e3a5f;
-  --info-text: #93c5fd;
-  --warning-bg: #422006;
-
-  /* Progress bar */
-  --progress-track: #1a2234;
-
-  /* Date input icon */
-  --date-icon-filter: invert(70%) sepia(9%) saturate(497%) hue-rotate(176deg) brightness(92%) contrast(89%);
-
-  /* Login */
-  --login-bg: #0b0f1a;
 }

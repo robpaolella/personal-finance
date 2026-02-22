@@ -51,7 +51,7 @@ export default function LoginPage() {
           <p className="text-sm text-[var(--text-secondary)] mb-6">Enter your credentials to continue</p>
 
           {error && (
-            <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] text-sm rounded-lg px-4 py-2.5 mb-4">
+            <div className="bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)] text-sm rounded-lg px-4 py-2.5 mb-4">
               {error}
             </div>
           )}
@@ -88,7 +88,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-[var(--bg-primary-btn)] text-[var(--bg-primary-btn-text)] rounded-lg text-sm font-semibold hover:opacity-90 transition-colors disabled:opacity-60"
+            className="w-full py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-sm font-semibold hover:opacity-90 transition-colors disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
