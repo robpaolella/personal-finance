@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
-import { accounts, accountOwners, users, transactions } from '../db/schema.js';
+import { accounts, accountOwners, users, transactions, simplefinLinks } from '../db/schema.js';
 import { eq, asc, sql } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 
@@ -137,6 +137,8 @@ router.delete('/:id', requirePermission('accounts.delete'), (req: Request, res: 
     return;
   }
   db.update(accounts).set({ is_active: 0 }).where(eq(accounts.id, id)).run();
+  // Clean up SimpleFIN links pointing to this account
+  db.delete(simplefinLinks).where(eq(simplefinLinks.account_id, id)).run();
   res.json({ data: { message: 'Account deactivated' } });
 });
 

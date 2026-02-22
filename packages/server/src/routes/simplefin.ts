@@ -90,10 +90,11 @@ router.get('/connections', (req: Request, res: Response) => {
         sc.label,
         sc.created_at,
         sc.updated_at,
-        COUNT(sl.id) as linked_account_count,
+        COUNT(a.id) as linked_account_count,
         MAX(sl.last_synced_at) as last_synced_at
       FROM simplefin_connections sc
       LEFT JOIN simplefin_links sl ON sl.simplefin_connection_id = sc.id
+      LEFT JOIN accounts a ON sl.account_id = a.id AND a.is_active = 1
       WHERE sc.user_id IS NULL OR sc.user_id = ?
       GROUP BY sc.id
       ORDER BY sc.created_at
@@ -222,11 +223,20 @@ router.get('/connections/:id/accounts', async (req: Request, res: Response) => {
     // Fetch accounts from SimpleFIN (no transactions needed for listing)
     const response = await fetchAccounts(conn.access_url);
 
-    // Get existing links for this connection
-    const existingLinks = db.select().from(simplefinLinks)
-      .where(eq(simplefinLinks.simplefin_connection_id, id))
-      .all();
+    // Get existing links for this connection, filtering out links to inactive accounts
+    const existingLinks = sqlite.prepare(`
+      SELECT sl.* FROM simplefin_links sl
+      JOIN accounts a ON sl.account_id = a.id AND a.is_active = 1
+      WHERE sl.simplefin_connection_id = ?
+    `).all(id) as (typeof simplefinLinks.$inferSelect)[];
     const linkMap = new Map(existingLinks.map((l) => [l.simplefin_account_id, l]));
+
+    // Clean up any orphaned links (pointing to inactive accounts)
+    sqlite.prepare(`
+      DELETE FROM simplefin_links
+      WHERE simplefin_connection_id = ?
+        AND account_id IN (SELECT id FROM accounts WHERE is_active = 0)
+    `).run(id);
 
     const data = response.accounts.map((acct) => {
       const link = linkMap.get(acct.id);
