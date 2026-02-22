@@ -30,6 +30,18 @@
 .btn-ghost { transition: none; }
 .btn-ghost:hover { text-decoration: underline; }
 
+/* Input focus rings */
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  outline: none;
+}
+input.error:focus, select.error:focus, textarea.error:focus,
+input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[aria-invalid="true"]:focus {
+  border-color: var(--color-negative);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
 /* Dark mode date input calendar icon */
 .dark input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.35) sepia(0.1) saturate(1) hue-rotate(180deg);
