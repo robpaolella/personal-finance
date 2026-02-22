@@ -301,3 +301,21 @@ Form Input → Storage → Display:
 **Problem:** Only straight-line depreciation was supported, which doesn't reflect how electronics, vehicles, and appliances actually lose value (fast early, slow later)
 **Resolution:** Added declining balance as a second method. Straight line for even-wear items (furniture, home improvements), declining balance for fast-depreciation items (electronics, vehicles). The `calculateCurrentValue` function is in `packages/server/src/utils/depreciation.ts` (shared between assets.ts and networth.ts routes). UI includes suggested rates and explanatory tooltips.
 **Rule going forward:** When adding asset-related features, always check the `depreciation_method` field and handle both calculation paths. Never assume straight-line. The calculation utility lives in `utils/depreciation.ts` — do not duplicate it in route files.
+
+### Role-Based Permission System (2026-02-23)
+**Context:** Adding admin/member roles with 18 granular permissions
+**Problem:** Multiple approaches to permission checking exist (JWT-only, DB-only, hybrid). Pure JWT means permissions can't be hot-reloaded. Pure DB means every request hits the database.
+**Resolution:** Hybrid approach: JWT contains `role` for fast admin bypass, DB queried for member permissions with 60s in-memory cache. Cache invalidated on admin update via `invalidatePermissionCache(userId)`. Admin role bypasses all permission checks entirely — no DB lookup needed.
+**Rule going forward:** Always check role first (admin = pass through), then check DB permissions for members. Never store individual permissions in JWT — they must be hot-reloadable. Use `requirePermission()` middleware for route protection, `hasPermission()` in frontend for UI gating.
+
+### First-Run Setup Flow (2026-02-23)
+**Context:** Fresh installs need an admin account before the app can be used
+**Problem:** Hardcoded seed users prevented generic installs. Need a one-time setup without authentication.
+**Resolution:** `app_config` table tracks `setup_complete` flag. GET `/api/setup/status` is public. POST `/api/setup/create-admin` works only once (checks flag + user count). App.tsx checks setup status on mount and routes to SetupPage if needed. Existing installs are auto-migrated (first user becomes admin, `setup_complete = true`).
+**Rule going forward:** All new public endpoints must be added to `PUBLIC_PATHS` in auth middleware. The setup status check must happen before any auth check in the app boot sequence.
+
+### UI Permission Gate Patterns (2026-02-23)
+**Context:** Different UI elements need different behavior when user lacks permission
+**Problem:** Three distinct patterns needed: hide entirely (destructive actions), show but disable (creative actions), and show permission denied message (full-page features)
+**Resolution:** Created `<PermissionGate>` component with `fallback="hidden"` and `fallback="disabled"` modes. For full-page denials (Import tabs), use inline conditional rendering with a styled message. For 403 API errors, dispatch `permission-denied` custom event from api.ts, caught by AppShell to show toast.
+**Rule going forward:** Delete buttons → `fallback="hidden"`. Add/Edit buttons → `fallback="disabled"`. Admin-only sections → conditional render with `isAdmin()`. API 403 errors → handled automatically via event + toast. Never use both PermissionGate and manual `hasPermission()` check on the same element.
