@@ -695,7 +695,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
             <button
               onClick={handleImport}
               disabled={importing || (validTxnCount === 0 && selectedBalanceCount === 0 && selectedHoldingsCount === 0)}
-              className="w-full py-2.5 bg-[#10b981] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              className="w-full py-2.5 bg-[var(--color-positive)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
               {importing ? 'Importing...' : (() => {
                 const parts = [];
                 if (validTxnCount > 0) parts.push(`${validTxnCount} Transaction${validTxnCount !== 1 ? 's' : ''}`);
