@@ -11,10 +11,10 @@ export default function DuplicateBadge({ status, onClick }: DuplicateBadgeProps)
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border-none cursor-pointer transition-colors ${
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border-none badge-clickable ${
         isExact
-          ? 'bg-[var(--badge-duplicate-exact-bg)] text-[var(--badge-duplicate-exact-text)] hover:opacity-80'
-          : 'bg-[var(--badge-duplicate-possible-bg)] text-[var(--badge-duplicate-possible-text)] hover:opacity-80'
+          ? 'bg-[var(--badge-duplicate-exact-bg)] text-[var(--badge-duplicate-exact-text)]'
+          : 'bg-[var(--badge-duplicate-possible-bg)] text-[var(--badge-duplicate-possible-text)]'
       }`}
     >
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
