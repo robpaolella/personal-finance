@@ -5,13 +5,7 @@ import KPICard from '../components/KPICard';
 import OwnerFilter from '../components/OwnerFilter';
 import Spinner from '../components/Spinner';
 import InlineNotification from '../components/InlineNotification';
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
-  'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
-  'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
-  'Utilities': '#f97316', 'Savings': '#06b6d4',
-};
+import { getCategoryColor } from '../lib/categoryColors';
 
 interface IncomeRow {
   categoryId: number;
@@ -255,7 +249,8 @@ export default function BudgetPage() {
             {expenseGroups.map((g) => {
               const gBudgeted = g.subs.reduce((s, sub) => s + sub.budgeted, 0);
               const gActual = g.subs.reduce((s, sub) => s + sub.actual, 0);
-              const color = CATEGORY_COLORS[g.groupName] || '#94a3b8';
+              const allGroups = expenseGroups.map((x) => x.groupName);
+              const color = getCategoryColor(g.groupName, allGroups);
               return (
                 <div key={g.groupName} className="mb-3.5">
                   {/* Group Header */}

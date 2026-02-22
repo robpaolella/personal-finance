@@ -5,13 +5,8 @@ import { fmtWhole, fmtTransaction } from '../lib/formatters';
 import KPICard from '../components/KPICard';
 import Spinner from '../components/Spinner';
 import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge } from '../components/badges';
+import { getCategoryColor } from '../lib/categoryColors';
 
-const CATEGORY_COLORS: Record<string, string> = {
-  'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
-  'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
-  'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
-  'Utilities': '#f97316', 'Savings': '#06b6d4',
-};
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -143,7 +138,8 @@ export default function DashboardPage() {
           <p className="text-[11px] text-[var(--text-muted)] mt-0.5 mb-3">Parent categories total all sub-categories</p>
           <div className="flex flex-col gap-3.5">
             {spending.map((s) => {
-              const color = CATEGORY_COLORS[s.groupName] || '#64748b';
+              const allGroups = spending.map((x) => x.groupName);
+              const color = getCategoryColor(s.groupName, allGroups);
               const pct = s.totalBudgeted > 0 ? Math.min(100, (s.totalSpent / s.totalBudgeted) * 100) : 100;
               const overBudget = s.totalBudgeted > 0 && s.totalSpent > s.totalBudgeted;
               return (

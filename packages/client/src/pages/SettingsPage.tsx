@@ -6,14 +6,7 @@ import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import BankSyncSection from '../components/BankSyncSection';
 import InlineNotification from '../components/InlineNotification';
 import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type AccountClassification } from '../components/badges';
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Income': '#10b981',
-  'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
-  'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
-  'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
-  'Utilities': '#f97316', 'Savings': '#06b6d4',
-};
+import { getCategoryColor } from '../lib/categoryColors';
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment', 'retirement', 'venmo', 'cash'];
 const CLASSIFICATIONS = ['liquid', 'investment', 'liability'];
@@ -485,7 +478,8 @@ export default function SettingsPage() {
           <p className="text-[13px] text-[var(--text-secondary)] mb-3">Parent categories group sub-categories for budgets and reports.</p>
           <div className="max-h-[400px] overflow-y-auto">
             {allGroups.map((g) => {
-              const color = CATEGORY_COLORS[g.group] || '#94a3b8';
+              const allGroupNames = allGroups.map((x) => x.group);
+              const color = getCategoryColor(g.group, allGroupNames);
               return (
                 <div key={`${g.type}:${g.group}`} className="mb-2">
                   <div className="flex justify-between items-center py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
