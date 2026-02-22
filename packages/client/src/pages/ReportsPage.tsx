@@ -163,17 +163,17 @@ export default function ReportsPage() {
               style={{ borderBottom: '2px solid rgba(187, 247, 208, 0.25)' }}
               onClick={() => setExpandIncome(!expandIncome)}
             >
-              <td className="px-2.5 py-2 font-bold text-[#15803d] text-[13px]">
+              <td className="px-2.5 py-2 font-bold text-[var(--color-positive)] text-[13px]">
                 <span className="flex items-center gap-1.5">
                   <ChevronIcon open={expandIncome} />Total Income
                 </span>
               </td>
               {data.monthlyIncomeTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[#15803d]' : 'text-[#d1d5db]'}`}>
+                <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[var(--color-positive)]' : 'text-[var(--text-very-muted)]'}`}>
                   {v !== 0 ? fmtShort(v) : '—'}
                 </td>
               ))}
-              <td className={`${tdCls} text-right font-bold text-[#15803d]`}>{fmtShort(totalIncome)}</td>
+              <td className={`${tdCls} text-right font-bold text-[var(--color-positive)]`}>{fmtShort(totalIncome)}</td>
             </tr>
 
             {/* Expanded income categories */}
@@ -195,17 +195,17 @@ export default function ReportsPage() {
               style={{ borderBottom: '2px solid rgba(254, 215, 170, 0.25)' }}
               onClick={() => setExpandExpenses(!expandExpenses)}
             >
-              <td className="px-2.5 py-2 font-bold text-[#c2410c] text-[13px]">
+              <td className="px-2.5 py-2 font-bold text-[var(--color-orange)] text-[13px]">
                 <span className="flex items-center gap-1.5">
                   <ChevronIcon open={expandExpenses} />Total Expenses
                 </span>
               </td>
               {data.monthlyExpenseTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[#c2410c]' : v < 0 ? 'text-[#10b981]' : 'text-[#d1d5db]'}`}>
+                <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--color-orange)]' : v < 0 ? 'text-[#10b981]' : 'text-[var(--text-very-muted)]'}`}>
                   {v !== 0 ? fmtShort(v) : '—'}
                 </td>
               ))}
-              <td className={`${tdCls} text-right font-bold text-[#c2410c]`}>{fmtShort(totalExpenses)}</td>
+              <td className={`${tdCls} text-right font-bold text-[var(--color-orange)]`}>{fmtShort(totalExpenses)}</td>
             </tr>
 
             {/* Expanded expense groups → sub-categories */}
@@ -256,8 +256,8 @@ export default function ReportsPage() {
               {data.monthlyNetTotals.map((v, i) => (
                 <td key={i} className={`${tdCls} text-right font-semibold ${
                   data.monthlyIncomeTotals[i] === 0 && data.monthlyExpenseTotals[i] === 0
-                    ? 'text-[#d1d5db]'
-                    : v > 0 ? 'text-[#10b981]' : v < 0 ? 'text-[#ef4444]' : 'text-[#d1d5db]'
+                    ? 'text-[var(--text-very-muted)]'
+                    : v > 0 ? 'text-[#10b981]' : v < 0 ? 'text-[#ef4444]' : 'text-[var(--text-very-muted)]'
                 }`}>
                   {data.monthlyIncomeTotals[i] !== 0 || data.monthlyExpenseTotals[i] !== 0 ? fmtShort(v) : '—'}
                 </td>
