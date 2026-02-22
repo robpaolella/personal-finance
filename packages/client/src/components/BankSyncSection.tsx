@@ -755,7 +755,7 @@ function ConnectionFormModal({
                     : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'
                 } ${connection ? 'opacity-60 cursor-not-allowed' : ''}`}>
                 <div className="text-[12px] font-semibold">{opt.label}</div>
-                <div className={`text-[10px] mt-0.5 ${shared === opt.value ? 'text-[var(--btn-primary-text)]' : 'text-[var(--text-muted)]'}`} style={shared === opt.value ? { opacity: 0.7 } : undefined}>
+                <div className={`text-[10px] mt-0.5 ${shared === opt.value ? 'text-white/70' : 'text-[var(--text-muted)]'}`}>
                   {opt.sub}
                 </div>
               </button>
