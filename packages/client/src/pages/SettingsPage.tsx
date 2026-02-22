@@ -714,6 +714,7 @@ function UsersPermissionsSection() {
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [expandedUsers, setExpandedUsers] = useState<Set<number>>(new Set());
 
   const loadUsers = useCallback(async () => {
     try {
@@ -727,6 +728,14 @@ function UsersPermissionsSection() {
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
   const adminCount = managedUsers.filter(u => u.role === 'admin' && u.isActive).length;
+
+  const toggleUserExpanded = (userId: number) => {
+    setExpandedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId); else next.add(userId);
+      return next;
+    });
+  };
 
   const handleTogglePermission = async (userId: number, permKey: string, currentValue: boolean) => {
     const compound = COMPOUND_PERMISSIONS[permKey];
@@ -803,26 +812,50 @@ function UsersPermissionsSection() {
             {mu.role === 'admin' ? (
               <div className="text-[11px] text-[var(--text-muted)] italic py-1">Admins have all permissions. Cannot be restricted.</div>
             ) : mu.permissions && (
-              <div className="grid grid-cols-3 gap-4 mt-2">
-                {PERMISSION_GROUPS.map((group) => (
-                  <div key={group.label}>
-                    <div className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-1.5">{group.label}</div>
-                    {group.permissions.map((p) => {
-                      const granted = mu.permissions![p.key] ?? false;
-                      return (
-                        <div key={p.key} className="flex justify-between items-center py-1.5 border-b border-[var(--bg-card-border)]" style={{ borderBottomWidth: '1px' }}>
-                          <span className="text-[12px] text-[var(--text-secondary)]">{p.label}</span>
-                          <button onClick={() => handleTogglePermission(mu.id, p.key, granted)}
-                            className="relative w-9 h-5 rounded-full border-none cursor-pointer transition-colors"
-                            style={{ background: granted ? 'var(--color-positive)' : 'var(--bg-card-border)' }}>
-                            <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: granted ? 17 : 2 }} />
-                          </button>
-                        </div>
-                      );
-                    })}
+              <>
+                <button
+                  onClick={() => toggleUserExpanded(mu.id)}
+                  className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer mt-1 px-0 transition-colors"
+                >
+                  <svg
+                    width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    className="transition-transform"
+                    style={{ transform: expandedUsers.has(mu.id) ? 'rotate(90deg)' : 'rotate(0deg)', transitionDuration: '150ms' }}
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  {expandedUsers.has(mu.id) ? 'Hide Permissions' : 'Show Permissions'}
+                </button>
+                <div
+                  className="overflow-hidden transition-all"
+                  style={{
+                    maxHeight: expandedUsers.has(mu.id) ? '500px' : '0px',
+                    transitionDuration: '150ms',
+                    transitionTimingFunction: 'ease',
+                  }}
+                >
+                  <div className="grid grid-cols-3 gap-4 mt-2">
+                    {PERMISSION_GROUPS.map((group) => (
+                      <div key={group.label}>
+                        <div className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-1.5">{group.label}</div>
+                        {group.permissions.map((p) => {
+                          const granted = mu.permissions![p.key] ?? false;
+                          return (
+                            <div key={p.key} className="flex justify-between items-center py-1.5 border-b border-[var(--bg-card-border)]" style={{ borderBottomWidth: '1px' }}>
+                              <span className="text-[12px] text-[var(--text-secondary)]">{p.label}</span>
+                              <button onClick={() => handleTogglePermission(mu.id, p.key, granted)}
+                                className="relative w-9 h-5 rounded-full border-none cursor-pointer transition-colors"
+                                style={{ background: granted ? 'var(--color-positive)' : 'var(--bg-card-border)' }}>
+                                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: granted ? 17 : 2 }} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              </>
             )}
           </div>
         ))}
