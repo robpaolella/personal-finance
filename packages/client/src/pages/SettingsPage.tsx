@@ -458,10 +458,10 @@ function PreferencesTab() {
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-[var(--text-secondary)]">Role:</span>
           {user?.role === 'admin' ? (
-            <span className="text-[11px] px-2 py-0.5 rounded-md bg-[var(--badge-positive-bg)] text-[var(--badge-positive-text)] font-medium">Admin</span>
+            <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-admin-bg)] text-[var(--badge-admin-text)]">Admin</span>
           ) : (
             <>
-              <span className="text-[11px] px-2 py-0.5 rounded-md bg-[var(--badge-category-bg)] text-[var(--badge-category-text)] font-medium">Member</span>
+              <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
               <span className="text-[11px] text-[var(--text-muted)]">Permissions managed by admin</span>
             </>
           )}
@@ -795,9 +795,9 @@ function UsersPermissionsSection() {
               </div>
               <div className="flex items-center gap-2">
                 {mu.role === 'admin' ? (
-                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-[var(--badge-positive-bg)] text-[var(--badge-positive-text)] font-medium">Admin</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-admin-bg)] text-[var(--badge-admin-text)]">Admin</span>
                 ) : (
-                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-[var(--badge-category-bg)] text-[var(--badge-category-text)] font-medium">Member</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
                 )}
                 {mu.role === 'member' && (
                   <button onClick={() => setEditingUser(mu)}
