@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import Spinner from '../components/Spinner';
 import Tooltip from '../components/Tooltip';
+import { OwnerBadge, SharedBadge } from '../components/badges';
 
 interface Account {
   accountId: number;
@@ -95,12 +96,10 @@ function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?
             {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
           </span>
           {(a.owners || []).map((o) => (
-            <span key={o.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-              o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-            }`}>{o.displayName}</span>
+            <OwnerBadge key={o.id} user={o} />
           ))}
           {a.isShared && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--text-muted)]">Shared</span>
+            <SharedBadge />
           )}
         </div>
         <span className={`font-mono text-[13px] font-semibold ${neg && a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>

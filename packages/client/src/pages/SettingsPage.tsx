@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import BankSyncSection from '../components/BankSyncSection';
 import InlineNotification from '../components/InlineNotification';
+import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type AccountClassification } from '../components/badges';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Income': '#10b981',
@@ -170,9 +171,7 @@ function AccountForm({
                   <span className="text-[var(--text-muted)]">Select owners...</span>
                 ) : (
                   users.filter((u) => selectedOwnerIds.has(u.id)).map((u) => (
-                    <span key={u.id} className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium ${
-                      u.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-                    }`}>{u.displayName}</span>
+                    <OwnerBadge key={u.id} user={u} />
                   ))
                 )}
               </span>
@@ -191,9 +190,7 @@ function AccountForm({
                         checked ? 'bg-[var(--badge-category-bg)]' : 'bg-transparent hover:bg-[var(--bg-hover)]'
                       } ${i < users.length - 1 ? 'border-b border-[var(--bg-card-border)]' : ''}`}
                       style={i < users.length - 1 ? { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: 'var(--bg-card-border)' } : undefined}>
-                      <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium ${
-                        u.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-                      }`}>{u.displayName}</span>
+                      <OwnerBadge user={u} />
                       <span className={`flex items-center justify-center rounded-full transition-all duration-150 ${
                         checked ? 'bg-[#3b82f6] border-2 border-[#3b82f6]' : 'bg-transparent border-2 border-[var(--text-very-muted)]'
                       }`} style={{ width: 18, height: 18 }}>
@@ -342,6 +339,7 @@ export default function SettingsPage() {
     setAccounts(acctRes.data);
     setCategories(catRes.data);
     setUserList(userRes.data.map((u) => ({ id: u.id, displayName: u.display_name })));
+    initOwnerSlots(userRes.data.map((u) => u.id));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -459,22 +457,16 @@ export default function SettingsPage() {
                   <td className="px-2.5 py-2">
                     <div className="flex items-center gap-1 flex-wrap">
                       {(a.owners || []).map((o) => (
-                        <span key={o.id} className={`text-[11px] px-2 py-0.5 rounded-md ${
-                          o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-                        }`}>{o.displayName}</span>
+                        <OwnerBadge key={o.id} user={o} />
                       ))}
                       {a.isShared && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--text-muted)]">Shared</span>
+                        <SharedBadge />
                       )}
                     </div>
                   </td>
                   <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] capitalize">{a.type}</td>
                   <td className="px-2.5 py-2">
-                    <span className={`text-[11px] px-2 py-0.5 rounded-md capitalize ${
-                      a.classification === 'liquid' ? 'bg-[#d1fae5] text-[#059669]' :
-                      a.classification === 'investment' ? 'bg-[#ede9fe] text-[#7c3aed]' :
-                      'bg-[#fef2f2] text-[#dc2626]'
-                    }`}>{a.classification}</span>
+                    <ClassificationBadge classification={a.classification as AccountClassification} />
                   </td>
                 </tr>
               ))}

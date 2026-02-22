@@ -12,7 +12,7 @@ export default function TransferBadge({ isLikelyTransfer, tooltipText }: Transfe
 
   return (
     <Tooltip content={tip}>
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-[#fff7ed] text-[#ea580c] cursor-default">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-[var(--badge-transfer-bg)] text-[var(--badge-transfer-text)] cursor-default">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
           <polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />

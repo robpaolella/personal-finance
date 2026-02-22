@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from './ConfirmDeleteButton';
 import Tooltip from './Tooltip';
+import { ConnectedBadge } from './badges';
 import InlineNotification from './InlineNotification';
 
 interface Connection {
@@ -493,7 +494,7 @@ export default function BankSyncSection({
         <div className="flex items-center gap-2">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Bank Sync</h3>
           {hasConnections && (
-            <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#d1fae5] text-[#059669] font-medium">Connected</span>
+            <ConnectedBadge />
           )}
         </div>
         {hasConnections && (
