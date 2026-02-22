@@ -114,5 +114,7 @@ export const assets = sqliteTable('assets', {
   cost: real('cost').notNull(),
   lifespan_years: real('lifespan_years').notNull(),
   salvage_value: real('salvage_value').notNull(),
+  depreciation_method: text('depreciation_method').notNull().default('straight_line'),
+  declining_rate: real('declining_rate'),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });

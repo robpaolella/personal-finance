@@ -97,6 +97,8 @@ async function seed() {
       cost REAL NOT NULL,
       lifespan_years REAL NOT NULL,
       salvage_value REAL NOT NULL,
+      depreciation_method TEXT NOT NULL DEFAULT 'straight_line',
+      declining_rate REAL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -175,6 +177,28 @@ async function seed() {
   const incCount = sqlite.prepare("SELECT COUNT(*) as count FROM categories WHERE type = 'income'").get() as { count: number };
   const expCount = sqlite.prepare("SELECT COUNT(*) as count FROM categories WHERE type = 'expense'").get() as { count: number };
   const dedCount = sqlite.prepare('SELECT COUNT(*) as count FROM categories WHERE is_deductible = 1').get() as { count: number };
+
+  // --- Sample Assets ---
+  console.log('Seeding sample assets...');
+  db.insert(schema.assets).values([
+    {
+      name: 'Living Room Sofa',
+      purchase_date: '2024-03-15',
+      cost: 1200,
+      lifespan_years: 10,
+      salvage_value: 100,
+      depreciation_method: 'straight_line',
+    },
+    {
+      name: 'MacBook Pro',
+      purchase_date: '2025-06-01',
+      cost: 2400,
+      lifespan_years: 5,
+      salvage_value: 200,
+      depreciation_method: 'declining_balance',
+      declining_rate: 30,
+    },
+  ]).run();
 
   console.log(`\nSeed complete!`);
   console.log(`  Users: ${userCount.count}`);

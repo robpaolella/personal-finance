@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { db, sqlite } from './db/index.js';
 import { migrateAccountOwners } from './db/migrate-account-owners.js';
 import { migrateSimplefin } from './db/migrate-simplefin.js';
+import { migrateAssetsDepreciation } from './db/migrate-assets-depreciation.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -35,6 +36,7 @@ const isProd = process.env.NODE_ENV === 'production';
 // Run migrations
 migrateAccountOwners(sqlite);
 migrateSimplefin(sqlite);
+migrateAssetsDepreciation(sqlite);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
