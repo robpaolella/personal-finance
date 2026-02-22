@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtTransaction } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
+import PermissionGate from '../components/PermissionGate';
 import SortableHeader from '../components/SortableHeader';
 import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge } from '../components/badges';
 
@@ -386,6 +388,7 @@ function TransactionForm({
 
 export default function TransactionsPage() {
   const { addToast } = useToast();
+  const { hasPermission } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -635,16 +638,20 @@ export default function TransactionsPage() {
               Exit Bulk Edit
             </button>
           ) : (
-            <button onClick={() => setBulkMode(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
-              Bulk Edit
-            </button>
+            <PermissionGate permission="transactions.bulk_edit" fallback="hidden">
+              <button onClick={() => setBulkMode(true)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
+                Bulk Edit
+              </button>
+            </PermissionGate>
           )}
-          <button onClick={() => setEditing('new')}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Transaction
-          </button>
+          <PermissionGate permission="transactions.create" fallback="disabled">
+            <button onClick={() => setEditing('new')}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Transaction
+            </button>
+          </PermissionGate>
         </div>
       </div>
 
@@ -785,8 +792,8 @@ export default function TransactionsPage() {
               const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
               return (
                 <tr key={t.id}
-                  onClick={() => { if (!bulkMode) { setEditing(t); } }}
-                  className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)] transition-colors">
+                  onClick={() => { if (!bulkMode && hasPermission('transactions.edit')) { setEditing(t); } }}
+                  className={`border-b border-[var(--table-row-border)] transition-colors ${!bulkMode && hasPermission('transactions.edit') ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : 'hover:bg-[var(--bg-hover)]'}`}>
                   {bulkMode && (
                     <td className="w-8 px-2 py-2">
                       <input type="checkbox" checked={selectedIds.has(t.id)}
@@ -864,7 +871,7 @@ export default function TransactionsPage() {
           accounts={accounts}
           categories={categories}
           onSave={handleSave}
-          onDelete={editing !== 'new' ? handleDelete : undefined}
+          onDelete={editing !== 'new' && hasPermission('transactions.delete') ? handleDelete : undefined}
           onClose={() => { setEditing(null); setPendingSave(null); setDuplicateMatch(null); }}
           duplicateMatch={duplicateMatch}
         />

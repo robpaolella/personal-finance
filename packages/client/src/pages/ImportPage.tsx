@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import DuplicateBadge from '../components/DuplicateBadge';
 import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
@@ -76,6 +77,7 @@ function normalizeAmount(raw: string): number {
 
 export default function ImportPage() {
   const { addToast } = useToast();
+  const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -423,10 +425,17 @@ export default function ImportPage() {
       </div>
 
       {/* Bank Sync Tab */}
-      {activeTab === 'sync' && <BankSyncPanel categories={categories} />}
+      {activeTab === 'sync' && (
+        hasPermission('import.bank_sync')
+          ? <BankSyncPanel categories={categories} />
+          : <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-6 py-8 text-center text-[var(--text-muted)] text-[13px]">You don't have permission to use Bank Sync. Contact an admin to request access.</div>
+      )}
 
       {/* CSV Import Tab */}
-      {activeTab === 'csv' && (
+      {activeTab === 'csv' && !hasPermission('import.csv') && (
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-6 py-8 text-center text-[var(--text-muted)] text-[13px]">You don't have permission to import CSV files. Contact an admin to request access.</div>
+      )}
+      {activeTab === 'csv' && hasPermission('import.csv') && (
         <>
       {/* Step Indicator */}
       <div className="flex gap-1 mb-6">
