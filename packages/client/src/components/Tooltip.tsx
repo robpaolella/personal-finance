@@ -84,6 +84,7 @@ export default function Tooltip({ content, children }: TooltipProps) {
             width: 'max-content',
             maxWidth: 250,
             lineHeight: 1.4,
+            whiteSpace: 'pre-line',
             opacity: coords ? 1 : 0,
             transition: 'opacity 150ms ease',
             pointerEvents: 'none',
