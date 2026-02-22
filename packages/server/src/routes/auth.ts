@@ -65,6 +65,51 @@ router.post('/logout', (_req: Request, res: Response): void => {
   res.json({ data: { message: 'Logged out' } });
 });
 
+// PUT /api/auth/change-password — self-service password change
+router.put('/change-password', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const { currentPassword, newPassword } = sanitize(req.body) as {
+      currentPassword: string; newPassword: string;
+    };
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: 'Current password and new password are required' });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      res.status(400).json({ error: 'New password must be at least 8 characters' });
+      return;
+    }
+
+    const user = db.select().from(users).where(eq(users.id, req.user.userId)).get();
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) {
+      res.status(400).json({ error: 'Current password is incorrect' });
+      return;
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    const { sqlite } = await import('../db/index.js');
+    sqlite.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.userId);
+
+    res.json({ data: { message: 'Password changed successfully' } });
+  } catch (err) {
+    console.error('PUT /auth/change-password error:', err);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
 // GET /api/auth/me
 router.get('/me', (req: Request, res: Response): void => {
   if (!req.user) {
