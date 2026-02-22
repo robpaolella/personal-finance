@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
+import SetupPage from './pages/SetupPage';
 import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import BudgetPage from './pages/BudgetPage';
@@ -9,6 +10,7 @@ import NetWorthPage from './pages/NetWorthPage';
 import ImportPage from './pages/ImportPage';
 import SettingsPage from './pages/SettingsPage';
 import { useState, useEffect, type ReactNode } from 'react';
+import { apiFetch } from './lib/api';
 
 function getInitialTheme(): 'light' | 'dark' {
   const stored = localStorage.getItem('ledger-theme');
@@ -174,19 +176,41 @@ function AppShell() {
 }
 
 export default function App() {
+  const [setupRequired, setSetupRequired] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    apiFetch<{ data: { setupRequired: boolean } }>('/setup/status', { skipAuth: true })
+      .then(res => setSetupRequired(res.data.setupRequired))
+      .catch(() => setSetupRequired(false));
+  }, []);
+
+  if (setupRequired === null) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center">
+        <div className="text-[var(--text-secondary)] text-sm">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute>
-                <AppShell />
-              </ProtectedRoute>
-            }
-          />
+          {setupRequired ? (
+            <Route path="*" element={<SetupPage />} />
+          ) : (
+            <>
+              <Route path="/login" element={<LoginPage />} />
+              <Route
+                path="/*"
+                element={
+                  <ProtectedRoute>
+                    <AppShell />
+                  </ProtectedRoute>
+                }
+              />
+            </>
+          )}
         </Routes>
       </AuthProvider>
     </BrowserRouter>
