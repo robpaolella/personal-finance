@@ -491,7 +491,7 @@ export default function NetWorthPage() {
                     className={`flex-1 text-[12px] font-semibold py-1.5 rounded-md border-none cursor-pointer transition-colors ${
                       balanceTab === tab
                         ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
-                        : 'bg-transparent text-[var(--text-secondary)]'
+                        : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
                     {tab === 'manual' ? 'Manual' : 'Bank Sync'}

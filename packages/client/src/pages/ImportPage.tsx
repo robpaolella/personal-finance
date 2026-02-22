@@ -415,7 +415,7 @@ export default function ImportPage() {
             className={`px-4 py-1.5 text-[13px] font-semibold rounded-md border-none cursor-pointer transition-all ${
               activeTab === tab.id
                 ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
-                : 'bg-transparent text-[var(--text-secondary)]'
+                : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
             }`}>
             {tab.label}
           </button>
