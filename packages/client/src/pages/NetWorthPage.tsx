@@ -66,7 +66,7 @@ interface AccountHoldings {
 function SectionHeader({ label, total, color, neg }: { label: string; total: number; color: string; neg?: boolean }) {
   return (
     <div className="flex justify-between py-2 pb-1 mt-3.5" style={{ borderBottom: `2px solid ${color}30` }}>
-      <span className="font-bold text-[11px] text-[var(--bg-secondary-btn-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
+      <span className="font-bold text-[11px] text-[var(--btn-secondary-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
         <span className="w-2 h-2 rounded-sm" style={{ background: color }} />{label}
       </span>
       <span className={`font-bold text-[13px] font-mono ${neg ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
@@ -99,7 +99,7 @@ function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?
             }`}>{o.displayName}</span>
           ))}
           {a.isShared && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--text-muted)]">Shared</span>
           )}
         </div>
         <span className={`font-mono text-[13px] font-semibold ${neg && a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
@@ -325,7 +325,7 @@ export default function NetWorthPage() {
       </div>
 
       {/* Hero Card */}
-      <div className="rounded-xl border border-[var(--bg-card-border)] text-center p-8 mb-6 shadow-[var(--card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)]">
+      <div className="rounded-xl border border-[var(--bg-card-border)] text-center p-8 mb-6 shadow-[var(--bg-card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)]">
         <p className="text-[13px] text-[var(--text-muted)] m-0 tracking-[0.05em] uppercase">Total Net Worth</p>
         <p className="text-[40px] font-extrabold font-mono text-white my-2 tracking-[-0.02em]">{fmt(data.netWorth)}</p>
         <div className="flex justify-center gap-6 mt-3 flex-wrap">
@@ -348,7 +348,7 @@ export default function NetWorthPage() {
       {/* Two-Column Layout */}
       <div className="grid grid-cols-2 gap-5">
         {/* Accounts */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <div className="flex justify-between items-center">
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Accounts</h3>
             <button
@@ -361,7 +361,7 @@ export default function NetWorthPage() {
                 setShowBalanceModal(true);
                 if (defaultTab === 'sync') fetchSyncBalances();
               }}
-              className="text-[12px] px-3 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg border-none cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="text-[12px] px-3 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg border-none cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
             >
               Update Balances
             </button>
@@ -377,12 +377,12 @@ export default function NetWorthPage() {
         </div>
 
         {/* Depreciable Assets */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <div className="flex justify-between items-center">
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Depreciable Assets</h3>
             <button
               onClick={startAddAsset}
-              className="flex items-center gap-1 text-[12px] px-3 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg border-none cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="flex items-center gap-1 text-[12px] px-3 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg border-none cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add
@@ -463,9 +463,9 @@ export default function NetWorthPage() {
                   </div>
                 )}
                 <button onClick={() => setEditingAssetId(null)}
-                  className="px-3.5 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[12px] font-medium">Cancel</button>
+                  className="px-3.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[12px] font-medium">Cancel</button>
                 <button onClick={saveAsset}
-                  className="px-3.5 py-1.5 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[12px] font-medium">Save</button>
+                  className="px-3.5 py-1.5 bg-[var(--btn-primary-bg)] text-white rounded-lg border-none cursor-pointer text-[12px] font-medium">Save</button>
               </div>
             </div>
           )}
@@ -480,7 +480,7 @@ export default function NetWorthPage() {
 
             {/* Tab Switcher — only if SimpleFIN connections exist */}
             {hasSimplefinConnections && (
-              <div className="flex bg-[var(--bg-secondary-btn)] rounded-lg p-0.5 mb-4">
+              <div className="flex bg-[var(--btn-secondary-bg)] rounded-lg p-0.5 mb-4">
                 {(['manual', 'sync'] as const).map(tab => (
                   <button key={tab}
                     onClick={() => { setBalanceTab(tab); if (tab === 'sync' && syncBalances.length === 0) fetchSyncBalances(); }}
@@ -518,9 +518,9 @@ export default function NetWorthPage() {
                 </div>
                 <div className="flex gap-2 mt-4 justify-end">
                   <button onClick={() => setShowBalanceModal(false)}
-                    className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
+                    className="px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
                   <button onClick={saveBalances}
-                    className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
+                    className="px-4 py-2 bg-[var(--btn-primary-bg)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
                 </div>
               </>
             )}
@@ -534,11 +534,11 @@ export default function NetWorthPage() {
                   </div>
                 )}
                 {syncBalanceError && (
-                  <div className="rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] p-3 text-[12px] text-[var(--error-text)] mb-3">
+                  <div className="rounded-lg border border-[var(--bg-inline-error-border)] bg-[var(--bg-inline-error)] p-3 text-[12px] text-[var(--text-inline-error)] mb-3">
                     <p className="m-0 font-semibold mb-1">Failed to fetch balances</p>
                     <p className="m-0 mb-2">{syncBalanceError}</p>
                     <button onClick={fetchSyncBalances}
-                      className="text-[11px] font-semibold text-[var(--error-text)] underline cursor-pointer bg-transparent border-none p-0">Retry</button>
+                      className="text-[11px] font-semibold text-[var(--text-inline-error)] underline cursor-pointer bg-transparent border-none p-0">Retry</button>
                     <p className="m-0 mt-2 text-[11px] text-[var(--text-muted)]">You can still update balances manually using the other tab.</p>
                   </div>
                 )}
@@ -607,10 +607,10 @@ export default function NetWorthPage() {
                     </table>
                     <div className="flex gap-2 justify-end">
                       <button onClick={() => setShowBalanceModal(false)}
-                        className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
+                        className="px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
                       <button onClick={applySyncBalances}
                         disabled={syncBalanceSelected.size === 0}
-                        className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50">
+                        className="px-4 py-2 bg-[var(--btn-primary-bg)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50">
                         Apply {syncBalanceSelected.size} Update{syncBalanceSelected.size !== 1 ? 's' : ''}
                       </button>
                     </div>

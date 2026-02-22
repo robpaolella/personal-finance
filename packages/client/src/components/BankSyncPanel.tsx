@@ -289,7 +289,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
   // No linked accounts — not configured
   if (totalLinkedAccounts === 0) {
     return (
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-10 text-center shadow-[var(--card-shadow)]">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-10 text-center shadow-[var(--bg-card-shadow)]">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mx-auto text-[var(--text-muted)] mb-3">
           <path d="M3 21h18" /><path d="M3 10h18" /><path d="M5 6l7-3 7 3" /><path d="M4 10v11" /><path d="M20 10v11" /><path d="M8 14v4" /><path d="M12 14v4" /><path d="M16 14v4" />
         </svg>
@@ -298,7 +298,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
           Connect your bank accounts via SimpleFIN to automatically pull transactions and balances
         </p>
         <Link to="/settings"
-          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[var(--bg-primary-btn)] text-white rounded-lg text-[13px] font-semibold no-underline">
+          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[var(--btn-primary-bg)] text-white rounded-lg text-[13px] font-semibold no-underline">
           Set Up in Settings →
         </Link>
         <p className="text-[11px] text-[var(--text-muted)] mt-3">
@@ -319,7 +319,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
         {STEPS.map((s, i) => (
           <div key={s} className="flex-1 text-center">
             <div className={`h-[3px] rounded-sm mb-1.5 ${i <= step ? 'bg-[#3b82f6]' : 'bg-[var(--table-border)]'}`} />
-            <span className={`text-[11px] ${i === step ? 'text-[var(--badge-blue-text)] font-bold' : i < step ? 'text-[var(--badge-blue-text)]' : 'text-[var(--text-muted)]'}`}>
+            <span className={`text-[11px] ${i === step ? 'text-[var(--badge-category-text)] font-bold' : i < step ? 'text-[var(--badge-category-text)]' : 'text-[var(--text-muted)]'}`}>
               {s}
             </span>
           </div>
@@ -328,7 +328,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
 
       {/* Step 1: Select & Fetch */}
       {step === 0 && (
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <div className="grid grid-cols-[1fr_300px] gap-6">
             {/* Account Selection */}
             <div>
@@ -374,7 +374,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                           <span className="font-medium text-[13px] text-[var(--text-primary)]">
                             {acct.simplefin_account_name}
                           </span>
-                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--badge-mono-text)] font-mono">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)] font-mono">
                             {acct.ledger_account_name}
                           </span>
                         </div>
@@ -436,7 +436,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
           <button
             onClick={handleFetch}
             disabled={fetching || selectedAccountIds.size === 0}
-            className="w-full mt-4 py-2.5 bg-[var(--bg-primary-btn)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            className="w-full mt-4 py-2.5 bg-[var(--btn-primary-bg)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {fetching ? (
               <>
                 <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -456,20 +456,20 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
         <div>
           {/* Back link */}
           <button onClick={() => setStep(0)}
-            className="text-[12px] text-[var(--badge-blue-text)] bg-transparent border-none cursor-pointer mb-4 hover:underline">
+            className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer mb-4 hover:underline">
             ← Back to Selection
           </button>
 
           {/* Transaction Review */}
           {syncTxns.length === 0 ? (
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-8 text-center shadow-[var(--card-shadow)]">
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-8 text-center shadow-[var(--bg-card-shadow)]">
               <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1">No new transactions found</p>
               <p className="text-[13px] text-[var(--text-secondary)]">
                 All transactions have already been imported for the selected date range.
               </p>
             </div>
           ) : (
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] mb-4">
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] mb-4">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {validTxnCount} of {syncTxns.length} transactions selected for import
@@ -529,7 +529,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                           {t.description}
                         </td>
                         <td className="px-2.5 py-2">
-                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--badge-mono-text)] font-mono inline-block max-w-full truncate">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)] font-mono inline-block max-w-full truncate">
                             {t.accountName}
                           </span>
                         </td>
@@ -598,7 +598,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
 
           {/* Balance Updates */}
           {balanceUpdates.length > 0 && (
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] mb-4">
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] mb-4">
               <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Balance Updates</h3>
               <p className="text-[13px] text-[var(--text-secondary)] mb-3">Approving updates will create new balance snapshots on the Net Worth page</p>
               <table className="w-full border-collapse text-[13px]">
@@ -653,7 +653,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
 
           {/* Holdings Updates */}
           {holdingsUpdates.length > 0 && (
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] mb-4">
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] mb-4">
               <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-3">Holdings Updates</h3>
               {holdingsUpdates.map((hu, hi) => (
                 <div key={hi} className="mb-3">

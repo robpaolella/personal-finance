@@ -146,7 +146,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Monthly Breakdown Table */}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] overflow-x-auto">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] overflow-x-auto">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Monthly Breakdown</h3>

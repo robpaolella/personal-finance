@@ -92,7 +92,7 @@ function AppShell() {
       {/* Sidebar */}
       <div className="w-[220px] bg-[var(--bg-sidebar)] flex flex-col shrink-0">
         {/* Logo */}
-        <div className="p-5 pb-4 border-b border-[var(--bg-sidebar-border)]">
+        <div className="p-5 pb-4 border-b border-[var(--bg-card-border)]">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-md bg-gradient-to-br from-[#3b82f6] to-[#10b981] flex items-center justify-center">
               <span className="text-white text-sm font-extrabold font-mono">$</span>
@@ -126,7 +126,7 @@ function AppShell() {
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-[var(--bg-sidebar-border)]">
+        <div className="px-4 py-3 border-t border-[var(--bg-card-border)]">
           <div className="flex items-center justify-between mb-2">
             <button
               onClick={toggleTheme}

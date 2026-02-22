@@ -243,7 +243,7 @@ function TransactionForm({
 
   const inputCls = (hasError: boolean) =>
     `w-full px-3 py-2 border rounded-lg text-[13px] outline-none text-[var(--text-body)] ${
-      hasError ? 'border-[#ef4444] bg-[var(--error-bg)]' : 'border-[var(--table-border)] bg-[var(--bg-input)]'
+      hasError ? 'border-[#ef4444] bg-[var(--bg-inline-error)]' : 'border-[var(--table-border)] bg-[var(--bg-input)]'
     }`;
 
   return (
@@ -287,7 +287,7 @@ function TransactionForm({
               {(['expense', 'income'] as const).map((t) => (
                 <button key={t} onClick={() => handleTypeChange(t)}
                   className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
-                    txType === t ? 'bg-[var(--bg-primary-btn)] text-white' : 'bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)]'
+                    txType === t ? 'bg-[var(--btn-primary-bg)] text-white' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)]'
                   }`}>
                   {t}
                 </button>
@@ -337,19 +337,19 @@ function TransactionForm({
               </div>
               {dupeExpanded && (
                 <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
-                  <span className="text-[var(--dupe-key)]">Date</span>
-                  <span className="font-mono text-[var(--dupe-value)]">{duplicateMatch.date}</span>
-                  <span className="text-[var(--dupe-key)]">Description</span>
-                  <span className="text-[var(--dupe-value)]">{duplicateMatch.description}</span>
-                  <span className="text-[var(--dupe-key)]">Amount</span>
-                  <span className="font-mono font-semibold text-[var(--dupe-value)]">{fmt(Math.abs(duplicateMatch.amount))}</span>
+                  <span className="text-[var(--text-inline-warning)]">Date</span>
+                  <span className="font-mono text-[var(--text-inline-warning)]">{duplicateMatch.date}</span>
+                  <span className="text-[var(--text-inline-warning)]">Description</span>
+                  <span className="text-[var(--text-inline-warning)]">{duplicateMatch.description}</span>
+                  <span className="text-[var(--text-inline-warning)]">Amount</span>
+                  <span className="font-mono font-semibold text-[var(--text-inline-warning)]">{fmt(Math.abs(duplicateMatch.amount))}</span>
                   {duplicateMatch.accountName && <>
-                    <span className="text-[var(--dupe-key)]">Account</span>
-                    <span className="text-[var(--dupe-value)]">{duplicateMatch.accountName}</span>
+                    <span className="text-[var(--text-inline-warning)]">Account</span>
+                    <span className="text-[var(--text-inline-warning)]">{duplicateMatch.accountName}</span>
                   </>}
                   {duplicateMatch.category && <>
-                    <span className="text-[var(--dupe-key)]">Category</span>
-                    <span className="text-[var(--dupe-value)]">{duplicateMatch.category}</span>
+                    <span className="text-[var(--text-inline-warning)]">Category</span>
+                    <span className="text-[var(--text-inline-warning)]">{duplicateMatch.category}</span>
                   </>}
                 </div>
               )}
@@ -365,7 +365,7 @@ function TransactionForm({
           </div>
         )}
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer">
           Cancel
         </button>
         <button onClick={handleSaveClick}
@@ -373,7 +373,7 @@ function TransactionForm({
             isValid
               ? duplicateMatch
                 ? 'bg-[#f59e0b] text-white cursor-pointer'
-                : 'bg-[var(--bg-primary-btn)] text-white cursor-pointer'
+                : 'bg-[var(--btn-primary-bg)] text-white cursor-pointer'
               : 'bg-[var(--text-muted)] text-white cursor-not-allowed'
           }`}>
           {duplicateMatch ? 'Save Anyway' : 'Save'}
@@ -630,17 +630,17 @@ export default function TransactionsPage() {
         <div className="flex gap-2">
           {bulkMode ? (
             <button onClick={exitBulkMode}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
               Exit Bulk Edit
             </button>
           ) : (
             <button onClick={() => setBulkMode(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
               Bulk Edit
             </button>
           )}
           <button onClick={() => setEditing('new')}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Transaction
           </button>
@@ -648,7 +648,7 @@ export default function TransactionsPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--card-shadow)] flex gap-3 items-center mb-5 px-4 py-3">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] flex gap-3 items-center mb-5 px-4 py-3">
         <div className="relative flex-1">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -693,7 +693,7 @@ export default function TransactionsPage() {
         )}
         {hasActiveFilters && (
           <button onClick={resetFilters}
-            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer hover:text-[var(--bg-secondary-btn-text)] whitespace-nowrap flex items-center gap-1">
+            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer hover:text-[var(--btn-secondary-text)] whitespace-nowrap flex items-center gap-1">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Reset Filters
           </button>
@@ -702,7 +702,7 @@ export default function TransactionsPage() {
 
       {/* Bulk Actions Toolbar */}
       {bulkMode && (
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--card-shadow)] px-4 py-3 mb-3">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-3">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-[13px] font-semibold text-[var(--text-primary)]">{selectedIds.size} selected</span>
             <div className="h-4 w-px bg-[var(--table-border)]" />
@@ -711,7 +711,7 @@ export default function TransactionsPage() {
               <input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)}
                 className="px-2 py-1.5 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
               <button onClick={() => applyBulkAction('date')} disabled={!bulkDate || selectedIds.size === 0}
-                className="px-2.5 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set Date</button>
+                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set Date</button>
             </div>
             {/* Set Account */}
             <div className="flex items-center gap-1">
@@ -721,7 +721,7 @@ export default function TransactionsPage() {
                 {accounts.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
               </select>
               <button onClick={() => applyBulkAction('account')} disabled={!bulkAccountId || selectedIds.size === 0}
-                className="px-2.5 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set</button>
+                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set</button>
             </div>
             {/* Set Category */}
             <div className="flex items-center gap-1">
@@ -735,7 +735,7 @@ export default function TransactionsPage() {
                 ))}
               </select>
               <button onClick={() => applyBulkAction('category')} disabled={!bulkCategoryId || selectedIds.size === 0}
-                className="px-2.5 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set</button>
+                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Set</button>
             </div>
             {/* Find & Replace */}
             <div className="flex items-center gap-1">
@@ -744,13 +744,13 @@ export default function TransactionsPage() {
               <input value={bulkReplace} onChange={(e) => setBulkReplace(e.target.value)} placeholder="Replace..."
                 className="px-2 py-1.5 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] w-[100px] text-[var(--text-secondary)]" />
               <button onClick={() => applyBulkAction('findReplace')} disabled={!bulkFind || selectedIds.size === 0}
-                className="px-2.5 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Replace</button>
+                className="px-2.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40">Replace</button>
             </div>
             <div className="h-4 w-px bg-[var(--table-border)]" />
             {/* Delete */}
             <button onClick={() => applyBulkAction('delete')} disabled={selectedIds.size === 0}
               className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40 ${
-                bulkConfirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[var(--error-bg)] text-[#ef4444]'
+                bulkConfirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[var(--bg-inline-error)] text-[#ef4444]'
               }`}>
               {bulkConfirmDelete ? 'Confirm Delete?' : 'Delete Selected'}
             </button>
@@ -761,7 +761,7 @@ export default function TransactionsPage() {
           </div>
         </div>
       )}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--card-shadow)]">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)]">
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
@@ -796,11 +796,11 @@ export default function TransactionsPage() {
                   <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
                   <td className="px-2.5 py-2">
                     <span className="inline-flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[11px] font-mono bg-[var(--bg-secondary-btn)] text-[var(--text-body)] px-2 py-0.5 rounded-md">
+                      <span className="text-[11px] font-mono bg-[var(--btn-secondary-bg)] text-[var(--text-body)] px-2 py-0.5 rounded-md">
                         {accountLabel(t.account)}
                       </span>
                       {t.account.isShared ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--text-muted)]">Shared</span>
                       ) : t.account.owners?.length === 1 ? (
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
                           t.account.owners[0].displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
@@ -812,7 +812,7 @@ export default function TransactionsPage() {
                     <span className="text-[11px] text-[var(--text-secondary)]">{t.category.groupName}</span>
                   </td>
                   <td className="px-2.5 py-2">
-                    <span className="text-[11px] bg-[var(--badge-blue-bg)] text-[#3b82f6] px-2 py-0.5 rounded-md">{t.category.subName}</span>
+                    <span className="text-[11px] bg-[var(--badge-category-bg)] text-[#3b82f6] px-2 py-0.5 rounded-md">{t.category.subName}</span>
                   </td>
                   <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>
                     {amtText}
@@ -848,12 +848,12 @@ export default function TransactionsPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
-              className="px-2.5 py-1 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default">
+              className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default">
               ← Prev
             </button>
             <span className="font-mono text-[12px] text-[var(--text-muted)]">{page} / {totalPages}</span>
             <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-              className="px-2.5 py-1 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default">
+              className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default">
               Next →
             </button>
           </div>

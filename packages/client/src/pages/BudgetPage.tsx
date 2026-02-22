@@ -138,7 +138,7 @@ export default function BudgetPage() {
           <div className="flex gap-2 items-center">
             <button
               onClick={() => setMonth(prevMonth(month))}
-              className="text-[12px] text-[var(--bg-secondary-btn-text)] bg-[var(--bg-secondary-btn)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
             >
               ← {shortMonth(prevMonth(month))}
             </button>
@@ -147,7 +147,7 @@ export default function BudgetPage() {
             </span>
             <button
               onClick={() => setMonth(nextMonth(month))}
-              className="text-[12px] text-[var(--bg-secondary-btn-text)] bg-[var(--bg-secondary-btn)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
             >
               {shortMonth(nextMonth(month))} →
             </button>
@@ -157,7 +157,7 @@ export default function BudgetPage() {
 
       {/* Owner Info Bar */}
       {owner !== 'All' && (
-        <div className="bg-[var(--badge-blue-bg)] border border-[#bfdbfe] rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
+        <div className="bg-[var(--badge-category-bg)] border border-[#bfdbfe] rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
           </svg>
@@ -188,7 +188,7 @@ export default function BudgetPage() {
       {/* Two Column: Income + Expenses */}
       <div className="grid grid-cols-2 gap-5">
         {/* Income */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
           <table className="w-full border-collapse mt-2">
             <thead>
@@ -253,7 +253,7 @@ export default function BudgetPage() {
         </div>
 
         {/* Expenses */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <h3 className="text-[14px] font-bold text-[#f97316] m-0">Expenses</h3>
           <div className="max-h-[460px] overflow-y-auto overflow-x-hidden hide-scrollbar mt-2">
             {expenseGroups.map((g) => {
@@ -264,7 +264,7 @@ export default function BudgetPage() {
                 <div key={g.groupName} className="mb-3.5">
                   {/* Group Header */}
                   <div className="flex justify-between py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
-                    <span className="font-bold text-[12px] text-[var(--bg-secondary-btn-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
+                    <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
                       {g.groupName}
                     </span>
