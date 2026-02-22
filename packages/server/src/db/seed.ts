@@ -97,6 +97,8 @@ async function seed() {
       cost REAL NOT NULL,
       lifespan_years REAL NOT NULL,
       salvage_value REAL NOT NULL,
+      depreciation_method TEXT NOT NULL DEFAULT 'straight_line',
+      declining_rate REAL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
