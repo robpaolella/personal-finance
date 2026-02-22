@@ -616,7 +616,7 @@ function ConnectionRow({
   }, [showDeleteWarning]);
 
   return (
-    <div className="border border-[var(--table-border)] rounded-lg mb-2 overflow-hidden">
+    <div className="border border-[var(--table-border)] rounded-lg mb-2 overflow-hidden transition-all duration-200 hover:border-[var(--card-hover-border)] hover:shadow-[var(--card-hover-shadow)]">
       {/* Delete Warning */}
       {showDeleteWarning && (
         <InlineNotification type="warning" message="This will remove all account links for this connection. Previously imported transactions will not be affected." className="mx-3 my-2" />
