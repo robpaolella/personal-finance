@@ -32,9 +32,11 @@ export default function ReportsPage() {
   const [owner, setOwner] = useState('All');
   const [years, setYears] = useState<number[]>([]);
   const [data, setData] = useState<AnnualData | null>(null);
-  const [expandIncome, setExpandIncome] = useState(false);
-  const [expandExpenses, setExpandExpenses] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [expandIncome, setExpandIncome] = useState(() => sessionStorage.getItem('reports-expand-income') === '1');
+  const [expandExpenses, setExpandExpenses] = useState(() => sessionStorage.getItem('reports-expand-expenses') === '1');
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(sessionStorage.getItem('reports-expanded-groups') || '{}'); } catch { return {}; }
+  });
   const [users, setUsers] = useState<{ id: number; displayName: string }[]>([]);
 
   useEffect(() => {
@@ -42,6 +44,10 @@ export default function ReportsPage() {
       setUsers(res.data.map((u) => ({ id: u.id, displayName: u.display_name })))
     );
   }, []);
+
+  useEffect(() => { sessionStorage.setItem('reports-expand-income', expandIncome ? '1' : '0'); }, [expandIncome]);
+  useEffect(() => { sessionStorage.setItem('reports-expand-expenses', expandExpenses ? '1' : '0'); }, [expandExpenses]);
+  useEffect(() => { sessionStorage.setItem('reports-expanded-groups', JSON.stringify(expandedGroups)); }, [expandedGroups]);
 
   const toggleGroup = (g: string) => setExpandedGroups((p) => ({ ...p, [g]: !p[g] }));
 
