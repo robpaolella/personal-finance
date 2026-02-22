@@ -16,13 +16,14 @@ import { convertToLedgerSign } from '../services/signConversion.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
 import { detectTransfers } from '../services/transferDetector.js';
 import type { AccountClassification, SyncTransaction, SyncBalanceUpdate, SyncHoldingsUpdate } from '@ledger/shared/src/types.js';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
 // === Connection CRUD ===
 
 // POST /api/simplefin/connections
-router.post('/connections', async (req: Request, res: Response) => {
+router.post('/connections', requirePermission('simplefin.manage'), async (req: Request, res: Response) => {
   try {
     const { setupToken, accessUrl: rawAccessUrl, label, shared } = req.body as {
       setupToken?: string;
@@ -122,7 +123,7 @@ router.get('/connections', (req: Request, res: Response) => {
 });
 
 // PUT /api/simplefin/connections/:id
-router.put('/connections/:id', async (req: Request, res: Response) => {
+router.put('/connections/:id', requirePermission('simplefin.manage'), async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
     const userId = req.user!.userId;
@@ -161,7 +162,7 @@ router.put('/connections/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/simplefin/connections/:id
-router.delete('/connections/:id', (req: Request, res: Response) => {
+router.delete('/connections/:id', requirePermission('simplefin.manage'), (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
     const userId = req.user!.userId;
@@ -310,7 +311,7 @@ router.get('/linked-accounts', (req: Request, res: Response) => {
 });
 
 // POST /api/simplefin/links
-router.post('/links', (req: Request, res: Response) => {
+router.post('/links', requirePermission('simplefin.manage'), (req: Request, res: Response) => {
   try {
     const { simplefinConnectionId, simplefinAccountId, accountId, simplefinAccountName, simplefinOrgName } = req.body;
 
@@ -343,7 +344,7 @@ router.post('/links', (req: Request, res: Response) => {
 });
 
 // DELETE /api/simplefin/links/:id
-router.delete('/links/:id', (req: Request, res: Response) => {
+router.delete('/links/:id', requirePermission('simplefin.manage'), (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 
@@ -368,7 +369,7 @@ router.delete('/links/:id', (req: Request, res: Response) => {
 // === Sync & Commit ===
 
 // POST /api/simplefin/sync
-router.post('/sync', async (req: Request, res: Response) => {
+router.post('/sync', requirePermission('import.bank_sync'), async (req: Request, res: Response) => {
   try {
     const { connectionIds, accountIds, startDate, endDate } = req.body as {
       connectionIds?: number[];
@@ -582,7 +583,7 @@ router.post('/sync', async (req: Request, res: Response) => {
 });
 
 // POST /api/simplefin/commit
-router.post('/commit', (req: Request, res: Response) => {
+router.post('/commit', requirePermission('import.bank_sync'), (req: Request, res: Response) => {
   try {
     const { transactions: txns, balanceUpdates, holdingsUpdates } = req.body as {
       transactions: {
@@ -708,7 +709,7 @@ router.post('/commit', (req: Request, res: Response) => {
 });
 
 // GET /api/simplefin/balances — lightweight balance fetch for all linked accounts
-router.get('/balances', async (req: Request, res: Response) => {
+router.get('/balances', requirePermission('balances.update'), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
 

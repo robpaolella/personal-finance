@@ -3,6 +3,7 @@ import multer from 'multer';
 import { db } from '../db/index.js';
 import { transactions, categories } from '../db/schema.js';
 import { eq, sql, like } from 'drizzle-orm';
+import { requirePermission } from '../middleware/permissions.js';
 import { parseVenmoCSV } from '../services/venmoParser.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
 
@@ -61,7 +62,7 @@ function suggestMapping(headers: string[]): { date: number; description: number;
 }
 
 // POST /api/import/parse
-router.post('/parse', upload.single('file'), (req: Request, res: Response) => {
+router.post('/parse', requirePermission('import.csv'), upload.single('file'), (req: Request, res: Response) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'No file uploaded' });
@@ -95,7 +96,7 @@ router.post('/parse', upload.single('file'), (req: Request, res: Response) => {
 });
 
 // POST /api/import/categorize
-router.post('/categorize', (req: Request, res: Response) => {
+router.post('/categorize', requirePermission('import.csv'), (req: Request, res: Response) => {
   try {
     const { items } = req.body as { items: { description: string; amount: number; payee?: string }[] };
     if (!items || !Array.isArray(items)) {
@@ -239,7 +240,7 @@ router.post('/categorize', (req: Request, res: Response) => {
 });
 
 // POST /api/import/commit
-router.post('/commit', (req: Request, res: Response) => {
+router.post('/commit', requirePermission('import.csv'), (req: Request, res: Response) => {
   try {
     const { accountId, transactions: txns } = req.body as {
       accountId: number;
@@ -281,7 +282,7 @@ router.post('/commit', (req: Request, res: Response) => {
 });
 
 // POST /api/import/check-duplicates — batch duplicate check for CSV import
-router.post('/check-duplicates', (req: Request, res: Response) => {
+router.post('/check-duplicates', requirePermission('import.csv'), (req: Request, res: Response) => {
   try {
     const { items } = req.body as { items: { date: string; amount: number; description: string }[] };
     if (!items || !Array.isArray(items)) {
