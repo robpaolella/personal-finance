@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from './ConfirmDeleteButton';
 import Tooltip from './Tooltip';
+import InlineNotification from './InlineNotification';
 
 interface Connection {
   id: number;
@@ -114,9 +115,7 @@ function NewAccountForm({
     <Modal onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">Create & Link Account</h3>
       {error && (
-        <div className="bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)] rounded-lg p-3 text-[13px] mb-3">
-          {error}
-        </div>
+        <InlineNotification type="error" message={error} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
         <div>
@@ -334,9 +333,7 @@ function AccountLinkingTable({
   }
   if (error) {
     return (
-      <div className="py-3 px-4 bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)] rounded-lg text-[13px]">
-        {error}
-      </div>
+      <InlineNotification type="error" message={error} />
     );
   }
   if (sfAccounts.length === 0) {
@@ -621,9 +618,7 @@ function ConnectionRow({
     <div className="border border-[var(--table-border)] rounded-lg mb-2 overflow-hidden">
       {/* Delete Warning */}
       {showDeleteWarning && (
-        <div className="px-3 py-2 border-b border-[var(--table-border)] bg-[var(--bg-inline-error)] text-[12px] text-[var(--text-inline-error)]">
-          This will remove all account links for this connection. Previously imported transactions will not be affected.
-        </div>
+        <InlineNotification type="warning" message="This will remove all account links for this connection. Previously imported transactions will not be affected." className="mx-3 my-2" />
       )}
       <div className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={onToggle}>
         {/* Chevron */}
@@ -734,9 +729,7 @@ function ConnectionFormModal({
         {connection ? 'Edit Connection' : 'Add Bank Connection'}
       </h3>
       {error && (
-        <div className="bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)] rounded-lg p-3 text-[13px] mb-3">
-          {error}
-        </div>
+        <InlineNotification type="error" message={error} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
         <div>

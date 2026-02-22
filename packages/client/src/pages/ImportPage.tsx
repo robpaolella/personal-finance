@@ -8,6 +8,7 @@ import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
 import BankSyncPanel from '../components/BankSyncPanel';
 import SortableHeader from '../components/SortableHeader';
+import InlineNotification from '../components/InlineNotification';
 
 interface Account {
   id: number;
@@ -441,14 +442,13 @@ export default function ImportPage() {
 
       {/* Inline notification banner */}
       {notification && (
-        <div className={`rounded-lg p-3 text-[13px] mb-4 flex items-center justify-between border ${
-          notification.type === 'error' ? 'bg-[var(--bg-inline-error)] border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)]' : 'bg-[#f0fdf4] border-[#bbf7d0] text-[#166534]'
-        }`}>
-          <span>{notification.message}</span>
-          <button onClick={() => setNotification(null)} className={`ml-2 bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none ${
-            notification.type === 'error' ? 'text-[var(--text-inline-error)]' : 'text-[#166534]'
-          }`}>×</button>
-        </div>
+        <InlineNotification
+          type={notification.type}
+          message={notification.message}
+          dismissible
+          onDismiss={() => setNotification(null)}
+          className="mb-4"
+        />
       )}
 
       {/* Step 1: Upload */}

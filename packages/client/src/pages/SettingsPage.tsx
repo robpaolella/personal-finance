@@ -4,6 +4,7 @@ import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import BankSyncSection from '../components/BankSyncSection';
+import InlineNotification from '../components/InlineNotification';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Income': '#10b981',
@@ -130,10 +131,7 @@ function AccountForm({
         {account ? 'Edit Account' : 'Add Account'}
       </h3>
       {error && (
-        <div className="bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-2 text-[var(--text-inline-error)] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
-        </div>
+        <InlineNotification type="error" message={error} dismissible onDismiss={() => setError(null)} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
         <div>
@@ -272,10 +270,7 @@ function CategoryForm({
         {category ? 'Edit Category' : 'Add Category'}
       </h3>
       {error && (
-        <div className="bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-2 text-[var(--text-inline-error)] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
-        </div>
+        <InlineNotification type="error" message={error} dismissible onDismiss={() => setError(null)} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
         <div>
