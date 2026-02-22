@@ -35,7 +35,7 @@ const LIGHT = {
   orange: "#f97316",
   btnPrimaryBg: "#0f172a",
   btnPrimaryText: "#ffffff",
-  btnSecondaryBg: "#dce6f1",
+  btnSecondaryBg: "#ebeff3",
   btnSecondaryText: "#334155",
   btnDestructiveBg: "#ef4444",
   btnDestructiveText: "#ffffff",
@@ -674,6 +674,171 @@ export default function DesignGuide() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </Section>
+
+        {/* Interactive States */}
+        <Section title="Interactive States — Hover, Focus, Active" t={t}>
+          <p style={{ fontSize: 12, color: t.textSecondary, marginBottom: 16 }}>
+            Every interactive element needs a visible hover/focus state. Hover shows "this is clickable." Focus shows "this is selected" (keyboard accessibility). These are mandatory — never ship an interactive element without them.
+          </p>
+
+          {/* Buttons */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: t.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Buttons — Hover lifts slightly and shifts brightness</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              {[
+                { label: "Primary", bg: t.btnPrimaryBg, text: t.btnPrimaryText, hoverBg: dark ? "#cbd5e1" : "#1e293b" },
+                { label: "Secondary", bg: t.btnSecondaryBg, text: t.btnSecondaryText, hoverBg: dark ? "#243044" : "#dfe3e8" },
+                { label: "Destructive", bg: t.btnDestructiveBg, text: t.btnDestructiveText, hoverBg: "#dc2626" },
+                { label: "Success", bg: t.positive, text: "#ffffff", hoverBg: "#059669" },
+              ].map(b => (
+                <div key={b.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button style={{ padding: "8px 16px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", background: b.bg, color: b.text, ...sans }}>{b.label}</button>
+                    <button style={{ padding: "8px 16px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", background: b.hoverBg, color: b.text, ...sans, transform: "translateY(-1px)", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>{b.label}</button>
+                  </div>
+                  <span style={{ fontSize: 10, color: t.textMuted }}>Default → Hover</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 12, marginTop: 12, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: t.btnDestructiveLightBg, color: t.btnDestructiveLightText, ...sans }}>Delete</button>
+                  <button style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: dark ? "#4a1515" : "#fee2e2", color: t.btnDestructiveLightText, ...sans }}>Delete</button>
+                </div>
+                <span style={{ fontSize: 10, color: t.textMuted }}>Destructive Light: Default → Hover</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: t.accent, cursor: "pointer", ...sans }}>View All →</span>
+                  <span style={{ fontSize: 12, color: t.accent, cursor: "pointer", ...sans, textDecoration: "underline" }}>View All →</span>
+                </div>
+                <span style={{ fontSize: 10, color: t.textMuted }}>Ghost/Link: Default → Hover (underline)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Hover Specs Table */}
+          <div style={{ background: t.bgCard, border: `1px solid ${t.bgCardBorder}`, borderRadius: 12, padding: "16px 20px", boxShadow: t.bgCardShadow, marginBottom: 24 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, ...sans }}>
+              <thead>
+                <tr>
+                  {["Element", "Hover Effect", "Transition"].map(h => (
+                    <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 600, color: t.textSecondary, padding: "6px 10px", borderBottom: `2px solid ${t.tableBorder}`, textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { el: "Primary Button", fx: "Darken bg 1 step + translateY(-1px) + shadow", tr: "all 150ms ease" },
+                  { el: "Secondary Button", fx: "Darken bg 1 step", tr: "all 150ms ease" },
+                  { el: "Destructive Button", fx: "Darken to #dc2626 + translateY(-1px) + shadow", tr: "all 150ms ease" },
+                  { el: "Destructive Light Button", fx: "Darken bg 1 step", tr: "all 150ms ease" },
+                  { el: "Success/Import Button", fx: "Darken to #059669 + translateY(-1px) + shadow", tr: "all 150ms ease" },
+                  { el: "Ghost / Link Button", fx: "Add text-decoration: underline", tr: "none (instant)" },
+                  { el: "Toggle Pill (inactive)", fx: "Background tint: var(--bg-hover)", tr: "background 150ms ease" },
+                  { el: "Table Row (clickable)", fx: "Background: var(--bg-hover) + cursor: pointer", tr: "background 150ms ease" },
+                  { el: "Clickable Badge", fx: "filter: brightness(1.1)", tr: "filter 150ms ease" },
+                  { el: "Card (clickable)", fx: "Border color shifts 1 step lighter + shadow increases", tr: "all 200ms ease" },
+                  { el: "Sidebar Nav Item", fx: "Background: rgba(255,255,255,0.05)", tr: "background 150ms ease" },
+                  { el: "Scroll Indicator Arrow", fx: "Background darkens, shadow increases", tr: "all 150ms ease" },
+                ].map((r, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${t.tableRowBorder}` }}>
+                    <td style={{ padding: "6px 10px", fontWeight: 500, color: t.textPrimary }}>{r.el}</td>
+                    <td style={{ padding: "6px 10px", color: t.textBody }}>{r.fx}</td>
+                    <td style={{ padding: "6px 10px", ...mono, fontSize: 11, color: t.textMuted }}>{r.tr}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Toggle Group */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: t.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Toggle Group — Inactive pills show tint on hover</div>
+            <div style={{ display: "flex", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", background: t.toggleContainerBg, borderRadius: 8, padding: 2 }}>
+                  <button style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, border: "none", borderRadius: 6, cursor: "pointer", ...sans, background: t.toggleActiveBg, color: t.toggleActiveText, boxShadow: t.toggleActiveShadow }}>All</button>
+                  <button style={{ padding: "6px 14px", fontSize: 12, fontWeight: 400, border: "none", borderRadius: 6, cursor: "pointer", ...sans, background: "transparent", color: t.toggleInactiveText }}>John</button>
+                  <button style={{ padding: "6px 14px", fontSize: 12, fontWeight: 400, border: "none", borderRadius: 6, cursor: "pointer", ...sans, background: "transparent", color: t.toggleInactiveText }}>Jane</button>
+                </div>
+                <span style={{ fontSize: 10, color: t.textMuted }}>Default state</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", background: t.toggleContainerBg, borderRadius: 8, padding: 2 }}>
+                  <button style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, border: "none", borderRadius: 6, cursor: "pointer", ...sans, background: t.toggleActiveBg, color: t.toggleActiveText, boxShadow: t.toggleActiveShadow }}>All</button>
+                  <button style={{ padding: "6px 14px", fontSize: 12, fontWeight: 400, border: "none", borderRadius: 6, cursor: "pointer", ...sans, background: t.bgHover, color: t.toggleInactiveText }}>John</button>
+                  <button style={{ padding: "6px 14px", fontSize: 12, fontWeight: 400, border: "none", borderRadius: 6, cursor: "pointer", ...sans, background: "transparent", color: t.toggleInactiveText }}>Jane</button>
+                </div>
+                <span style={{ fontSize: 10, color: t.textMuted }}>Hovering "John"</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Focus States */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: t.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Focus States — Blue ring for keyboard accessibility</div>
+            <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <input placeholder="Normal" style={{ padding: "8px 12px", border: `1px solid ${t.bgInputBorder}`, borderRadius: 8, fontSize: 13, background: t.bgInput, color: t.textPrimary, width: 160, outline: "none", ...sans }} />
+                <span style={{ fontSize: 10, color: t.textMuted }}>Default</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <input placeholder="Focused" style={{ padding: "8px 12px", border: `1px solid ${t.accent}`, borderRadius: 8, fontSize: 13, background: t.bgInput, color: t.textPrimary, width: 160, outline: "none", ...sans, boxShadow: `0 0 0 3px ${t.accent}33` }} />
+                <span style={{ fontSize: 10, color: t.textMuted }}>Focused (blue ring)</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <input placeholder="Error" style={{ padding: "8px 12px", border: `1px solid ${t.negative}`, borderRadius: 8, fontSize: 13, background: t.bgInput, color: t.textPrimary, width: 160, outline: "none", ...sans, boxShadow: `0 0 0 3px ${t.negative}33` }} />
+                <span style={{ fontSize: 10, color: t.textMuted }}>Error state (red ring)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Clickable Badges */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: t.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Clickable Badges — Brightness bump on hover</div>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <Badge bg={t.badgeDuplicateExactBg} text={t.badgeDuplicateExactText} label="Likely Duplicate" />
+                <span style={{ fontSize: 10, color: t.textMuted }}>Default</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: t.badgeDuplicateExactBg, color: t.badgeDuplicateExactText, ...sans, fontWeight: 500, filter: "brightness(1.1)", cursor: "pointer" }}>Likely Duplicate</span>
+                <span style={{ fontSize: 10, color: t.textMuted }}>Hover</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <Badge bg={t.badgeTransferBg} text={t.badgeTransferText} label="Likely Transfer" />
+                <span style={{ fontSize: 10, color: t.textMuted }}>Default</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: t.badgeTransferBg, color: t.badgeTransferText, ...sans, fontWeight: 500, filter: "brightness(1.1)", cursor: "pointer" }}>Likely Transfer</span>
+                <span style={{ fontSize: 10, color: t.textMuted }}>Hover</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Clickable Card */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: t.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Clickable Card — Border + shadow shift on hover</div>
+            <div style={{ display: "flex", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1 }}>
+                <div style={{ background: t.bgCard, border: `1px solid ${t.bgCardBorder}`, borderRadius: 12, padding: "16px 20px", boxShadow: t.bgCardShadow, width: "100%" }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>SF Connection</div>
+                  <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>6 accounts linked</div>
+                </div>
+                <span style={{ fontSize: 10, color: t.textMuted }}>Default</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1 }}>
+                <div style={{ background: t.bgCard, border: `1px solid ${dark ? "#334155" : "#cbd5e1"}`, borderRadius: 12, padding: "16px 20px", boxShadow: dark ? "0 2px 6px rgba(0,0,0,0.3)" : "0 2px 6px rgba(0,0,0,0.08)", width: "100%", cursor: "pointer" }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>SF Connection</div>
+                  <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>6 accounts linked</div>
+                </div>
+                <span style={{ fontSize: 10, color: t.textMuted }}>Hover</span>
+              </div>
+            </div>
           </div>
         </Section>
 

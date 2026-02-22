@@ -433,7 +433,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
           <button
             onClick={handleFetch}
             disabled={fetching || selectedAccountIds.size === 0}
-            className="w-full mt-4 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            className="w-full mt-4 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 btn-primary">
             {fetching ? (
               <>
                 <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -453,7 +453,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
         <div>
           {/* Back link */}
           <button onClick={() => setStep(0)}
-            className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer mb-4 hover:underline">
+            className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer mb-4 btn-ghost hover:underline">
             ← Back to Selection
           </button>
 
@@ -692,7 +692,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
             <button
               onClick={handleImport}
               disabled={importing || (validTxnCount === 0 && selectedBalanceCount === 0 && selectedHoldingsCount === 0)}
-              className="w-full py-2.5 bg-[var(--color-positive)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              className="w-full py-2.5 bg-[var(--color-positive)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed btn-success">
               {importing ? 'Importing...' : (() => {
                 const parts = [];
                 if (validTxnCount > 0) parts.push(`${validTxnCount} Transaction${validTxnCount !== 1 ? 's' : ''}`);

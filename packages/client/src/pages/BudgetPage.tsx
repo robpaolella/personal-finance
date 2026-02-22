@@ -133,7 +133,7 @@ export default function BudgetPage() {
           <div className="flex gap-2 items-center">
             <button
               onClick={() => setMonth(prevMonth(month))}
-              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium btn-secondary"
             >
               ← {shortMonth(prevMonth(month))}
             </button>
@@ -142,7 +142,7 @@ export default function BudgetPage() {
             </span>
             <button
               onClick={() => setMonth(nextMonth(month))}
-              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium btn-secondary"
             >
               {shortMonth(nextMonth(month))} →
             </button>

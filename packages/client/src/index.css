@@ -11,6 +11,25 @@
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Button hover effects */
+.btn-primary { transition: all 150ms ease; }
+.btn-primary:hover { background: var(--btn-primary-hover) !important; transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+.btn-secondary { transition: all 150ms ease; }
+.btn-secondary:hover { background: var(--btn-secondary-hover) !important; }
+
+.btn-destructive { transition: all 150ms ease; }
+.btn-destructive:hover { background: var(--btn-destructive-hover) !important; transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+.btn-destructive-light { transition: all 150ms ease; }
+.btn-destructive-light:hover { background: var(--btn-destructive-light-hover) !important; }
+
+.btn-success { transition: all 150ms ease; }
+.btn-success:hover { background: var(--btn-success-hover) !important; transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+.btn-ghost { transition: none; }
+.btn-ghost:hover { text-decoration: underline; }
+
 /* Dark mode date input calendar icon */
 .dark input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.35) sepia(0.1) saturate(1) hue-rotate(180deg);
