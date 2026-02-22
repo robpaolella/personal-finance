@@ -283,3 +283,9 @@ Form Input → Storage → Display:
 **Problem:** Adding or renaming categories required updating the color mapping in every file. Duplicate CATEGORY_COLORS maps drifted out of sync.
 **Resolution:** Categories are assigned colors dynamically from a 16-color palette (in `lib/categoryColors.ts`) based on their sorted index. Colors wrap with modulo if there are more categories than colors.
 **Rule going forward:** Never hardcode a category name to a color. Always use `getCategoryColor()` from `lib/categoryColors.ts`. The palette is defined once in that file.
+
+### Design System Must Stay in Sync (2026-02-22)
+**Context:** Changed the secondary button background color in CSS but almost forgot to update the design system guide
+**Problem:** If the design system guide (`.github/design-system.jsx`) drifts from the actual CSS, it stops being the source of truth and future work will reference stale values
+**Resolution:** Any change to a dynamic design element (colors, spacing, component patterns) that is also defined in the design system guide must be updated in both places simultaneously.
+**Rule going forward:** When making any visual/styling change that touches a value defined in `.github/design-system.jsx`, always update the design system file in the same commit. Ask the user to confirm before modifying the design system.
