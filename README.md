@@ -90,6 +90,53 @@ Builds all packages and starts the production server on port 3001, serving the R
 - **Settings** — Manage accounts, categories, and users
 - **Dark Mode** — Full dark theme with toggle, persisted to localStorage
 
+## Development Workflow
+
+### Database Management
+
+```bash
+# Backup the database
+npm run db:backup
+
+# Reset and re-seed (deletes all data)
+npm run db:reset
+
+# Restore from a backup
+npm run db:restore backups/ledger-XXXXXXXX-XXXXXX.db
+```
+
+### Building & Deploying
+
+```bash
+# Build the Docker image
+npm run docker:build
+
+# Deploy to production (one command)
+npm run deploy
+
+# Seed the production database (first deploy only)
+npm run docker:seed
+```
+
+### Docker Commands
+
+```bash
+# Start the container
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Restart
+docker compose restart
+
+# Stop
+docker compose down
+
+# Shell into the container
+docker compose exec ledger sh
+```
+
 ## Design System
 
 The interactive design guide is at `.github/design-system.jsx`. Open it in any React-compatible viewer to see all UI elements in both light and dark mode. This is the single source of truth for all visual decisions — colors, component patterns, badges, buttons, tooltips, notifications, and category palettes.
