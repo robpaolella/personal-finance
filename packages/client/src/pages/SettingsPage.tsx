@@ -7,6 +7,7 @@ import BankSyncSection from '../components/BankSyncSection';
 import InlineNotification from '../components/InlineNotification';
 import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type AccountClassification } from '../components/badges';
 import { getCategoryColor } from '../lib/categoryColors';
+import ScrollableList from '../components/ScrollableList';
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment', 'retirement', 'venmo', 'cash'];
 const CLASSIFICATIONS = ['liquid', 'investment', 'liability'];
@@ -425,59 +426,64 @@ export default function SettingsPage() {
       {/* Bank Sync Section */}
       <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-2 gap-5 items-start">
         {/* Accounts */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] h-[598px] flex flex-col">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Accounts</h3>
           <p className="text-[13px] text-[var(--text-secondary)] mb-3">Each account has an owner and classification for filtering and net worth.</p>
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Owner</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Type</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Class</th>
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map((a) => (
-                <tr key={a.id}
-                  onClick={() => setEditingAccount(a)}
-                  className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)]">
-                  <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
-                    {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {(a.owners || []).map((o) => (
-                        <OwnerBadge key={o.id} user={o} />
-                      ))}
-                      {a.isShared && (
-                        <SharedBadge />
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] capitalize">{a.type}</td>
-                  <td className="px-2.5 py-2">
-                    <ClassificationBadge classification={a.classification as AccountClassification} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="flex-1 min-h-0">
+            <ScrollableList maxHeight="100%">
+              <table className="w-full border-collapse text-[13px]">
+                <thead>
+                  <tr>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Owner</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Type</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Class</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.map((a) => (
+                    <tr key={a.id}
+                      onClick={() => setEditingAccount(a)}
+                      className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)]">
+                      <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
+                        {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {(a.owners || []).map((o) => (
+                            <OwnerBadge key={o.id} user={o} />
+                          ))}
+                          {a.isShared && (
+                            <SharedBadge />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] capitalize">{a.type}</td>
+                      <td className="px-2.5 py-2">
+                        <ClassificationBadge classification={a.classification as AccountClassification} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollableList>
+          </div>
           <button onClick={() => setEditingAccount('new')}
-            className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5">
+            className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Account
           </button>
         </div>
 
         {/* Categories */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] h-[598px] flex flex-col">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Categories</h3>
           <p className="text-[13px] text-[var(--text-secondary)] mb-3">Parent categories group sub-categories for budgets and reports.</p>
-          <div className="max-h-[460px] overflow-y-auto overflow-x-hidden hide-scrollbar">
-            {allGroups.map((g) => {
+          <div className="flex-1 min-h-0">
+            <ScrollableList maxHeight="100%">
+              {allGroups.map((g) => {
               const allGroupNames = allGroups.map((x) => x.group);
               const color = getCategoryColor(g.group, allGroupNames);
               return (
@@ -497,9 +503,10 @@ export default function SettingsPage() {
                 </div>
               );
             })}
+            </ScrollableList>
           </div>
           <button onClick={() => setEditingCategory('new')}
-            className="w-full mt-auto pt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5">
+            className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Category
           </button>
