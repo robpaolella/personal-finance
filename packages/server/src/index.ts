@@ -8,6 +8,7 @@ import { db, sqlite } from './db/index.js';
 import { migrateAccountOwners } from './db/migrate-account-owners.js';
 import { migrateSimplefin } from './db/migrate-simplefin.js';
 import { migrateAssetsDepreciation } from './db/migrate-assets-depreciation.js';
+import { migrateRolesPermissions } from './db/migrate-roles-permissions.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -37,6 +38,7 @@ const isProd = process.env.NODE_ENV === 'production';
 migrateAccountOwners(sqlite);
 migrateSimplefin(sqlite);
 migrateAssetsDepreciation(sqlite);
+migrateRolesPermissions(sqlite);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
