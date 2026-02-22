@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
-import { db } from '../db/index.js';
+import { db, sqlite } from '../db/index.js';
 import { users, userPermissions } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
@@ -100,7 +100,6 @@ router.put('/change-password', async (req: Request, res: Response): Promise<void
     }
 
     const hash = await bcrypt.hash(newPassword, 10);
-    const { sqlite } = await import('../db/index.js');
     sqlite.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.userId);
 
     res.json({ data: { message: 'Password changed successfully' } });
@@ -108,6 +107,24 @@ router.put('/change-password', async (req: Request, res: Response): Promise<void
     console.error('PUT /auth/change-password error:', err);
     res.status(500).json({ error: 'Failed to change password' });
   }
+});
+
+// PUT /api/auth/profile — update own display name
+router.put('/profile', (req: Request, res: Response): void => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const { displayName } = sanitize(req.body) as { displayName: string };
+  if (!displayName || !displayName.trim()) {
+    res.status(400).json({ error: 'Display name is required' });
+    return;
+  }
+
+  sqlite.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName.trim(), req.user.userId);
+
+  res.json({ data: { message: 'Profile updated' } });
 });
 
 // GET /api/auth/me
