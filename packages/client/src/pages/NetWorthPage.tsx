@@ -549,6 +549,12 @@ export default function NetWorthPage() {
                         >{r}%</button>
                       ))}
                     </div>
+                    <p className="text-[11px] text-[var(--text-muted)] leading-[1.5] m-0 mt-1.5">
+                      <span className="font-medium text-[var(--text-secondary)]">20%</span> Furniture, home goods <span className="mx-0.5">·</span>
+                      <span className="font-medium text-[var(--text-secondary)]">25%</span> Appliances, tools <span className="mx-0.5">·</span>
+                      <span className="font-medium text-[var(--text-secondary)]">30%</span> Electronics, computers <span className="mx-0.5">·</span>
+                      <span className="font-medium text-[var(--text-secondary)]">40%</span> Vehicles, phones
+                    </p>
                   </div>
                 )}
                 {/* Salvage Value */}
