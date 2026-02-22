@@ -455,7 +455,7 @@ export default function NetWorthPage() {
                       type={f.t}
                       value={assetForm[f.k]}
                       onChange={(e) => setAssetForm({ ...assetForm, [f.k]: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none focus:border-[#3b82f6] text-[var(--text-body)]"
+                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]"
                     />
                   </div>
                 ))}
@@ -515,7 +515,7 @@ export default function NetWorthPage() {
                         step="0.01"
                         value={balanceInputs[a.accountId] ?? ''}
                         onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
-                        className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none focus:border-[#3b82f6] text-[var(--text-body)] bg-[var(--bg-input)]"
+                        className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                       />
                     </div>
                   ))}
