@@ -6,6 +6,7 @@ import OwnerFilter from '../components/OwnerFilter';
 import Spinner from '../components/Spinner';
 import InlineNotification from '../components/InlineNotification';
 import { getCategoryColor } from '../lib/categoryColors';
+import ScrollableList from '../components/ScrollableList';
 
 interface IncomeRow {
   categoryId: number;
@@ -176,19 +177,21 @@ export default function BudgetPage() {
       </div>
 
       {/* Two Column: Income + Expenses */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-2 gap-5 items-start">
         {/* Income */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] h-[500px] flex flex-col">
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
-          <table className="w-full border-collapse mt-2">
-            <thead>
-              <tr>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Budget</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Actual</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Diff</th>
-              </tr>
-            </thead>
+          <div className="flex-1 min-h-0 mt-2">
+            <ScrollableList maxHeight="100%">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Budget</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Actual</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Diff</th>
+                  </tr>
+                </thead>
             <tbody>
               {income.map((r) => {
                 const diff = r.actual - r.budgeted;
@@ -240,12 +243,15 @@ export default function BudgetPage() {
               </tr>
             </tbody>
           </table>
+            </ScrollableList>
+          </div>
         </div>
 
         {/* Expenses */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] h-[500px] flex flex-col">
           <h3 className="text-[14px] font-bold text-[#f97316] m-0">Expenses</h3>
-          <div className="max-h-[460px] overflow-y-auto overflow-x-hidden hide-scrollbar mt-2">
+          <div className="flex-1 min-h-0 mt-2">
+            <ScrollableList maxHeight="100%">
             {expenseGroups.map((g) => {
               const gBudgeted = g.subs.reduce((s, sub) => s + sub.budgeted, 0);
               const gActual = g.subs.reduce((s, sub) => s + sub.actual, 0);
@@ -306,6 +312,7 @@ export default function BudgetPage() {
                 </div>
               );
             })}
+            </ScrollableList>
           </div>
         </div>
       </div>
