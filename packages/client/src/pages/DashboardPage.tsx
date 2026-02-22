@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api';
 import { fmtWhole, fmtTransaction } from '../lib/formatters';
 import KPICard from '../components/KPICard';
 import Spinner from '../components/Spinner';
+import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge } from '../components/badges';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
@@ -236,13 +237,11 @@ export default function DashboardPage() {
                   <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
                   <td className="px-2.5 py-2">
                     <span className="inline-flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[11px] font-mono bg-[var(--badge-account-bg)] text-[var(--text-body)] px-2 py-0.5 rounded-md">{accountLabel(t.account)}</span>
+                      <AccountBadge name={accountLabel(t.account)} />
                       {t.account.isShared ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--text-muted)]">Shared</span>
+                        <SharedBadge />
                       ) : t.account.owners?.length === 1 ? (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
-                          t.account.owners[0].displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-                        }`}>{t.account.owners[0].displayName}</span>
+                        <OwnerBadge user={t.account.owners[0]} />
                       ) : null}
                     </span>
                   </td>
@@ -250,7 +249,7 @@ export default function DashboardPage() {
                     <span className="text-[11px] text-[var(--text-secondary)]">{t.category.groupName}</span>
                   </td>
                   <td className="px-2.5 py-2">
-                    <span className="text-[11px] bg-[var(--badge-category-bg)] text-[#3b82f6] px-2 py-0.5 rounded-md">{t.category.subName}</span>
+                    <CategoryBadge name={t.category.subName} />
                   </td>
                   <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>{amtText}</td>
                 </tr>
