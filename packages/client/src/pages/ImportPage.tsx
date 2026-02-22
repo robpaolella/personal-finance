@@ -521,7 +521,7 @@ export default function ImportPage() {
             </div>
             <button
               onClick={handleAutoCategorize}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-primary-bg)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
@@ -581,13 +581,13 @@ export default function ImportPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setSignConvention('bank')}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'bank' ? 'bg-[var(--btn-primary-bg)] text-white border-[var(--btn-primary-bg)]' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'}`}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'bank' ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)]' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'}`}
               >
                 Positive = money in, Negative = money out
               </button>
               <button
                 onClick={() => setSignConvention('credit')}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'credit' ? 'bg-[var(--btn-primary-bg)] text-white border-[var(--btn-primary-bg)]' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'}`}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'credit' ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)]' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'}`}
               >
                 Positive = money out, Negative = money in
               </button>
@@ -782,7 +782,7 @@ export default function ImportPage() {
               <button
                 onClick={handleAccountModalContinue}
                 disabled={!modalAccountId}
-                className="px-4 py-2 text-[13px] font-semibold text-white bg-[var(--btn-primary-bg)] rounded-lg border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-[13px] font-semibold text-[var(--btn-primary-text)] bg-[var(--btn-primary-bg)] rounded-lg border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue
               </button>

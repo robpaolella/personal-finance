@@ -469,7 +469,7 @@ export default function NetWorthPage() {
                 <button onClick={() => setEditingAssetId(null)}
                   className="px-3.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[12px] font-medium">Cancel</button>
                 <button onClick={saveAsset}
-                  className="px-3.5 py-1.5 bg-[var(--btn-primary-bg)] text-white rounded-lg border-none cursor-pointer text-[12px] font-medium">Save</button>
+                  className="px-3.5 py-1.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[12px] font-medium">Save</button>
               </div>
             </div>
           )}
@@ -524,7 +524,7 @@ export default function NetWorthPage() {
                   <button onClick={() => setShowBalanceModal(false)}
                     className="px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
                   <button onClick={saveBalances}
-                    className="px-4 py-2 bg-[var(--btn-primary-bg)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
+                    className="px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
                 </div>
               </>
             )}
@@ -614,7 +614,7 @@ export default function NetWorthPage() {
                         className="px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
                       <button onClick={applySyncBalances}
                         disabled={syncBalanceSelected.size === 0}
-                        className="px-4 py-2 bg-[var(--btn-primary-bg)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50">
+                        className="px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50">
                         Apply {syncBalanceSelected.size} Update{syncBalanceSelected.size !== 1 ? 's' : ''}
                       </button>
                     </div>
