@@ -23,6 +23,7 @@ import assetRoutes from './routes/assets.js';
 import networthRoutes from './routes/networth.js';
 import importRoutes from './routes/import.js';
 import simplefinRoutes from './routes/simplefin.js';
+import setupRoutes from './routes/setup.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -58,6 +59,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/setup', setupRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/users', userRoutes);
