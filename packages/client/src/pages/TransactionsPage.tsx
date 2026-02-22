@@ -318,18 +318,18 @@ function TransactionForm({
 
       {/* Duplicate Warning */}
       {duplicateMatch && (
-        <div className="mt-4 rounded-lg border border-[#f59e0b] p-3" style={{ background: 'rgb(234 189 154 / 30%)' }}>
+        <div className="mt-4 rounded-lg border border-[var(--bg-inline-warning-border)] bg-[var(--bg-inline-warning)] p-3">
           <div className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-[#f59e0b] mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-4 h-4 text-[var(--color-warning)] mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <p className="text-[12px] font-semibold text-[#78350f] dark:text-[#fbbf24] m-0">
+                <p className="text-[12px] font-semibold text-[var(--text-inline-warning)] m-0">
                   Possible duplicate detected — click Save again to confirm
                 </p>
                 <button onClick={() => setDupeExpanded(!dupeExpanded)}
-                  className="bg-transparent border-none cursor-pointer p-0.5 text-[#78350f] dark:text-[#fbbf24]">
+                  className="bg-transparent border-none cursor-pointer p-0.5 text-[var(--text-inline-warning)]">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                     style={{ transform: dupeExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease' }}>
                     <polyline points="9 18 15 12 9 6" />

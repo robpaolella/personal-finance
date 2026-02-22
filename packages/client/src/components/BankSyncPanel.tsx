@@ -7,6 +7,7 @@ import DuplicateBadge from '../components/DuplicateBadge';
 import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
 import SortableHeader from '../components/SortableHeader';
+import InlineNotification from '../components/InlineNotification';
 
 interface Category {
   id: number;
@@ -419,11 +420,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
               {datePreset === 0 && customStart && customEnd && (() => {
                 const diffDays = Math.round((new Date(customEnd).getTime() - new Date(customStart).getTime()) / (1000 * 60 * 60 * 24));
                 return diffDays > 60 ? (
-                  <div className="rounded-lg border border-[#f59e0b] p-2.5 mb-2" style={{ background: 'rgb(234 189 154 / 30%)' }}>
-                    <p className="text-[11px] font-semibold text-[#78350f] dark:text-[#fbbf24] m-0">
-                      SimpleFIN limits data to 60 days per request. Only the most recent 60 days of your range will be fetched.
-                    </p>
-                  </div>
+                  <InlineNotification type="warning" message="SimpleFIN limits data to 60 days per request. Only the most recent 60 days of your range will be fetched." className="mb-2" />
                 ) : null;
               })()}
               <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
