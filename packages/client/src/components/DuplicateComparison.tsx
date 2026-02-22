@@ -70,7 +70,7 @@ export default function DuplicateComparison({ incoming, existing, onImportAnyway
           Skip
         </button>
         <button onClick={onImportAnyway}
-          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--btn-primary-bg)] text-white border-none cursor-pointer">
+          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer">
           Import Anyway
         </button>
       </div>

@@ -299,7 +299,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
           Connect your bank accounts via SimpleFIN to automatically pull transactions and balances
         </p>
         <Link to="/settings"
-          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[var(--btn-primary-bg)] text-white rounded-lg text-[13px] font-semibold no-underline">
+          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold no-underline">
           Set Up in Settings →
         </Link>
         <p className="text-[11px] text-[var(--text-muted)] mt-3">
@@ -433,7 +433,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
           <button
             onClick={handleFetch}
             disabled={fetching || selectedAccountIds.size === 0}
-            className="w-full mt-4 py-2.5 bg-[var(--btn-primary-bg)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            className="w-full mt-4 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {fetching ? (
               <>
                 <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

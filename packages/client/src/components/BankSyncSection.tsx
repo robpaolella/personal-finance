@@ -158,7 +158,7 @@ function NewAccountForm({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${
                   selectedOwnerIds.has(u.id)
-                    ? 'bg-[var(--btn-primary-bg)] text-white border-[var(--btn-primary-bg)]'
+                    ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)]'
                     : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'
                 }`}>
                 {u.displayName}
@@ -183,7 +183,7 @@ function NewAccountForm({
             setSaving(false);
           }
         }}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-white border-none cursor-pointer disabled:opacity-50">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer disabled:opacity-50">
           {saving ? 'Creating...' : 'Create & Link'}
         </button>
       </div>
@@ -511,7 +511,7 @@ export default function BankSyncSection({
       {!hasConnections ? (
         <div className="text-center py-6">
           <button onClick={() => setShowAddModal(true)}
-            className="px-5 py-2.5 bg-[var(--btn-primary-bg)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            className="px-5 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer">
             Add Connection
           </button>
           <p className="text-[11px] text-[var(--text-muted)] mt-3">
@@ -751,7 +751,7 @@ function ConnectionFormModal({
                 disabled={!!connection}
                 className={`flex-1 py-2 px-3 rounded-lg text-left border cursor-pointer transition-colors ${
                   shared === opt.value
-                    ? 'bg-[var(--btn-primary-bg)] text-white border-[var(--btn-primary-bg)]'
+                    ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)]'
                     : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'
                 } ${connection ? 'opacity-60 cursor-not-allowed' : ''}`}>
                 <div className="text-[12px] font-semibold">{opt.label}</div>
@@ -789,7 +789,7 @@ function ConnectionFormModal({
           Cancel
         </button>
         <button onClick={handleSubmit} disabled={saving}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-white border-none cursor-pointer disabled:opacity-50">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer disabled:opacity-50">
           {saving ? 'Connecting...' : connection ? 'Save' : 'Connect'}
         </button>
       </div>

@@ -215,7 +215,7 @@ function AccountForm({
           if (selectedOwnerIds.size === 0) { setError('At least one owner is required'); return; }
           onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds) });
         }}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-white border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer">
           Save
         </button>
       </div>
@@ -269,7 +269,7 @@ function CategoryForm({
             {['income', 'expense'].map((t) => (
               <button key={t} onClick={() => setCatType(t)}
                 className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
-                  catType === t ? 'bg-[var(--btn-primary-bg)] text-white' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)]'
+                  catType === t ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)]' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)]'
                 }`}>
                 {t}
               </button>
@@ -307,7 +307,7 @@ function CategoryForm({
           Cancel
         </button>
         <button onClick={() => onSave({ groupName, subName, type: catType, isDeductible })}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-white border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer">
           Save
         </button>
       </div>

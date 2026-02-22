@@ -288,7 +288,7 @@ function TransactionForm({
               {(['expense', 'income'] as const).map((t) => (
                 <button key={t} onClick={() => handleTypeChange(t)}
                   className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
-                    txType === t ? 'bg-[var(--btn-primary-bg)] text-white' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)]'
+                    txType === t ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)]' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)]'
                   }`}>
                   {t}
                 </button>
