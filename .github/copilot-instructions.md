@@ -319,3 +319,52 @@ Form Input → Storage → Display:
 **Problem:** Three distinct patterns needed: hide entirely (destructive actions), show but disable (creative actions), and show permission denied message (full-page features)
 **Resolution:** Created `<PermissionGate>` component with `fallback="hidden"` and `fallback="disabled"` modes. For full-page denials (Import tabs), use inline conditional rendering with a styled message. For 403 API errors, dispatch `permission-denied` custom event from api.ts, caught by AppShell to show toast.
 **Rule going forward:** Delete buttons → `fallback="hidden"`. Add/Edit buttons → `fallback="disabled"`. Admin-only sections → conditional render with `isAdmin()`. API 403 errors → handled automatically via event + toast. Never use both PermissionGate and manual `hasPermission()` check on the same element.
+
+### Development Workflow Scripts (2026-02-22)
+**Context:** Needed standardized commands for database management and deployment
+**Problem:** Database resets, backups, and deployments were done with ad-hoc commands that weren't documented
+**Resolution:** Created shell scripts in scripts/ with npm shortcut commands. Deploy script automates the full push-build-restart-verify cycle with automatic database backup and health check.
+**Rule going forward:** All repeatable operations should have a script. Never run raw database commands in production without backing up first. The deploy script is the only way to ship to production — never manually docker compose build on the server.
+
+## Development Workflow
+
+### Environments
+
+- **Development:** Local machine, `npm run dev`, SQLite at `packages/server/data/ledger.db`
+- **Production:** Docker container on remote server, SQLite at `./data/ledger.db` (volume mounted)
+
+### Scripts Reference
+
+| Command | What It Does | When to Use |
+|---|---|---|
+| `npm run dev` | Starts dev server (client + API) | Daily development |
+| `npm run db:reset` | Deletes DB and re-seeds (dev only) | Fresh start, schema changes |
+| `npm run db:backup` | Copies DB to timestamped backup | Before risky operations |
+| `npm run db:restore` | Restores DB from a backup file | When something goes wrong |
+| `npm run docker:build` | Builds production Docker image | Before deploying |
+| `npm run docker:seed` | Seeds DB inside Docker container | After fresh deploy |
+| `npm run docker:reset` | Resets production DB (dangerous) | Only when absolutely necessary |
+| `npm run deploy` | Full deploy: push, build, restart, verify | Shipping to production |
+
+### Database Rules
+
+- **Never** write a migration that deletes data without a backup step
+- **Always** make migrations backward-compatible — they should work on both fresh and existing databases
+- **Always** run `npm run db:backup` before testing migrations on a database with real data
+- The seed script creates schema and reference data (categories) only — never seed user accounts
+- Fresh installs are detected by checking for zero users in the database
+
+### Deployment Process
+
+1. Commit all changes on a feature branch
+2. Merge to main
+3. Run `npm run deploy` (or `./scripts/deploy.sh`)
+4. The script pushes to GitHub, SSHs into the server, backs up the DB, rebuilds Docker, restarts, and runs a health check
+5. If the health check fails, manually rollback using the backup created in step 4
+
+### Docker Notes
+
+- The SQLite database lives on a volume mount (`./data:/app/data`), not inside the container
+- Rebuilding the container does NOT affect the database
+- `docker compose logs -f` to view logs
+- `docker compose exec ledger sh` to open a shell inside the container
