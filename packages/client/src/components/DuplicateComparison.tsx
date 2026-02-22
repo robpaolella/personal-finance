@@ -40,7 +40,7 @@ export default function DuplicateComparison({ incoming, existing, onImportAnyway
         <thead>
           <tr>
             <th className="w-[90px]" />
-            <th className="text-[11px] font-semibold uppercase tracking-[0.04em] px-2.5 py-1 text-left text-[var(--badge-blue-text)]">
+            <th className="text-[11px] font-semibold uppercase tracking-[0.04em] px-2.5 py-1 text-left text-[var(--badge-category-text)]">
               Incoming
             </th>
             <th className="text-[11px] font-semibold uppercase tracking-[0.04em] px-2.5 py-1 text-left text-[var(--text-secondary)]">
@@ -66,11 +66,11 @@ export default function DuplicateComparison({ incoming, existing, onImportAnyway
       </table>
       <div className="flex justify-end gap-2 mt-2">
         <button onClick={onSkip}
-          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Skip
         </button>
         <button onClick={onImportAnyway}
-          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer">
+          className="px-3 py-1.5 text-[11px] font-semibold rounded-md bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary">
           Import Anyway
         </button>
       </div>

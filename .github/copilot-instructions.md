@@ -265,3 +265,33 @@ Form Input → Storage → Display:
 **Problem:** The sign conversion logic (which flips signs based on account classification) was being applied to balances, causing assets to show as negative and liabilities as positive
 **Resolution:** Sign conversion must ONLY be applied to transactions. Balances, holdings market values, and cost basis values are passed through as-is from SimpleFIN — they already use the correct real-world convention (positive = asset, negative = liability).
 **Rule going forward:** Never apply the transaction sign conversion function to balance or holdings data. Only transaction amounts get converted.
+
+### Design System as Source of Truth (2026-02-22)
+**Context:** The app's styling grew organically through many prompts, creating inconsistencies in colors, component patterns, and dark mode support
+**Problem:** Hardcoded hex values scattered across components, multiple tooltip implementations, inconsistent notification patterns, badge colors not using CSS variables
+**Resolution:** Created a comprehensive design system guide (`.github/design-system.jsx`) defining every color, component, and pattern. Migrated entire app to CSS custom properties. Unified all tooltips, notifications, badges, and buttons into shared components.
+**Rule going forward:** All visual decisions come from the design system guide. All component colors must use CSS custom properties. No hardcoded hex values in component styles (except semantic colors same in both modes). When adding a new component or pattern, add it to the design guide first, then implement.
+
+### Tooltip Implementation (2026-02-22)
+**Context:** Tooltips were rendering inside flex/table containers, causing layout issues
+**Problem:** Absolutely-positioned tooltips inside constrained parent containers get clipped, overflow, or render incorrectly
+**Resolution:** All tooltips render via React portal to document.body with position: fixed. Position calculated from trigger's getBoundingClientRect(). Viewport-aware with automatic flipping. Always dark style regardless of theme.
+**Rule going forward:** Never render tooltips inside their parent component's DOM tree. Always use the shared Tooltip component which portals to document.body.
+
+### Category Colors Are Dynamic (2026-02-22)
+**Context:** Category colors were hardcoded to specific category names in 4 separate files
+**Problem:** Adding or renaming categories required updating the color mapping in every file. Duplicate CATEGORY_COLORS maps drifted out of sync.
+**Resolution:** Categories are assigned colors dynamically from a 16-color palette (in `lib/categoryColors.ts`) based on their sorted index. Colors wrap with modulo if there are more categories than colors.
+**Rule going forward:** Never hardcode a category name to a color. Always use `getCategoryColor()` from `lib/categoryColors.ts`. The palette is defined once in that file.
+
+### Design System Must Stay in Sync (2026-02-22)
+**Context:** Changed the secondary button background color in CSS but almost forgot to update the design system guide
+**Problem:** If the design system guide (`.github/design-system.jsx`) drifts from the actual CSS, it stops being the source of truth and future work will reference stale values
+**Resolution:** Any change to a dynamic design element (colors, spacing, component patterns) that is also defined in the design system guide must be updated in both places simultaneously.
+**Rule going forward:** When making any visual/styling change that touches a value defined in `.github/design-system.jsx`, always update the design system file in the same commit. Ask the user to confirm before modifying the design system.
+
+### ScrollableList Component Pattern (2026-02-22)
+**Context:** The Settings page needed fixed-height cards with scrollable content, a gradient fade indicator, and a pinned bottom button
+**Problem:** Multiple failed approaches: (1) `flex-1` on the scroll area without a fixed card height caused the card to grow unbounded. (2) `max-h` with `min-h` didn't pin the button to the bottom. (3) Passing `maxHeight="100%"` to the inner scroll div didn't constrain it because CSS percentage max-height requires an explicit height on the parent — content overflowed out of the card.
+**Resolution:** Created `<ScrollableList>` component (`components/ScrollableList.tsx`). Correct structure: outer card has a fixed `h-[Npx]` + `flex flex-col`, a `flex-1 min-h-0` wrapper around `<ScrollableList maxHeight="100%">`, and the button is `flex-shrink-0` at the bottom. The ScrollableList outer div uses `overflow-hidden` to clip content, and the inner div uses `h-full overflow-y-auto` for scrolling. The gradient overlay and chevron button are absolutely positioned inside the outer div and auto-hide via scroll/resize detection.
+**Rule going forward:** For any fixed-height container with scrollable content, use the `<ScrollableList>` component. The parent must have an explicit height (not min-height) and the wrapper around ScrollableList must have `flex-1 min-h-0`. The ScrollableList outer div must have `overflow-hidden` — never rely on percentage `max-height` alone to constrain content.

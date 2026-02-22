@@ -4,15 +4,10 @@ import { fmtShort, fmtWhole } from '../lib/formatters';
 import KPICard from '../components/KPICard';
 import OwnerFilter from '../components/OwnerFilter';
 import Spinner from '../components/Spinner';
+import InlineNotification from '../components/InlineNotification';
+import { getCategoryColor } from '../lib/categoryColors';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
-  'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
-  'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
-  'Utilities': '#f97316', 'Savings': '#06b6d4',
-};
 
 interface AnnualData {
   incomeByCategory: Record<string, number[]>;
@@ -124,12 +119,7 @@ export default function ReportsPage() {
 
       {/* Owner info bar */}
       {owner !== 'All' && (
-        <div className="bg-[#eff6ff] border border-[#bfdbfe] rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-          </svg>
-          <span className="text-[13px] text-[#1e40af]">Showing data from <strong>{owner}'s</strong> accounts (including shared accounts)</span>
-        </div>
+        <InlineNotification type="info" message={`Showing data from ${owner}'s accounts (including shared accounts)`} className="mb-4" />
       )}
 
       {/* KPI Cards */}
@@ -146,7 +136,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Monthly Breakdown Table */}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] overflow-x-auto">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] overflow-x-auto">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Monthly Breakdown</h3>
@@ -173,17 +163,17 @@ export default function ReportsPage() {
               style={{ borderBottom: '2px solid rgba(187, 247, 208, 0.25)' }}
               onClick={() => setExpandIncome(!expandIncome)}
             >
-              <td className="px-2.5 py-2 font-bold text-[#15803d] text-[13px]">
+              <td className="px-2.5 py-2 font-bold text-[var(--color-positive)] text-[13px]">
                 <span className="flex items-center gap-1.5">
                   <ChevronIcon open={expandIncome} />Total Income
                 </span>
               </td>
               {data.monthlyIncomeTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[#15803d]' : 'text-[#d1d5db]'}`}>
+                <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[var(--color-positive)]' : 'text-[var(--text-very-muted)]'}`}>
                   {v !== 0 ? fmtShort(v) : '—'}
                 </td>
               ))}
-              <td className={`${tdCls} text-right font-bold text-[#15803d]`}>{fmtShort(totalIncome)}</td>
+              <td className={`${tdCls} text-right font-bold text-[var(--color-positive)]`}>{fmtShort(totalIncome)}</td>
             </tr>
 
             {/* Expanded income categories */}
@@ -205,24 +195,25 @@ export default function ReportsPage() {
               style={{ borderBottom: '2px solid rgba(254, 215, 170, 0.25)' }}
               onClick={() => setExpandExpenses(!expandExpenses)}
             >
-              <td className="px-2.5 py-2 font-bold text-[#c2410c] text-[13px]">
+              <td className="px-2.5 py-2 font-bold text-[var(--color-orange)] text-[13px]">
                 <span className="flex items-center gap-1.5">
                   <ChevronIcon open={expandExpenses} />Total Expenses
                 </span>
               </td>
               {data.monthlyExpenseTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[#c2410c]' : v < 0 ? 'text-[#10b981]' : 'text-[#d1d5db]'}`}>
+                <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--color-orange)]' : v < 0 ? 'text-[#10b981]' : 'text-[var(--text-very-muted)]'}`}>
                   {v !== 0 ? fmtShort(v) : '—'}
                 </td>
               ))}
-              <td className={`${tdCls} text-right font-bold text-[#c2410c]`}>{fmtShort(totalExpenses)}</td>
+              <td className={`${tdCls} text-right font-bold text-[var(--color-orange)]`}>{fmtShort(totalExpenses)}</td>
             </tr>
 
             {/* Expanded expense groups → sub-categories */}
             {expandExpenses && Object.entries(data.expensesByGroup).sort(([a], [b]) => a.localeCompare(b)).map(([group, subs]) => {
               const gMonthly = MONTHS.map((_, i) => Object.values(subs).reduce((s, a) => s + a[i], 0));
               const isOpen = expandedGroups[group];
-              const color = CATEGORY_COLORS[group] || '#94a3b8';
+              const allGroups = Object.keys(data.expensesByGroup);
+              const color = getCategoryColor(group, allGroups);
               return (
                 <Fragment key={group}>
                   <tr
@@ -265,8 +256,8 @@ export default function ReportsPage() {
               {data.monthlyNetTotals.map((v, i) => (
                 <td key={i} className={`${tdCls} text-right font-semibold ${
                   data.monthlyIncomeTotals[i] === 0 && data.monthlyExpenseTotals[i] === 0
-                    ? 'text-[#d1d5db]'
-                    : v > 0 ? 'text-[#10b981]' : v < 0 ? 'text-[#ef4444]' : 'text-[#d1d5db]'
+                    ? 'text-[var(--text-very-muted)]'
+                    : v > 0 ? 'text-[#10b981]' : v < 0 ? 'text-[#ef4444]' : 'text-[var(--text-very-muted)]'
                 }`}>
                   {data.monthlyIncomeTotals[i] !== 0 || data.monthlyExpenseTotals[i] !== 0 ? fmtShort(v) : '—'}
                 </td>

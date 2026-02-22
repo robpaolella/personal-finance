@@ -22,13 +22,13 @@ const UsersIcon = () => (
 
 export default function OwnerFilter({ value, onChange, users }: OwnerFilterProps) {
   return (
-    <div className="flex bg-[var(--filter-container-bg)] rounded-lg p-0.5">
+    <div className="flex bg-[var(--toggle-container-bg)] rounded-lg p-0.5">
       <button
         onClick={() => onChange('All')}
         className={`flex items-center gap-[5px] px-3.5 py-1.5 text-xs rounded-md border-none cursor-pointer transition-all ${
           value === 'All'
-            ? 'bg-[var(--filter-active-pill)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
-            : 'bg-transparent text-[var(--text-secondary)]'
+            ? 'bg-[var(--toggle-active-bg)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
+            : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
         }`}
       >
         <UsersIcon />
@@ -40,8 +40,8 @@ export default function OwnerFilter({ value, onChange, users }: OwnerFilterProps
           onClick={() => onChange(u.displayName)}
           className={`flex items-center gap-[5px] px-3.5 py-1.5 text-xs rounded-md border-none cursor-pointer transition-all ${
             value === u.displayName
-              ? 'bg-[var(--filter-active-pill)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
-              : 'bg-transparent text-[var(--text-secondary)]'
+              ? 'bg-[var(--toggle-active-bg)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
+              : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
           }`}
         >
           <UserIcon />

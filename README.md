@@ -90,6 +90,10 @@ Builds all packages and starts the production server on port 3001, serving the R
 - **Settings** — Manage accounts, categories, and users
 - **Dark Mode** — Full dark theme with toggle, persisted to localStorage
 
+## Design System
+
+The interactive design guide is at `.github/design-system.jsx`. Open it in any React-compatible viewer to see all UI elements in both light and dark mode. This is the single source of truth for all visual decisions — colors, component patterns, badges, buttons, tooltips, notifications, and category palettes.
+
 ## Screenshots
 
 _Coming soon._

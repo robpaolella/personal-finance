@@ -4,14 +4,10 @@ import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import BankSyncSection from '../components/BankSyncSection';
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Income': '#10b981',
-  'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
-  'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
-  'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
-  'Utilities': '#f97316', 'Savings': '#06b6d4',
-};
+import InlineNotification from '../components/InlineNotification';
+import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type AccountClassification } from '../components/badges';
+import { getCategoryColor } from '../lib/categoryColors';
+import ScrollableList from '../components/ScrollableList';
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment', 'retirement', 'venmo', 'cash'];
 const CLASSIFICATIONS = ['liquid', 'investment', 'liability'];
@@ -130,10 +126,7 @@ function AccountForm({
         {account ? 'Edit Account' : 'Add Account'}
       </h3>
       {error && (
-        <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-2 text-[var(--error-text)] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
-        </div>
+        <InlineNotification type="error" message={error} dismissible onDismiss={() => setError(null)} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
         <div>
@@ -172,9 +165,7 @@ function AccountForm({
                   <span className="text-[var(--text-muted)]">Select owners...</span>
                 ) : (
                   users.filter((u) => selectedOwnerIds.has(u.id)).map((u) => (
-                    <span key={u.id} className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium ${
-                      u.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-                    }`}>{u.displayName}</span>
+                    <OwnerBadge key={u.id} user={u} />
                   ))
                 )}
               </span>
@@ -190,14 +181,12 @@ function AccountForm({
                   return (
                     <button key={u.id} type="button" onClick={() => toggleOwner(u.id)}
                       className={`w-full flex items-center justify-between px-3 py-2.5 text-[13px] text-left cursor-pointer border-none transition-colors duration-150 ${
-                        checked ? 'bg-[var(--owner-select-checked-bg)]' : 'bg-transparent hover:bg-[var(--bg-hover)]'
+                        checked ? 'bg-[var(--badge-category-bg)]' : 'bg-transparent hover:bg-[var(--bg-hover)]'
                       } ${i < users.length - 1 ? 'border-b border-[var(--bg-card-border)]' : ''}`}
                       style={i < users.length - 1 ? { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: 'var(--bg-card-border)' } : undefined}>
-                      <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium ${
-                        u.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-                      }`}>{u.displayName}</span>
+                      <OwnerBadge user={u} />
                       <span className={`flex items-center justify-center rounded-full transition-all duration-150 ${
-                        checked ? 'bg-[#3b82f6] border-2 border-[#3b82f6]' : 'bg-transparent border-2 border-[var(--owner-select-circle-border)]'
+                        checked ? 'bg-[#3b82f6] border-2 border-[#3b82f6]' : 'bg-transparent border-2 border-[var(--text-very-muted)]'
                       }`} style={{ width: 18, height: 18 }}>
                         {checked && (
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -220,14 +209,14 @@ function AccountForm({
           </div>
         )}
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Cancel
         </button>
         <button onClick={() => {
           if (selectedOwnerIds.size === 0) { setError('At least one owner is required'); return; }
           onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds) });
         }}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary">
           Save
         </button>
       </div>
@@ -272,10 +261,7 @@ function CategoryForm({
         {category ? 'Edit Category' : 'Add Category'}
       </h3>
       {error && (
-        <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] rounded-lg p-3 text-[13px] mb-3 flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-2 text-[var(--error-text)] bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none">×</button>
-        </div>
+        <InlineNotification type="error" message={error} dismissible onDismiss={() => setError(null)} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
         <div>
@@ -284,7 +270,7 @@ function CategoryForm({
             {['income', 'expense'].map((t) => (
               <button key={t} onClick={() => setCatType(t)}
                 className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
-                  catType === t ? 'bg-[var(--bg-primary-btn)] text-white' : 'bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)]'
+                  catType === t ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] btn-primary' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] btn-secondary'
                 }`}>
                 {t}
               </button>
@@ -318,11 +304,11 @@ function CategoryForm({
           </div>
         )}
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Cancel
         </button>
         <button onClick={() => onSave({ groupName, subName, type: catType, isDeductible })}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary">
           Save
         </button>
       </div>
@@ -347,6 +333,7 @@ export default function SettingsPage() {
     setAccounts(acctRes.data);
     setCategories(catRes.data);
     setUserList(userRes.data.map((u) => ({ id: u.id, displayName: u.display_name })));
+    initOwnerSlots(userRes.data.map((u) => u.id));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -433,92 +420,95 @@ export default function SettingsPage() {
   };
 
   return (
-    <div>
-      <h1 className="text-[22px] font-bold text-[var(--text-primary)] mb-6">Settings</h1>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+      <h1 className="text-[22px] font-bold text-[var(--text-primary)] mb-6 flex-shrink-0">Settings</h1>
 
       {/* Bank Sync Section */}
-      <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
+      <div className="flex-shrink-0">
+        <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
+      </div>
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
         {/* Accounts */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Accounts</h3>
           <p className="text-[13px] text-[var(--text-secondary)] mb-3">Each account has an owner and classification for filtering and net worth.</p>
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Owner</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Type</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Class</th>
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map((a) => (
-                <tr key={a.id}
-                  onClick={() => setEditingAccount(a)}
-                  className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)]">
-                  <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
-                    {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {(a.owners || []).map((o) => (
-                        <span key={o.id} className={`text-[11px] px-2 py-0.5 rounded-md ${
-                          o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-                        }`}>{o.displayName}</span>
-                      ))}
-                      {a.isShared && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] capitalize">{a.type}</td>
-                  <td className="px-2.5 py-2">
-                    <span className={`text-[11px] px-2 py-0.5 rounded-md capitalize ${
-                      a.classification === 'liquid' ? 'bg-[#d1fae5] text-[#059669]' :
-                      a.classification === 'investment' ? 'bg-[#ede9fe] text-[#7c3aed]' :
-                      'bg-[#fef2f2] text-[#dc2626]'
-                    }`}>{a.classification}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="flex-1 min-h-0">
+            <ScrollableList maxHeight="100%">
+              <table className="w-full border-collapse text-[13px]">
+                <thead>
+                  <tr>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Owner</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Type</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Class</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.map((a) => (
+                    <tr key={a.id}
+                      onClick={() => setEditingAccount(a)}
+                      className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)] transition-colors">
+                      <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
+                        {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {(a.owners || []).map((o) => (
+                            <OwnerBadge key={o.id} user={o} />
+                          ))}
+                          {a.isShared && (
+                            <SharedBadge />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] capitalize">{a.type}</td>
+                      <td className="px-2.5 py-2">
+                        <ClassificationBadge classification={a.classification as AccountClassification} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollableList>
+          </div>
           <button onClick={() => setEditingAccount('new')}
-            className="w-full mt-3 py-2 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5">
+            className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 btn-secondary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Account
           </button>
         </div>
 
         {/* Categories */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Categories</h3>
           <p className="text-[13px] text-[var(--text-secondary)] mb-3">Parent categories group sub-categories for budgets and reports.</p>
-          <div className="max-h-[400px] overflow-y-auto">
-            {allGroups.map((g) => {
-              const color = CATEGORY_COLORS[g.group] || '#94a3b8';
+          <div className="flex-1 min-h-0">
+            <ScrollableList maxHeight="100%">
+              {allGroups.map((g) => {
+              const allGroupNames = allGroups.map((x) => x.group);
+              const color = getCategoryColor(g.group, allGroupNames);
               return (
                 <div key={`${g.type}:${g.group}`} className="mb-2">
                   <div className="flex justify-between items-center py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
-                    <span className="font-bold text-[12px] text-[var(--bg-secondary-btn-text)] flex items-center gap-1.5">
+                    <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-sm" style={{ background: color }} />{g.group}
                     </span>
                     <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
                   </div>
                   {g.subs.map((s) => (
                     <div key={s.id} onClick={() => setEditingCategory(s)}
-                      className="flex justify-between py-1 pl-[18px] text-[12px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--bg-secondary-btn-text)]">
+                      className="flex justify-between py-1 pl-[18px] text-[12px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--btn-secondary-text)]">
                       <span>{s.sub_name}</span>
                     </div>
                   ))}
                 </div>
               );
             })}
+            </ScrollableList>
           </div>
           <button onClick={() => setEditingCategory('new')}
-            className="w-full mt-3 py-2 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5">
+            className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 btn-secondary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Category
           </button>

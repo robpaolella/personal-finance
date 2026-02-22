@@ -12,7 +12,7 @@ export default function KPICard({ label, value, subtitle, trend }: KPICardProps)
     'text-[var(--text-secondary)]';
 
   return (
-    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
       <p className="text-[11px] text-[var(--text-secondary)] uppercase tracking-[0.05em] font-medium m-0">
         {label}
       </p>

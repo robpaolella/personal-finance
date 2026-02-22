@@ -5,6 +5,9 @@ import { fmt, fmtShort } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import Spinner from '../components/Spinner';
+import Tooltip from '../components/Tooltip';
+import ScrollableList from '../components/ScrollableList';
+import { OwnerBadge, SharedBadge } from '../components/badges';
 
 interface Account {
   accountId: number;
@@ -66,7 +69,7 @@ interface AccountHoldings {
 function SectionHeader({ label, total, color, neg }: { label: string; total: number; color: string; neg?: boolean }) {
   return (
     <div className="flex justify-between py-2 pb-1 mt-3.5" style={{ borderBottom: `2px solid ${color}30` }}>
-      <span className="font-bold text-[11px] text-[var(--bg-secondary-btn-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
+      <span className="font-bold text-[11px] text-[var(--btn-secondary-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
         <span className="w-2 h-2 rounded-sm" style={{ background: color }} />{label}
       </span>
       <span className={`font-bold text-[13px] font-mono ${neg ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
@@ -94,12 +97,10 @@ function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?
             {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
           </span>
           {(a.owners || []).map((o) => (
-            <span key={o.id} className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-              o.displayName === 'Robert' ? 'bg-[#dbeafe] text-[#2563eb]' : 'bg-[#fce7f3] text-[#db2777]'
-            }`}>{o.displayName}</span>
+            <OwnerBadge key={o.id} user={o} />
           ))}
           {a.isShared && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-mono-bg)] text-[var(--text-muted)]">Shared</span>
+            <SharedBadge />
           )}
         </div>
         <span className={`font-mono text-[13px] font-semibold ${neg && a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
@@ -116,7 +117,11 @@ function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?
                 <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Shares</th>
                 <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Cost Basis</th>
                 <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">Mkt Value</th>
-                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right" title="Total return since purchase, based on cost basis vs current market value">Total Return</th>
+                <th className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2 py-1 text-right">
+                  <Tooltip content="Total return since purchase, based on cost basis vs current market value">
+                    <span className="cursor-help" style={{ textDecoration: 'underline dotted' }}>Total Return</span>
+                  </Tooltip>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -317,15 +322,15 @@ export default function NetWorthPage() {
   };
 
   return (
-    <div>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-6 flex-shrink-0">
         <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Net Worth</h1>
         <p className="text-[var(--text-secondary)] text-[13px] mt-1">As of {today}</p>
       </div>
 
       {/* Hero Card */}
-      <div className="rounded-xl border border-[var(--bg-card-border)] text-center p-8 mb-6 shadow-[var(--card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)]">
+      <div className="rounded-xl border border-[var(--bg-card-border)] text-center p-8 mb-6 shadow-[var(--bg-card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)] flex-shrink-0">
         <p className="text-[13px] text-[var(--text-muted)] m-0 tracking-[0.05em] uppercase">Total Net Worth</p>
         <p className="text-[40px] font-extrabold font-mono text-white my-2 tracking-[-0.02em]">{fmt(data.netWorth)}</p>
         <div className="flex justify-center gap-6 mt-3 flex-wrap">
@@ -346,10 +351,10 @@ export default function NetWorthPage() {
       </div>
 
       {/* Two-Column Layout */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
         {/* Accounts */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
-          <div className="flex justify-between items-center">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
+          <div className="flex justify-between items-center flex-shrink-0">
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Accounts</h3>
             <button
               onClick={() => {
@@ -361,35 +366,39 @@ export default function NetWorthPage() {
                 setShowBalanceModal(true);
                 if (defaultTab === 'sync') fetchSyncBalances();
               }}
-              className="text-[12px] px-3 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg border-none cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="text-[12px] px-3 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg border-none cursor-pointer font-medium btn-secondary"
             >
               Update Balances
             </button>
           </div>
-          <div className="mt-3">
-            <SectionHeader label="Liquid Assets" total={data.liquidTotal} color="#38bdf8" />
-            {liquid.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
-            <SectionHeader label="Investments & Retirement" total={data.investmentTotal} color="#a78bfa" />
-            {investment.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
-            <SectionHeader label="Liabilities" total={-data.liabilityTotal} color="#f87171" neg />
-            {liability.map((a) => <AccountRow key={a.accountId} a={a} neg holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
+          <div className="flex-1 min-h-0 mt-3">
+            <ScrollableList maxHeight="100%">
+              <SectionHeader label="Liquid Assets" total={data.liquidTotal} color="#38bdf8" />
+              {liquid.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
+              <SectionHeader label="Investments & Retirement" total={data.investmentTotal} color="#a78bfa" />
+              {investment.map((a) => <AccountRow key={a.accountId} a={a} holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
+              <SectionHeader label="Liabilities" total={-data.liabilityTotal} color="#f87171" neg />
+              {liability.map((a) => <AccountRow key={a.accountId} a={a} neg holdings={holdingsMap.get(a.accountId)} expanded={expandedAccounts.has(a.accountId)} onToggle={() => toggleAccount(a.accountId)} />)}
+            </ScrollableList>
           </div>
         </div>
 
         {/* Depreciable Assets */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
-          <div className="flex justify-between items-center">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
+          <div className="flex justify-between items-center flex-shrink-0">
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Depreciable Assets</h3>
             <button
               onClick={startAddAsset}
-              className="flex items-center gap-1 text-[12px] px-3 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--bg-secondary-btn-text)] rounded-lg border-none cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="flex items-center gap-1 text-[12px] px-3 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg border-none cursor-pointer font-medium btn-secondary"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add
             </button>
           </div>
-          <table className="w-full border-collapse mt-3">
-            <thead>
+          <div className="flex-1 min-h-0 mt-3">
+            <ScrollableList maxHeight="100%">
+              <table className="w-full border-collapse">
+                <thead>
               <tr>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Asset</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Cost</th>
@@ -451,7 +460,7 @@ export default function NetWorthPage() {
                       type={f.t}
                       value={assetForm[f.k]}
                       onChange={(e) => setAssetForm({ ...assetForm, [f.k]: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none focus:border-[#3b82f6] text-[var(--text-body)]"
+                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]"
                     />
                   </div>
                 ))}
@@ -463,12 +472,14 @@ export default function NetWorthPage() {
                   </div>
                 )}
                 <button onClick={() => setEditingAssetId(null)}
-                  className="px-3.5 py-1.5 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[12px] font-medium">Cancel</button>
+                  className="px-3.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[12px] font-medium btn-secondary">Cancel</button>
                 <button onClick={saveAsset}
-                  className="px-3.5 py-1.5 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[12px] font-medium">Save</button>
+                  className="px-3.5 py-1.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[12px] font-medium btn-primary">Save</button>
               </div>
             </div>
           )}
+            </ScrollableList>
+          </div>
         </div>
       </div>
 
@@ -480,14 +491,14 @@ export default function NetWorthPage() {
 
             {/* Tab Switcher — only if SimpleFIN connections exist */}
             {hasSimplefinConnections && (
-              <div className="flex bg-[var(--bg-secondary-btn)] rounded-lg p-0.5 mb-4">
+              <div className="flex bg-[var(--btn-secondary-bg)] rounded-lg p-0.5 mb-4">
                 {(['manual', 'sync'] as const).map(tab => (
                   <button key={tab}
                     onClick={() => { setBalanceTab(tab); if (tab === 'sync' && syncBalances.length === 0) fetchSyncBalances(); }}
                     className={`flex-1 text-[12px] font-semibold py-1.5 rounded-md border-none cursor-pointer transition-colors ${
                       balanceTab === tab
                         ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
-                        : 'bg-transparent text-[var(--text-secondary)]'
+                        : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
                     {tab === 'manual' ? 'Manual' : 'Bank Sync'}
@@ -511,16 +522,16 @@ export default function NetWorthPage() {
                         step="0.01"
                         value={balanceInputs[a.accountId] ?? ''}
                         onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
-                        className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none focus:border-[#3b82f6] text-[var(--text-body)] bg-[var(--bg-input)]"
+                        className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                       />
                     </div>
                   ))}
                 </div>
                 <div className="flex gap-2 mt-4 justify-end">
                   <button onClick={() => setShowBalanceModal(false)}
-                    className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
+                    className="px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-secondary">Cancel</button>
                   <button onClick={saveBalances}
-                    className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium">Save All</button>
+                    className="px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-primary">Save All</button>
                 </div>
               </>
             )}
@@ -534,11 +545,11 @@ export default function NetWorthPage() {
                   </div>
                 )}
                 {syncBalanceError && (
-                  <div className="rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] p-3 text-[12px] text-[var(--error-text)] mb-3">
+                  <div className="rounded-lg border border-[var(--bg-inline-error-border)] bg-[var(--bg-inline-error)] p-3 text-[12px] text-[var(--text-inline-error)] mb-3">
                     <p className="m-0 font-semibold mb-1">Failed to fetch balances</p>
                     <p className="m-0 mb-2">{syncBalanceError}</p>
                     <button onClick={fetchSyncBalances}
-                      className="text-[11px] font-semibold text-[var(--error-text)] underline cursor-pointer bg-transparent border-none p-0">Retry</button>
+                      className="text-[11px] font-semibold text-[var(--text-inline-error)] underline cursor-pointer bg-transparent border-none p-0">Retry</button>
                     <p className="m-0 mt-2 text-[11px] text-[var(--text-muted)]">You can still update balances manually using the other tab.</p>
                   </div>
                 )}
@@ -607,10 +618,10 @@ export default function NetWorthPage() {
                     </table>
                     <div className="flex gap-2 justify-end">
                       <button onClick={() => setShowBalanceModal(false)}
-                        className="px-4 py-2 bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium">Cancel</button>
+                        className="px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-secondary">Cancel</button>
                       <button onClick={applySyncBalances}
                         disabled={syncBalanceSelected.size === 0}
-                        className="px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50">
+                        className="px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50 btn-primary">
                         Apply {syncBalanceSelected.size} Update{syncBalanceSelected.size !== 1 ? 's' : ''}
                       </button>
                     </div>

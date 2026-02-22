@@ -8,6 +8,7 @@ import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
 import BankSyncPanel from '../components/BankSyncPanel';
 import SortableHeader from '../components/SortableHeader';
+import InlineNotification from '../components/InlineNotification';
 
 interface Account {
   id: number;
@@ -405,7 +406,7 @@ export default function ImportPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="inline-flex bg-[var(--bg-secondary-btn)] rounded-lg p-0.5 mb-6">
+      <div className="inline-flex bg-[var(--btn-secondary-bg)] rounded-lg p-0.5 mb-6">
         {[
           { id: 'csv' as const, label: 'CSV Import' },
           { id: 'sync' as const, label: 'Bank Sync' },
@@ -414,7 +415,7 @@ export default function ImportPage() {
             className={`px-4 py-1.5 text-[13px] font-semibold rounded-md border-none cursor-pointer transition-all ${
               activeTab === tab.id
                 ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
-                : 'bg-transparent text-[var(--text-secondary)]'
+                : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
             }`}>
             {tab.label}
           </button>
@@ -432,7 +433,7 @@ export default function ImportPage() {
         {STEPS.map((s, i) => (
           <div key={s} className="flex-1 text-center">
             <div className={`h-[3px] rounded-sm mb-1.5 ${i <= step ? 'bg-[#3b82f6]' : 'bg-[var(--table-border)]'}`} />
-            <span className={`text-[11px] ${i === step ? 'text-[var(--badge-blue-text)] font-bold' : i < step ? 'text-[var(--badge-blue-text)]' : 'text-[var(--text-muted)]'}`}>
+            <span className={`text-[11px] ${i === step ? 'text-[var(--badge-category-text)] font-bold' : i < step ? 'text-[var(--badge-category-text)]' : 'text-[var(--text-muted)]'}`}>
               {s}
             </span>
           </div>
@@ -441,14 +442,13 @@ export default function ImportPage() {
 
       {/* Inline notification banner */}
       {notification && (
-        <div className={`rounded-lg p-3 text-[13px] mb-4 flex items-center justify-between border ${
-          notification.type === 'error' ? 'bg-[var(--error-bg)] border-[var(--error-border)] text-[var(--error-text)]' : 'bg-[#f0fdf4] border-[#bbf7d0] text-[#166534]'
-        }`}>
-          <span>{notification.message}</span>
-          <button onClick={() => setNotification(null)} className={`ml-2 bg-transparent border-none cursor-pointer font-bold text-[14px] leading-none ${
-            notification.type === 'error' ? 'text-[var(--error-text)]' : 'text-[#166534]'
-          }`}>×</button>
-        </div>
+        <InlineNotification
+          type={notification.type}
+          message={notification.message}
+          dismissible
+          onDismiss={() => setNotification(null)}
+          className="mb-4"
+        />
       )}
 
       {/* Step 1: Upload */}
@@ -480,20 +480,20 @@ export default function ImportPage() {
 
           {/* Drop zone */}
           <div
-            className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-10 text-center shadow-[var(--card-shadow)]"
+            className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-10 text-center shadow-[var(--bg-card-shadow)]"
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
           >
-            <div className={`border-2 border-dashed rounded-2xl py-12 px-6 ${dragOver ? 'border-[#3b82f6] bg-[var(--info-bg)]' : 'border-[var(--text-muted)] bg-transparent'}`}>
-              <div className={`mb-3 ${dragOver ? 'text-[var(--badge-blue-text)]' : 'text-[var(--text-muted)]'}`}>
+            <div className={`border-2 border-dashed rounded-2xl py-12 px-6 ${dragOver ? 'border-[#3b82f6] bg-[var(--bg-inline-info)]' : 'border-[var(--text-muted)] bg-transparent'}`}>
+              <div className={`mb-3 ${dragOver ? 'text-[var(--badge-category-text)]' : 'text-[var(--text-muted)]'}`}>
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mx-auto">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
               </div>
-              <p className="font-semibold text-[var(--bg-secondary-btn-text)] text-[15px] mb-1">Drop your CSV file here</p>
+              <p className="font-semibold text-[var(--btn-secondary-text)] text-[15px] mb-1">Drop your CSV file here</p>
               <p className="text-[var(--text-muted)] text-[13px]">
-                or <span className="text-[var(--badge-blue-text)] cursor-pointer font-medium" onClick={() => fileInputRef.current?.click()}>browse files</span>
+                or <span className="text-[var(--badge-category-text)] cursor-pointer font-medium" onClick={() => fileInputRef.current?.click()}>browse files</span>
               </p>
               <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -501,7 +501,7 @@ export default function ImportPage() {
               }} />
               <div className="flex gap-2 justify-center mt-4">
                 {['Chase', 'Venmo', 'Generic CSV'].map((t) => (
-                  <span key={t} className="text-[11px] px-2.5 py-0.5 bg-[var(--bg-secondary-btn)] rounded-full text-[var(--text-secondary)]">{t}</span>
+                  <span key={t} className="text-[11px] px-2.5 py-0.5 bg-[var(--btn-secondary-bg)] rounded-full text-[var(--text-secondary)]">{t}</span>
                 ))}
               </div>
             </div>
@@ -511,7 +511,7 @@ export default function ImportPage() {
 
       {/* Step 2: Map Columns */}
       {step === 1 && parseResult && (
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <div className="flex justify-between items-center mb-4">
             <div>
               <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
@@ -521,7 +521,7 @@ export default function ImportPage() {
             </div>
             <button
               onClick={handleAutoCategorize}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--bg-primary-btn)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-primary"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
@@ -581,13 +581,13 @@ export default function ImportPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setSignConvention('bank')}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'bank' ? 'bg-[var(--bg-primary-btn)] text-white border-[var(--bg-primary-btn)]' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'}`}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'bank' ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)] btn-primary' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)] btn-secondary'}`}
               >
                 Positive = money in, Negative = money out
               </button>
               <button
                 onClick={() => setSignConvention('credit')}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'credit' ? 'bg-[var(--bg-primary-btn)] text-white border-[var(--bg-primary-btn)]' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'}`}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'credit' ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)] btn-primary' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)] btn-secondary'}`}
               >
                 Positive = money out, Negative = money in
               </button>
@@ -622,10 +622,10 @@ export default function ImportPage() {
 
       {/* Step 3: Review & Categorize */}
       {step === 2 && (
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-[var(--badge-blue-bg)] rounded-lg text-[11px] text-[var(--badge-blue-text)] font-semibold">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-[var(--badge-category-bg)] rounded-lg text-[11px] text-[var(--badge-category-text)] font-semibold">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
                 </svg>
@@ -636,7 +636,7 @@ export default function ImportPage() {
             <button
               onClick={handleImport}
               disabled={importing || validImportCount === 0}
-              className="px-4 py-2 bg-[#10b981] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-[var(--color-positive)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed btn-success"
             >
               {importing ? 'Importing...' : `Import ${validImportCount} of ${categorizedRows.length} Transactions`}
             </button>
@@ -776,13 +776,13 @@ export default function ImportPage() {
               ))}
             </select>
             <div className="flex justify-end gap-2">
-              <button onClick={handleAccountModalCancel} className="px-4 py-2 text-[13px] font-medium text-[var(--text-body)] bg-[var(--bg-secondary-btn)] rounded-lg border-none cursor-pointer">
+              <button onClick={handleAccountModalCancel} className="px-4 py-2 text-[13px] font-medium text-[var(--text-body)] bg-[var(--btn-secondary-bg)] rounded-lg border-none cursor-pointer btn-secondary">
                 Cancel
               </button>
               <button
                 onClick={handleAccountModalContinue}
                 disabled={!modalAccountId}
-                className="px-4 py-2 text-[13px] font-semibold text-white bg-[var(--bg-primary-btn)] rounded-lg border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-[13px] font-semibold text-[var(--btn-primary-text)] bg-[var(--btn-primary-bg)] rounded-lg border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed btn-primary"
               >
                 Continue
               </button>
