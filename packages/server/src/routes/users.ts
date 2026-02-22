@@ -40,7 +40,12 @@ router.get('/', (req: Request, res: Response): void => {
         permissions,
       };
     });
-    res.json({ users: result });
+    const basicList = allUsers.filter(u => u.is_active === 1).map(u => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name,
+    }));
+    res.json({ users: result, data: basicList });
     return;
   }
 
