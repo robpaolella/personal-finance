@@ -265,3 +265,21 @@ Form Input → Storage → Display:
 **Problem:** The sign conversion logic (which flips signs based on account classification) was being applied to balances, causing assets to show as negative and liabilities as positive
 **Resolution:** Sign conversion must ONLY be applied to transactions. Balances, holdings market values, and cost basis values are passed through as-is from SimpleFIN — they already use the correct real-world convention (positive = asset, negative = liability).
 **Rule going forward:** Never apply the transaction sign conversion function to balance or holdings data. Only transaction amounts get converted.
+
+### Design System as Source of Truth (2026-02-22)
+**Context:** The app's styling grew organically through many prompts, creating inconsistencies in colors, component patterns, and dark mode support
+**Problem:** Hardcoded hex values scattered across components, multiple tooltip implementations, inconsistent notification patterns, badge colors not using CSS variables
+**Resolution:** Created a comprehensive design system guide (`.github/design-system.jsx`) defining every color, component, and pattern. Migrated entire app to CSS custom properties. Unified all tooltips, notifications, badges, and buttons into shared components.
+**Rule going forward:** All visual decisions come from the design system guide. All component colors must use CSS custom properties. No hardcoded hex values in component styles (except semantic colors same in both modes). When adding a new component or pattern, add it to the design guide first, then implement.
+
+### Tooltip Implementation (2026-02-22)
+**Context:** Tooltips were rendering inside flex/table containers, causing layout issues
+**Problem:** Absolutely-positioned tooltips inside constrained parent containers get clipped, overflow, or render incorrectly
+**Resolution:** All tooltips render via React portal to document.body with position: fixed. Position calculated from trigger's getBoundingClientRect(). Viewport-aware with automatic flipping. Always dark style regardless of theme.
+**Rule going forward:** Never render tooltips inside their parent component's DOM tree. Always use the shared Tooltip component which portals to document.body.
+
+### Category Colors Are Dynamic (2026-02-22)
+**Context:** Category colors were hardcoded to specific category names in 4 separate files
+**Problem:** Adding or renaming categories required updating the color mapping in every file. Duplicate CATEGORY_COLORS maps drifted out of sync.
+**Resolution:** Categories are assigned colors dynamically from a 16-color palette (in `lib/categoryColors.ts`) based on their sorted index. Colors wrap with modulo if there are more categories than colors.
+**Rule going forward:** Never hardcode a category name to a color. Always use `getCategoryColor()` from `lib/categoryColors.ts`. The palette is defined once in that file.
