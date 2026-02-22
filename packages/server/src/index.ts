@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { db, sqlite } from './db/index.js';
 import { migrateAccountOwners } from './db/migrate-account-owners.js';
+import { migrateSimplefin } from './db/migrate-simplefin.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -19,6 +20,7 @@ import balanceRoutes from './routes/balances.js';
 import assetRoutes from './routes/assets.js';
 import networthRoutes from './routes/networth.js';
 import importRoutes from './routes/import.js';
+import simplefinRoutes from './routes/simplefin.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -32,6 +34,7 @@ const isProd = process.env.NODE_ENV === 'production';
 
 // Run migrations
 migrateAccountOwners(sqlite);
+migrateSimplefin(sqlite);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
@@ -62,6 +65,7 @@ app.use('/api/balances', balanceRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/networth', networthRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/simplefin', simplefinRoutes);
 
 // Global error handler (must be after all routes)
 app.use(errorHandler);

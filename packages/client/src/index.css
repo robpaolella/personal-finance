@@ -54,6 +54,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --badge-blue-bg: #eff6ff;
   --badge-blue-text: #3b82f6;
 
+  /* Duplicate warning */
+  --dupe-key: rgb(98 67 0);
+  --dupe-value: rgb(98 67 0 / 70%);
+
   /* Nav */
   --nav-active-bg: rgba(59,130,246,0.15);
   --nav-active-text: #93c5fd;
@@ -123,6 +127,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --badge-mono-text: #94a3b8;
   --badge-blue-bg: #1e3a5f;
   --badge-blue-text: #60a5fa;
+
+  /* Duplicate warning */
+  --dupe-key: #fbbf24;
+  --dupe-value: #fde68a;
 
   /* Nav */
   --nav-active-bg: rgba(59,130,246,0.25);

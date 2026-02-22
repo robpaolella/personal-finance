@@ -3,6 +3,7 @@ import { db, sqlite } from '../db/index.js';
 import { transactions, accounts, categories } from '../db/schema.js';
 import { eq, and, gte, lte, like, or, sql, desc, asc, inArray } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
+import { detectDuplicates } from '../services/duplicateDetector.js';
 
 const router = Router();
 
@@ -59,6 +60,8 @@ router.get('/', (req: Request, res: Response) => {
     const sortColumn =
       sortBy === 'amount' ? transactions.amount :
       sortBy === 'description' ? transactions.description :
+      sortBy === 'account' ? accounts.name :
+      sortBy === 'category' ? categories.group_name :
       transactions.date;
     const orderFn = sortOrder === 'asc' ? asc : desc;
 
@@ -359,6 +362,65 @@ router.post('/bulk-delete', (req: Request, res: Response) => {
   } catch (err) {
     console.error('POST /transactions/bulk-delete error:', err);
     res.status(500).json({ error: 'Bulk delete failed' });
+  }
+});
+
+// POST /api/transactions/check-duplicate — check if a transaction looks like a duplicate
+router.post('/check-duplicate', (req: Request, res: Response) => {
+  try {
+    const { date, amount, description } = req.body as {
+      date: string;
+      amount: number;
+      description: string;
+    };
+
+    if (!date || amount === undefined || !description) {
+      res.status(400).json({ error: 'date, amount, and description are required' });
+      return;
+    }
+
+    const results = detectDuplicates([{ date, amount, description }]);
+    const result = results[0];
+
+    if (result.status === 'none') {
+      res.json({ data: { status: 'none' } });
+      return;
+    }
+
+    // Fetch the matched transaction details for comparison
+    let match = null;
+    if (result.matchId) {
+      match = sqlite.prepare(`
+        SELECT t.id, t.date, t.description, t.amount, t.note,
+               a.name as account_name,
+               c.group_name, c.sub_name
+        FROM transactions t
+        LEFT JOIN accounts a ON t.account_id = a.id
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.id = ?
+      `).get(result.matchId) as {
+        id: number; date: string; description: string; amount: number; note: string | null;
+        account_name: string | null; group_name: string | null; sub_name: string | null;
+      } | undefined;
+    }
+
+    res.json({
+      data: {
+        status: result.status,
+        match: match ? {
+          id: match.id,
+          date: match.date,
+          description: match.description,
+          amount: match.amount,
+          notes: match.note,
+          accountName: match.account_name,
+          category: match.group_name && match.sub_name ? `${match.group_name} → ${match.sub_name}` : null,
+        } : null,
+      },
+    });
+  } catch (err) {
+    console.error('POST /transactions/check-duplicate error:', err);
+    res.status(500).json({ error: 'Duplicate check failed' });
   }
 });
 

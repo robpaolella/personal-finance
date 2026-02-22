@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
+import BankSyncSection from '../components/BankSyncSection';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Income': '#10b981',
@@ -434,6 +435,9 @@ export default function SettingsPage() {
   return (
     <div>
       <h1 className="text-[22px] font-bold text-[var(--text-primary)] mb-6">Settings</h1>
+
+      {/* Bank Sync Section */}
+      <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
 
       <div className="grid grid-cols-2 gap-5">
         {/* Accounts */}
