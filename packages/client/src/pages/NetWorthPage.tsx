@@ -222,7 +222,7 @@ export default function NetWorthPage() {
     if (!data) return;
     const selected = syncBalances.filter(b => syncBalanceSelected.has(b.accountId));
     const promises = selected.map(b =>
-      apiFetch('/networth/balance-snapshots', {
+      apiFetch('/balances', {
         method: 'POST',
         body: JSON.stringify({ accountId: b.accountId, balance: b.simplefinBalance, date: b.balanceDate }),
       })
