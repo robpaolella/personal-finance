@@ -4,6 +4,9 @@ import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from './ConfirmDeleteButton';
+import Tooltip from './Tooltip';
+import { ConnectedBadge } from './badges';
+import InlineNotification from './InlineNotification';
 
 interface Connection {
   id: number;
@@ -113,9 +116,7 @@ function NewAccountForm({
     <Modal onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">Create & Link Account</h3>
       {error && (
-        <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] rounded-lg p-3 text-[13px] mb-3">
-          {error}
-        </div>
+        <InlineNotification type="error" message={error} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
         <div>
@@ -157,8 +158,8 @@ function NewAccountForm({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${
                   selectedOwnerIds.has(u.id)
-                    ? 'bg-[var(--bg-primary-btn)] text-white border-[var(--bg-primary-btn)]'
-                    : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'
+                    ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)] btn-primary'
+                    : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)] btn-secondary'
                 }`}>
                 {u.displayName}
               </button>
@@ -168,7 +169,7 @@ function NewAccountForm({
       </div>
       <div className="flex gap-2 mt-5 justify-end">
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Cancel
         </button>
         <button disabled={saving} onClick={async () => {
@@ -182,7 +183,7 @@ function NewAccountForm({
             setSaving(false);
           }
         }}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer disabled:opacity-50">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer disabled:opacity-50 btn-primary">
           {saving ? 'Creating...' : 'Create & Link'}
         </button>
       </div>
@@ -333,9 +334,7 @@ function AccountLinkingTable({
   }
   if (error) {
     return (
-      <div className="py-3 px-4 bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] rounded-lg text-[13px]">
-        {error}
-      </div>
+      <InlineNotification type="error" message={error} />
     );
   }
   if (sfAccounts.length === 0) {
@@ -489,18 +488,18 @@ export default function BankSyncSection({
   const hasConnections = connections.length > 0;
 
   return (
-    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)] mb-5">
+    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] mb-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Bank Sync</h3>
           {hasConnections && (
-            <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#d1fae5] text-[#059669] font-medium">Connected</span>
+            <ConnectedBadge />
           )}
         </div>
         {hasConnections && (
           <button onClick={() => setShowAddModal(true)}
-            className="text-[12px] font-semibold text-[var(--badge-blue-text)] bg-transparent border-none cursor-pointer hover:underline">
+            className="text-[12px] font-semibold text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline">
             + Add Connection
           </button>
         )}
@@ -512,13 +511,13 @@ export default function BankSyncSection({
       {!hasConnections ? (
         <div className="text-center py-6">
           <button onClick={() => setShowAddModal(true)}
-            className="px-5 py-2.5 bg-[var(--bg-primary-btn)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer">
+            className="px-5 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-primary">
             Add Connection
           </button>
           <p className="text-[11px] text-[var(--text-muted)] mt-3">
             Sign up at{' '}
             <a href="https://beta-bridge.simplefin.org" target="_blank" rel="noopener noreferrer"
-              className="text-[var(--badge-blue-text)] hover:underline">beta-bridge.simplefin.org</a>
+              className="text-[var(--badge-category-text)] hover:underline">beta-bridge.simplefin.org</a>
             {' '}· $1.50/month or $15/year
           </p>
         </div>
@@ -617,12 +616,10 @@ function ConnectionRow({
   }, [showDeleteWarning]);
 
   return (
-    <div className="border border-[var(--table-border)] rounded-lg mb-2 overflow-hidden">
+    <div className="border border-[var(--table-border)] rounded-lg mb-2 overflow-hidden transition-all duration-200 hover:border-[var(--card-hover-border)] hover:shadow-[var(--card-hover-shadow)]">
       {/* Delete Warning */}
       {showDeleteWarning && (
-        <div className="px-3 py-2 border-b border-[var(--table-border)] bg-[var(--error-bg)] text-[12px] text-[var(--error-text)]">
-          This will remove all account links for this connection. Previously imported transactions will not be affected.
-        </div>
+        <InlineNotification type="warning" message="This will remove all account links for this connection. Previously imported transactions will not be affected." className="mx-3 my-2" />
       )}
       <div className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[var(--bg-hover)]" onClick={onToggle}>
         {/* Chevron */}
@@ -637,8 +634,8 @@ function ConnectionRow({
             <span className="font-semibold text-[13px] text-[var(--text-primary)]">{connection.label}</span>
             <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-medium ${
               connection.isShared
-                ? 'bg-[var(--badge-mono-bg)] text-[var(--badge-mono-text)]'
-                : 'bg-[var(--badge-blue-bg)] text-[var(--badge-blue-text)]'
+                ? 'bg-[var(--badge-account-bg)] text-[var(--badge-account-text)]'
+                : 'bg-[var(--badge-category-bg)] text-[var(--badge-category-text)]'
             }`}>
               {connection.isShared ? 'Shared' : 'Personal'}
             </span>
@@ -652,14 +649,15 @@ function ConnectionRow({
 
         {/* Actions */}
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <button onClick={onEdit}
-            className="p-1.5 bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-body)] rounded-md hover:bg-[var(--bg-hover)]"
-            title="Edit connection">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
+          <Tooltip content="Edit connection">
+            <button onClick={onEdit}
+              className="p-1.5 bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-body)] rounded-md hover:bg-[var(--bg-hover)]">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          </Tooltip>
           <ConfirmDeleteButton
             onConfirm={onDelete}
             onFirstClick={() => setShowDeleteWarning(true)}
@@ -732,9 +730,7 @@ function ConnectionFormModal({
         {connection ? 'Edit Connection' : 'Add Bank Connection'}
       </h3>
       {error && (
-        <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] rounded-lg p-3 text-[13px] mb-3">
-          {error}
-        </div>
+        <InlineNotification type="error" message={error} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
         <div>
@@ -755,11 +751,12 @@ function ConnectionFormModal({
                 disabled={!!connection}
                 className={`flex-1 py-2 px-3 rounded-lg text-left border cursor-pointer transition-colors ${
                   shared === opt.value
-                    ? 'bg-[var(--bg-primary-btn)] text-white border-[var(--bg-primary-btn)]'
-                    : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)]'
+                    ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)] btn-primary'
+                    : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)] btn-secondary'
                 } ${connection ? 'opacity-60 cursor-not-allowed' : ''}`}>
                 <div className="text-[12px] font-semibold">{opt.label}</div>
-                <div className={`text-[10px] mt-0.5 ${shared === opt.value ? 'text-white/70' : 'text-[var(--text-muted)]'}`}>
+                <div className={`text-[10px] mt-0.5 ${shared === opt.value ? '' : 'text-[var(--text-muted)]'}`}
+                  style={shared === opt.value ? { color: 'var(--btn-primary-text)', opacity: 0.7 } : undefined}>
                   {opt.sub}
                 </div>
               </button>
@@ -773,7 +770,7 @@ function ConnectionFormModal({
               {inputMode === 'token' ? 'Setup Token' : 'Access URL'}
             </label>
             <button type="button" onClick={() => setInputMode(inputMode === 'token' ? 'url' : 'token')}
-              className="text-[11px] text-[var(--badge-blue-text)] bg-transparent border-none cursor-pointer hover:underline">
+              className="text-[11px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline">
               {inputMode === 'token' ? 'I have an Access URL instead' : 'I have a Setup Token'}
             </button>
           </div>
@@ -789,11 +786,11 @@ function ConnectionFormModal({
 
       <div className="flex gap-2 mt-5 justify-end">
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-secondary-btn)] text-[var(--text-secondary)] border-none cursor-pointer">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
           Cancel
         </button>
         <button onClick={handleSubmit} disabled={saving}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--bg-primary-btn)] text-white border-none cursor-pointer disabled:opacity-50">
+          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer disabled:opacity-50 btn-primary">
           {saving ? 'Connecting...' : connection ? 'Save' : 'Connect'}
         </button>
       </div>

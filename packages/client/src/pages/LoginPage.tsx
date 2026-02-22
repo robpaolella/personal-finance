@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import InlineNotification from '../components/InlineNotification';
 
 export default function LoginPage() {
   const { login, user } = useAuth();
@@ -51,9 +52,7 @@ export default function LoginPage() {
           <p className="text-sm text-[var(--text-secondary)] mb-6">Enter your credentials to continue</p>
 
           {error && (
-            <div className="bg-[var(--error-bg)] border border-[var(--error-border)] text-[var(--error-text)] text-sm rounded-lg px-4 py-2.5 mb-4">
-              {error}
-            </div>
+            <InlineNotification type="error" message={error} className="mb-4" />
           )}
 
           <div className="mb-4">
@@ -64,7 +63,7 @@ export default function LoginPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]"
+              className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none"
               placeholder="Enter username"
               required
               autoFocus
@@ -79,7 +78,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]"
+              className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none"
               placeholder="Enter password"
               required
             />
@@ -88,7 +87,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-[var(--bg-primary-btn)] text-[var(--bg-primary-btn-text)] rounded-lg text-sm font-semibold hover:opacity-90 transition-colors disabled:opacity-60"
+            className="w-full py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-sm font-semibold btn-primary transition-colors disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">

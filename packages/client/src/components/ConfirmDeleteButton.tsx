@@ -34,7 +34,7 @@ export default function ConfirmDeleteButton({
       <button
         onClick={handleClick}
         className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer ${
-          confirming ? 'bg-[#ef4444] text-white' : 'bg-[var(--error-bg)] text-[#ef4444]'
+          confirming ? 'bg-[var(--btn-destructive-bg)] text-[var(--btn-destructive-text)] btn-destructive' : 'bg-[var(--btn-destructive-light-bg)] text-[var(--btn-destructive-light-text)] btn-destructive-light'
         }`}
       >
         {confirming ? confirmLabel : label}

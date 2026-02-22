@@ -4,13 +4,9 @@ import { fmt, fmtWhole } from '../lib/formatters';
 import KPICard from '../components/KPICard';
 import OwnerFilter from '../components/OwnerFilter';
 import Spinner from '../components/Spinner';
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Auto/Transportation': '#ef4444', 'Clothing': '#ec4899', 'Daily Living': '#10b981',
-  'Discretionary': '#a855f7', 'Dues/Subscriptions': '#6366f1', 'Entertainment': '#8b5cf6',
-  'Household': '#3b82f6', 'Insurance': '#f59e0b', 'Health': '#14b8a6',
-  'Utilities': '#f97316', 'Savings': '#06b6d4',
-};
+import InlineNotification from '../components/InlineNotification';
+import { getCategoryColor } from '../lib/categoryColors';
+import ScrollableList from '../components/ScrollableList';
 
 interface IncomeRow {
   categoryId: number;
@@ -126,9 +122,9 @@ export default function BudgetPage() {
   const expRemaining = totals.budgetedExpenses - totals.actualExpenses;
 
   return (
-    <div>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 flex-shrink-0">
         <div>
           <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Monthly Budget</h1>
           <p className="text-[var(--text-secondary)] text-[13px] mt-1">{monthLabel(month)}</p>
@@ -138,7 +134,7 @@ export default function BudgetPage() {
           <div className="flex gap-2 items-center">
             <button
               onClick={() => setMonth(prevMonth(month))}
-              className="text-[12px] text-[var(--bg-secondary-btn-text)] bg-[var(--bg-secondary-btn)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium btn-secondary"
             >
               ← {shortMonth(prevMonth(month))}
             </button>
@@ -147,7 +143,7 @@ export default function BudgetPage() {
             </span>
             <button
               onClick={() => setMonth(nextMonth(month))}
-              className="text-[12px] text-[var(--bg-secondary-btn-text)] bg-[var(--bg-secondary-btn)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium hover:bg-[var(--bg-hover)]"
+              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium btn-secondary"
             >
               {shortMonth(nextMonth(month))} →
             </button>
@@ -157,16 +153,11 @@ export default function BudgetPage() {
 
       {/* Owner Info Bar */}
       {owner !== 'All' && (
-        <div className="bg-[var(--badge-blue-bg)] border border-[#bfdbfe] rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-          </svg>
-          <span className="text-[13px] text-[#1e40af]">Showing data from <strong>{owner}'s</strong> accounts (including shared accounts)</span>
-        </div>
+        <InlineNotification type="info" message={`Showing data from ${owner}'s accounts (including shared accounts)`} className="mb-4" />
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6 flex-shrink-0">
         <KPICard label="Budgeted Income" value={fmtWhole(totals.budgetedIncome)} />
         <KPICard
           label="Actual Income"
@@ -186,19 +177,21 @@ export default function BudgetPage() {
       </div>
 
       {/* Two Column: Income + Expenses */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
         {/* Income */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
-          <table className="w-full border-collapse mt-2">
-            <thead>
-              <tr>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Budget</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Actual</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Diff</th>
-              </tr>
-            </thead>
+          <div className="flex-1 min-h-0 mt-2">
+            <ScrollableList maxHeight="100%">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Budget</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Actual</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Diff</th>
+                  </tr>
+                </thead>
             <tbody>
               {income.map((r) => {
                 const diff = r.actual - r.budgeted;
@@ -250,21 +243,25 @@ export default function BudgetPage() {
               </tr>
             </tbody>
           </table>
+            </ScrollableList>
+          </div>
         </div>
 
         {/* Expenses */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--card-shadow)]">
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[#f97316] m-0">Expenses</h3>
-          <div className="max-h-[460px] overflow-y-auto overflow-x-hidden hide-scrollbar mt-2">
+          <div className="flex-1 min-h-0 mt-2">
+            <ScrollableList maxHeight="100%">
             {expenseGroups.map((g) => {
               const gBudgeted = g.subs.reduce((s, sub) => s + sub.budgeted, 0);
               const gActual = g.subs.reduce((s, sub) => s + sub.actual, 0);
-              const color = CATEGORY_COLORS[g.groupName] || '#94a3b8';
+              const allGroups = expenseGroups.map((x) => x.groupName);
+              const color = getCategoryColor(g.groupName, allGroups);
               return (
                 <div key={g.groupName} className="mb-3.5">
                   {/* Group Header */}
                   <div className="flex justify-between py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
-                    <span className="font-bold text-[12px] text-[var(--bg-secondary-btn-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
+                    <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
                       {g.groupName}
                     </span>
@@ -315,6 +312,7 @@ export default function BudgetPage() {
                 </div>
               );
             })}
+            </ScrollableList>
           </div>
         </div>
       </div>

@@ -29,25 +29,31 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setTimeout(() => removeToast(id), type === 'error' ? 5000 : 3000);
   }, [removeToast]);
 
+  const accentColor = (type: Toast['type']) =>
+    type === 'success' ? 'var(--color-positive)' : type === 'error' ? 'var(--color-negative)' : 'var(--color-accent)';
+
+  const icon = (type: Toast['type']) =>
+    type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ';
+
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
       {children}
-      <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-2 max-w-[380px]">
+      <div className="fixed top-5 right-5 z-[9999] flex flex-col-reverse gap-2 max-w-[380px]">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium animate-[slideIn_0.2s_ease-out] ${
-              t.type === 'success'
-                ? 'bg-[#059669] text-white'
-                : t.type === 'error'
-                ? 'bg-[#dc2626] text-white'
-                : 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--bg-card-border)]'
-            }`}
+            className="flex items-center gap-2 rounded-lg text-[13px] font-medium animate-[slideIn_0.2s_ease-out] bg-[var(--bg-card)] border border-[var(--bg-card-border)]"
+            style={{
+              padding: '10px 14px',
+              borderLeft: `3px solid ${accentColor(t.type)}`,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            }}
           >
-            <span className="flex-1">{t.message}</span>
+            <span className="font-bold text-[14px]" style={{ color: accentColor(t.type) }}>{icon(t.type)}</span>
+            <span className="flex-1 text-[var(--text-primary)]">{t.message}</span>
             <button
               onClick={() => removeToast(t.id)}
-              className="bg-transparent border-none text-current cursor-pointer opacity-70 hover:opacity-100 text-[16px] p-0 leading-none"
+              className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-secondary)] text-[16px] p-0 leading-none"
             >×</button>
           </div>
         ))}
