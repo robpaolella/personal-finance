@@ -446,7 +446,7 @@ export default function SettingsPage() {
                   {accounts.map((a) => (
                     <tr key={a.id}
                       onClick={() => setEditingAccount(a)}
-                      className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)]">
+                      className="border-b border-[var(--table-row-border)] cursor-pointer hover:bg-[var(--bg-hover)] transition-colors">
                       <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
                         {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
                       </td>
