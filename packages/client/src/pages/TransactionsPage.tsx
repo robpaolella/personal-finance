@@ -373,8 +373,8 @@ function TransactionForm({
           className={`px-4 py-2 text-[12px] font-semibold rounded-lg border-none ${
             isValid
               ? duplicateMatch
-                ? 'bg-[#f59e0b] text-white cursor-pointer'
-                : 'bg-[var(--btn-primary-bg)] text-white cursor-pointer'
+                ? 'bg-[var(--color-warning)] text-white cursor-pointer'
+                : 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] cursor-pointer'
               : 'bg-[var(--text-muted)] text-white cursor-not-allowed'
           }`}>
           {duplicateMatch ? 'Save Anyway' : 'Save'}
@@ -751,7 +751,7 @@ export default function TransactionsPage() {
             {/* Delete */}
             <button onClick={() => applyBulkAction('delete')} disabled={selectedIds.size === 0}
               className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border-none cursor-pointer disabled:opacity-40 ${
-                bulkConfirmDelete ? 'bg-[#ef4444] text-white' : 'bg-[var(--bg-inline-error)] text-[#ef4444]'
+                bulkConfirmDelete ? 'bg-[var(--btn-destructive-bg)] text-[var(--btn-destructive-text)]' : 'bg-[var(--btn-destructive-light-bg)] text-[var(--btn-destructive-light-text)]'
               }`}>
               {bulkConfirmDelete ? 'Confirm Delete?' : 'Delete Selected'}
             </button>
