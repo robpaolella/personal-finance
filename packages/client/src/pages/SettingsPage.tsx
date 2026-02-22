@@ -834,10 +834,10 @@ function UsersPermissionsSection() {
                     transitionTimingFunction: 'ease',
                   }}
                 >
-                  <div className="grid grid-cols-3 gap-4 mt-2">
-                    {PERMISSION_GROUPS.map((group) => (
-                      <div key={group.label}>
-                        <div className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-1.5">{group.label}</div>
+                  <div className="grid grid-cols-3 mt-2" style={{ gap: 0 }}>
+                    {PERMISSION_GROUPS.map((group, gi) => (
+                      <div key={group.label} className={`${gi < 2 ? 'border-r border-[var(--bg-card-border)]' : ''} ${gi === 0 ? 'pr-4' : gi === 1 ? 'px-4' : 'pl-4'}`}>
+                        <div className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] pb-2 mb-2 border-b border-[var(--bg-card-border)]">{group.label}</div>
                         {group.permissions.map((p) => {
                           const granted = mu.permissions![p.key] ?? false;
                           return (
