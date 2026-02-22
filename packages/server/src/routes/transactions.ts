@@ -3,6 +3,7 @@ import { db, sqlite } from '../db/index.js';
 import { transactions, accounts, categories } from '../db/schema.js';
 import { eq, and, gte, lte, like, or, sql, desc, asc, inArray } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
+import { requirePermission } from '../middleware/permissions.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
 
 const router = Router();
@@ -220,7 +221,7 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 // POST /api/transactions — create
-router.post('/', (req: Request, res: Response) => {
+router.post('/', requirePermission('transactions.create'), (req: Request, res: Response) => {
   try {
     const { accountId, date, description, note, categoryId, amount } = sanitize(req.body);
     if (!accountId || !date || !description || !categoryId || amount === undefined) {
@@ -244,7 +245,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // PUT /api/transactions/:id — update
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const { accountId, date, description, note, categoryId, amount } = sanitize(req.body);
@@ -274,7 +275,7 @@ router.put('/:id', (req: Request, res: Response) => {
 });
 
 // DELETE /api/transactions/:id — delete
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', requirePermission('transactions.delete'), (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const existing = db.select().from(transactions).where(eq(transactions.id, id)).all();
@@ -291,7 +292,7 @@ router.delete('/:id', (req: Request, res: Response) => {
 });
 
 // POST /api/transactions/bulk-update
-router.post('/bulk-update', (req: Request, res: Response) => {
+router.post('/bulk-update', requirePermission('transactions.bulk_edit'), (req: Request, res: Response) => {
   try {
     const { ids, updates } = req.body as {
       ids: number[];
@@ -345,7 +346,7 @@ router.post('/bulk-update', (req: Request, res: Response) => {
 });
 
 // POST /api/transactions/bulk-delete
-router.post('/bulk-delete', (req: Request, res: Response) => {
+router.post('/bulk-delete', requirePermission('transactions.bulk_edit'), (req: Request, res: Response) => {
   try {
     const { ids } = req.body as { ids: number[] };
 
