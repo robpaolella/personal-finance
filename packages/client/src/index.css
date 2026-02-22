@@ -11,6 +11,11 @@
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Dark mode date input calendar icon */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.35) sepia(0.1) saturate(1) hue-rotate(180deg);
+}
+
 :root {
   /* Backgrounds */
   --bg-main: #f4f6f9;
