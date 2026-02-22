@@ -28,6 +28,8 @@ interface Asset {
   cost: number;
   lifespanYears: number;
   salvageValue: number;
+  depreciationMethod: 'straight_line' | 'declining_balance';
+  decliningRate: number | null;
   currentValue: number;
 }
 
@@ -47,9 +49,11 @@ interface AssetForm {
   cost: string;
   lifespanYears: string;
   salvageValue: string;
+  depreciationMethod: 'straight_line' | 'declining_balance';
+  decliningRate: string;
 }
 
-const emptyAssetForm: AssetForm = { name: '', purchaseDate: '', cost: '', lifespanYears: '', salvageValue: '' };
+const emptyAssetForm: AssetForm = { name: '', purchaseDate: '', cost: '', lifespanYears: '', salvageValue: '', depreciationMethod: 'straight_line', decliningRate: '' };
 
 interface Holding {
   symbol: string;
@@ -234,6 +238,8 @@ export default function NetWorthPage() {
       cost: String(asset.cost),
       lifespanYears: String(asset.lifespanYears),
       salvageValue: String(asset.salvageValue),
+      depreciationMethod: asset.depreciationMethod || 'straight_line',
+      decliningRate: asset.decliningRate != null ? String(asset.decliningRate) : '',
     });
   };
 
@@ -243,12 +249,14 @@ export default function NetWorthPage() {
   };
 
   const saveAsset = async () => {
-    const body = {
+    const body: Record<string, unknown> = {
       name: assetForm.name,
       purchaseDate: assetForm.purchaseDate,
       cost: parseFloat(assetForm.cost),
-      lifespanYears: parseFloat(assetForm.lifespanYears),
+      lifespanYears: assetForm.lifespanYears ? parseFloat(assetForm.lifespanYears) : 0,
       salvageValue: parseFloat(assetForm.salvageValue),
+      depreciationMethod: assetForm.depreciationMethod,
+      decliningRate: assetForm.depreciationMethod === 'declining_balance' ? parseFloat(assetForm.decliningRate) : null,
     };
 
     try {
@@ -309,6 +317,21 @@ export default function NetWorthPage() {
   const liability = data.accounts.filter((a) => a.classification === 'liability');
   const assetTotalCost = data.assets.reduce((s, a) => s + a.cost, 0);
   const assetTotalCurrent = data.assets.reduce((s, a) => s + a.currentValue, 0);
+
+  const getDepreciationTooltip = (a: Asset): string => {
+    const purchased = new Date(a.purchaseDate);
+    const yearsOwned = (Date.now() - purchased.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+    const yrsStr = yearsOwned.toFixed(1);
+    if (a.depreciationMethod === 'declining_balance' && a.decliningRate != null) {
+      const raw = a.cost * Math.pow(1 - a.decliningRate / 100, yearsOwned);
+      const floored = raw < a.salvageValue;
+      return `Declining Balance (${a.decliningRate}%/yr)\n${fmt(a.cost)} × (1 − ${(a.decliningRate / 100).toFixed(2)})^${yrsStr} = ${fmt(raw)}${floored ? `\nFloor: ${fmt(a.salvageValue)} (salvage)` : ''}\nCurrent: ${fmt(a.currentValue)}`;
+    }
+    const depreciable = a.cost - a.salvageValue;
+    const annual = depreciable / a.lifespanYears;
+    const totalDep = annual * Math.min(yearsOwned, a.lifespanYears);
+    return `Straight Line Depreciation\nCost: ${fmt(a.cost)} − Salvage: ${fmt(a.salvageValue)} = ${fmt(depreciable)} depreciable\n${fmt(depreciable)} ÷ ${a.lifespanYears} years = ${fmt(annual)}/year\n${yrsStr} years owned → ${fmt(a.cost)} − ${fmt(totalDep)} = ${fmt(a.currentValue)}`;
+  };
 
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -403,6 +426,7 @@ export default function NetWorthPage() {
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Asset</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Cost</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Life</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-center">Method</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Current</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] w-9"></th>
               </tr>
@@ -415,8 +439,17 @@ export default function NetWorthPage() {
                     <div className="text-[10px] text-[var(--text-muted)] font-mono">{a.purchaseDate}</div>
                   </td>
                   <td className="px-2.5 py-2 text-right font-mono text-[12px] text-[var(--text-muted)]">{fmt(a.cost)}</td>
-                  <td className="px-2.5 py-2 text-right font-mono text-[12px] text-[var(--text-muted)]">{a.lifespanYears}yr</td>
-                  <td className="px-2.5 py-2 text-right font-mono text-[12px] font-semibold text-[var(--text-primary)]">{fmt(a.currentValue)}</td>
+                  <td className="px-2.5 py-2 text-right font-mono text-[12px] text-[var(--text-muted)]">{a.lifespanYears > 0 ? `${a.lifespanYears}yr` : '—'}</td>
+                  <td className="px-2.5 py-2 text-center">
+                    <span className="inline-block text-[11px] font-mono px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)]">
+                      {a.depreciationMethod === 'declining_balance' ? `DB ${a.decliningRate}%` : 'SL'}
+                    </span>
+                  </td>
+                  <td className="px-2.5 py-2 text-right font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                    <Tooltip content={getDepreciationTooltip(a)}>
+                      <span className="cursor-help border-b border-dotted border-[var(--text-muted)]">{fmt(a.currentValue)}</span>
+                    </Tooltip>
+                  </td>
                   <td className="px-2.5 py-2 text-center">
                     <button
                       onClick={() => startEditAsset(a)}
@@ -434,6 +467,7 @@ export default function NetWorthPage() {
                 <td className="px-2.5 py-2 text-[13px] font-bold text-[var(--text-primary)]">Total</td>
                 <td className="px-2.5 py-2 text-right font-mono font-bold text-[var(--text-primary)]">{fmt(assetTotalCost)}</td>
                 <td></td>
+                <td></td>
                 <td className="px-2.5 py-2 text-right font-mono font-bold text-[var(--text-primary)]">{fmt(assetTotalCurrent)}</td>
                 <td></td>
               </tr>
@@ -447,23 +481,82 @@ export default function NetWorthPage() {
                 {editingAssetId === 'new' ? 'Add Asset' : `Edit: ${assetForm.name}`}
               </p>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { l: 'Asset Name', k: 'name' as const, t: 'text' },
-                  { l: 'Purchase Date', k: 'purchaseDate' as const, t: 'date' },
-                  { l: 'Original Cost ($)', k: 'cost' as const, t: 'number' },
-                  { l: 'Lifespan (years)', k: 'lifespanYears' as const, t: 'number' },
-                  { l: 'Salvage Value ($)', k: 'salvageValue' as const, t: 'number' },
-                ].map((f) => (
-                  <div key={f.l}>
-                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">{f.l}</label>
+                {/* Name */}
+                <div>
+                  <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Asset Name</label>
+                  <input type="text" value={assetForm.name} onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
+                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                </div>
+                {/* Purchase Date */}
+                <div>
+                  <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Purchase Date</label>
+                  <input type="date" value={assetForm.purchaseDate} onChange={(e) => setAssetForm({ ...assetForm, purchaseDate: e.target.value })}
+                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                </div>
+                {/* Original Cost */}
+                <div>
+                  <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
+                  <input type="number" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
+                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                </div>
+                {/* Lifespan */}
+                <div>
+                  <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
+                  <input type="number" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                </div>
+                {/* Depreciation Method */}
+                <div>
+                  <label className="text-[11px] text-[var(--text-secondary)] font-medium flex items-center gap-1 mb-0.5">
+                    Depreciation Method
+                    <Tooltip content={"Straight Line: Equal amount each year. Best for furniture, home improvements, and items that wear evenly over time.\n\nDeclining Balance: Loses more value early, less later. Best for electronics, vehicles, and appliances that depreciate fastest when new."}>
+                      <span className="cursor-help text-[var(--text-muted)]">ⓘ</span>
+                    </Tooltip>
+                  </label>
+                  <select
+                    value={assetForm.depreciationMethod}
+                    onChange={(e) => setAssetForm({ ...assetForm, depreciationMethod: e.target.value as 'straight_line' | 'declining_balance' })}
+                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]"
+                  >
+                    <option value="straight_line">Straight Line</option>
+                    <option value="declining_balance">Declining Balance</option>
+                  </select>
+                </div>
+                {/* Annual Rate % (declining balance only) */}
+                {assetForm.depreciationMethod === 'declining_balance' && (
+                  <div>
+                    <label className="text-[11px] text-[var(--text-secondary)] font-medium flex items-center gap-1 mb-0.5">
+                      Annual Rate %
+                      <Tooltip content={"Common annual rates by asset type:\n• Furniture, home goods: 20%\n• Kitchen appliances, tools: 25%\n• Electronics, computers: 30%\n• Vehicles, phones: 40%\n\nHigher rates = faster early depreciation.\nUse for assets that lose the most value when new."}>
+                        <span className="cursor-help text-[var(--text-muted)]">ⓘ</span>
+                      </Tooltip>
+                    </label>
                     <input
-                      type={f.t}
-                      value={assetForm[f.k]}
-                      onChange={(e) => setAssetForm({ ...assetForm, [f.k]: e.target.value })}
+                      type="number" min="1" max="99" placeholder="e.g., 30"
+                      value={assetForm.decliningRate}
+                      onChange={(e) => setAssetForm({ ...assetForm, decliningRate: e.target.value })}
                       className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]"
                     />
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className="text-[10px] text-[var(--text-muted)]">Common:</span>
+                      {[20, 25, 30, 40].map((r) => (
+                        <button key={r} onClick={() => setAssetForm({ ...assetForm, decliningRate: String(r) })}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer font-medium ${
+                            assetForm.decliningRate === String(r)
+                              ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-transparent'
+                              : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-[var(--table-border)] hover:bg-[var(--bg-hover)]'
+                          }`}
+                        >{r}%</button>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
+                {/* Salvage Value */}
+                <div>
+                  <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
+                  <input type="number" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
+                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                </div>
               </div>
               <div className="flex gap-2 mt-3 justify-end">
                 {editingAssetId !== 'new' && (

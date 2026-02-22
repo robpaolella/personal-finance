@@ -2,16 +2,9 @@ import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
 import { balanceSnapshots, accounts, assets } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
+import { calculateCurrentValue } from '../utils/depreciation.js';
 
 const router = Router();
-
-function calculateCurrentValue(cost: number, salvageValue: number, lifespanYears: number, purchaseDate: string): number {
-  const now = new Date();
-  const purchased = new Date(purchaseDate);
-  const yearsOwned = (now.getTime() - purchased.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-  const annualDepreciation = (cost - salvageValue) / lifespanYears;
-  return Math.max(salvageValue, cost - (annualDepreciation * Math.min(yearsOwned, lifespanYears)));
-}
 
 // GET /api/networth/summary
 router.get('/summary', (_req: Request, res: Response) => {
@@ -85,7 +78,13 @@ router.get('/summary', (_req: Request, res: Response) => {
       cost: a.cost,
       lifespanYears: a.lifespan_years,
       salvageValue: a.salvage_value,
-      currentValue: calculateCurrentValue(a.cost, a.salvage_value, a.lifespan_years, a.purchase_date),
+      depreciationMethod: a.depreciation_method,
+      decliningRate: a.declining_rate,
+      currentValue: calculateCurrentValue({
+        cost: a.cost, salvageValue: a.salvage_value, lifespanYears: a.lifespan_years,
+        purchaseDate: a.purchase_date, depreciationMethod: a.depreciation_method as 'straight_line' | 'declining_balance',
+        decliningRate: a.declining_rate,
+      }),
     }));
 
     const physicalAssetTotal = assetList.reduce((s, a) => s + a.currentValue, 0);
