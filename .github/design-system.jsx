@@ -35,7 +35,7 @@ const LIGHT = {
   orange: "#f97316",
   btnPrimaryBg: "#0f172a",
   btnPrimaryText: "#ffffff",
-  btnSecondaryBg: "#f1f5f9",
+  btnSecondaryBg: "#dce6f1",
   btnSecondaryText: "#334155",
   btnDestructiveBg: "#ef4444",
   btnDestructiveText: "#ffffff",
