@@ -28,7 +28,7 @@ export default function OwnerFilter({ value, onChange, users }: OwnerFilterProps
         className={`flex items-center gap-[5px] px-3.5 py-1.5 text-xs rounded-md border-none cursor-pointer transition-all ${
           value === 'All'
             ? 'bg-[var(--toggle-active-bg)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
-            : 'bg-transparent text-[var(--text-secondary)]'
+            : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
         }`}
       >
         <UsersIcon />
@@ -41,7 +41,7 @@ export default function OwnerFilter({ value, onChange, users }: OwnerFilterProps
           className={`flex items-center gap-[5px] px-3.5 py-1.5 text-xs rounded-md border-none cursor-pointer transition-all ${
             value === u.displayName
               ? 'bg-[var(--toggle-active-bg)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
-              : 'bg-transparent text-[var(--text-secondary)]'
+              : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
           }`}
         >
           <UserIcon />
