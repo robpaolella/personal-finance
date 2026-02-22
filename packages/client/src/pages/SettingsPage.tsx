@@ -992,13 +992,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
-      <div className="flex items-center justify-between mb-5 flex-shrink-0">
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between">
         <h1 className="text-[22px] font-bold text-[var(--text-primary)]">Settings</h1>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex bg-[var(--bg-hover)] rounded-lg p-0.5 mb-5 w-fit flex-shrink-0">
+      <div className="flex bg-[var(--bg-hover)] rounded-lg p-0.5 w-fit">
         {[{ id: 'settings', label: 'Settings' }, { id: 'preferences', label: 'Preferences' }].map((tab) => (
           <button key={tab.id} onClick={() => switchTab(tab.id)}
             className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${
@@ -1016,13 +1016,13 @@ export default function SettingsPage() {
       ) : (
         <>
           {/* Bank Sync Section */}
-          <div className="flex-shrink-0">
+          <div>
             <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
           </div>
 
-          <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
+          <div className="grid grid-cols-2 gap-5">
             {/* Accounts */}
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-[420px]">
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]">
               <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Accounts</h3>
               <p className="text-[13px] text-[var(--text-secondary)] mb-3">Each account has an owner and classification for filtering and net worth.</p>
               <div className="flex-1 min-h-0">
@@ -1072,7 +1072,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Categories */}
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-[420px]">
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]">
               <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Categories</h3>
               <p className="text-[13px] text-[var(--text-secondary)] mb-3">Parent categories group sub-categories for budgets and reports.</p>
               <div className="flex-1 min-h-0">
@@ -1111,7 +1111,7 @@ export default function SettingsPage() {
 
           {/* Users & Permissions — Admin only */}
           {isAdmin() && (
-            <div className="mt-5">
+            <div>
               <UsersPermissionsSection />
             </div>
           )}
