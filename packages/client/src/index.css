@@ -300,6 +300,20 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
     width: 22px;
     height: 22px;
   }
+
+  /* Page title sizing */
+  .page-title { font-size: 17px !important; }
+  .page-subtitle { font-size: 12px !important; }
+
+  /* Touch targets */
+  .touch-row { min-height: 44px; }
+
+  /* Hide scrollbars on mobile */
+  .mobile-main-content::-webkit-scrollbar { display: none; }
+  .mobile-main-content { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* KPI grid: 4 → 2 columns */
+  .kpi-grid { grid-template-columns: 1fr 1fr !important; }
 }
 @media (min-width: 768px) {
   .mobile-only { display: none !important; }
