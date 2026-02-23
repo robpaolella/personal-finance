@@ -332,6 +332,18 @@ Form Input → Storage → Display:
 **Resolution:** Added "owner" role for the account creator. Owner can manage everyone including admins. Admins can only manage members. There is always exactly one owner. First-run setup creates owner. Migration promotes first admin to owner for existing installs.
 **Rule going forward:** Always check both the requesting user's role AND the target user's role when processing user management actions. Owner > Admin > Member. Never allow lateral or upward management (admin cannot edit admin, member cannot edit anyone). The owner role cannot be assigned through the UI — it is set only during first-run setup or migration.
 
+### Permanent User Deletion (2026-02-23)
+**Context:** Need to permanently remove users while preserving all financial data
+**Problem:** Users own accounts via the account_owners junction table. Simply deleting the user row would leave orphaned ownership records.
+**Resolution:** Two-step deletion flow: Step 1 previews all data dependencies (GET /users/:id/delete-preview) and requires reassignment of sole-owned accounts. Step 2 requires typing the username to confirm. The actual deletion (DELETE /users/:id/permanent) handles all dependencies in a single database transaction: reassign sole-owned accounts, remove co-ownership entries, delete permissions, delete personal SimpleFIN connections, then delete the user row.
+**Rule going forward:** Never delete a user without first calling the delete-preview endpoint to check for dependencies. All data cleanup must happen in a single transaction — if any step fails, roll back everything. Require username confirmation for all permanent deletions.
+
+### Deactivate vs Delete (2026-02-23)
+**Context:** Two ways to remove a user's access
+**Problem:** Need clear distinction between temporary removal (might come back) and permanent removal (gone forever)
+**Resolution:** Deactivate (soft delete) sets is_active = false — user can't log in but their row persists and they can be reactivated. Permanently delete removes the user row entirely — irreversible, all data dependencies must be handled first. Both options are available on user cards with different button styles and different confirmation flows.
+**Rule going forward:** Default to deactivation when the intent is ambiguous. Only offer permanent deletion with the full two-step confirmation flow. Never permanently delete without the username-typing confirmation step.
+
 ## Development Workflow
 
 ### Environments
