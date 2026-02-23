@@ -215,20 +215,116 @@ export default function BudgetPage() {
         />
       </div>
 
-      {/* Two Column: Income + Expenses */}
-      <div className={`grid gap-5 ${isMobile ? 'grid-cols-1' : 'grid-cols-2 flex-1 min-h-[300px]'}`}>
+      {/* Income + Expenses */}
+      {isMobile ? (
+        /* Mobile: Card-based layout */
+        <div className="flex flex-col gap-3">
+          {/* Income Card */}
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
+            <div className="text-[13px] font-bold text-[var(--text-primary)] mb-2.5">Income</div>
+            {income.map((r, i) => {
+              const isEditing = editingCell?.categoryId === r.categoryId;
+              return (
+                <div key={r.categoryId} className="flex justify-between items-center py-1.5"
+                  style={{ borderBottom: i < income.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                  <span className="text-[12px] text-[var(--text-body)]">{r.subName}</span>
+                  <div className="flex gap-4">
+                    <span className="w-[50px] text-right text-[12px] font-mono text-[var(--text-muted)]">
+                      {isEditing ? (
+                        <input type="number" min="0" step="1" autoFocus
+                          className="w-full text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                          value={editingCell.value}
+                          onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
+                          onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
+                          onBlur={() => handleBudgetBlur(r.categoryId)}
+                        />
+                      ) : (
+                        <span
+                          onClick={() => canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
+                          className={canEditBudgets ? 'cursor-pointer' : ''}>
+                          {r.budgeted > 0 ? fmt(r.budgeted) : '—'}
+                        </span>
+                      )}
+                    </span>
+                    <span className="w-[50px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)]">
+                      {r.actual > 0 ? fmt(r.actual) : '—'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Expense Group Cards */}
+          {expenseGroups.map((g) => {
+            const allGroups = expenseGroups.map((x) => x.groupName);
+            const color = getCategoryColor(g.groupName, allGroups);
+            return (
+              <div key={g.groupName} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
+                  <span className="text-[13px] font-bold text-[var(--text-primary)]">{g.groupName}</span>
+                </div>
+                {g.subs.map((sub, si) => {
+                  const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : 0;
+                  const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
+                  const isEditing = editingCell?.categoryId === sub.categoryId;
+                  const hasData = sub.budgeted > 0 || sub.actual > 0;
+                  return (
+                    <div key={sub.categoryId} style={{ marginBottom: si < g.subs.length - 1 ? 10 : 0 }}>
+                      <div className="flex justify-between items-center mb-0.5">
+                        <span className="text-[12px] text-[var(--text-body)]">{sub.subName}</span>
+                        <div className="flex items-center">
+                          {isEditing ? (
+                            <span className="text-[11px] font-mono">
+                              {sub.actual > 0 ? fmt(sub.actual) : '—'} /
+                              <input type="number" min="0" step="1" autoFocus
+                                className="w-[50px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 ml-1 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                                value={editingCell.value}
+                                onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
+                                onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
+                                onBlur={() => handleBudgetBlur(sub.categoryId)}
+                              />
+                            </span>
+                          ) : (
+                            <span
+                              onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
+                              className={`text-[11px] font-mono ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-body)]'} ${canEditBudgets ? 'cursor-pointer' : ''}`}>
+                              {hasData ? `${sub.actual > 0 ? fmt(sub.actual) : '—'} / ${sub.budgeted > 0 ? fmt(sub.budgeted) : '—'}` : '—'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {sub.budgeted > 0 && (
+                        <div className="h-[5px] rounded-sm overflow-hidden" style={{ background: 'var(--progress-track)' }}>
+                          <div className="h-full rounded-sm" style={{
+                            width: `${pct}%`,
+                            background: overBudget ? '#ef4444' : color,
+                          }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+      /* Desktop: Two Column Income + Expenses */
+      <div className="grid gap-5 grid-cols-2 flex-1 min-h-[300px]">
         {/* Income */}
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
           <div className="flex-1 min-h-0 mt-2">
             <ScrollableList maxHeight="100%">
-              <table className={`w-full border-collapse ${isMobile ? 'table-fixed' : ''}`}>
+              <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className={`text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left ${isMobile ? '' : ''}`}>Category</th>
-                    <th className={`text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right ${isMobile ? 'w-[70px]' : ''}`}>Budget</th>
-                    <th className={`text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right ${isMobile ? 'w-[70px]' : ''}`}>Actual</th>
-                    <th className={`text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right ${isMobile ? 'w-[70px]' : ''}`}>Diff</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Budget</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Actual</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Diff</th>
                   </tr>
                 </thead>
             <tbody>
@@ -237,7 +333,7 @@ export default function BudgetPage() {
                 const isEditing = editingCell?.categoryId === r.categoryId;
                 return (
                   <tr key={r.categoryId} className="border-b border-[var(--table-row-border)]">
-                    <td className={`px-2.5 py-2 text-[13px] font-medium text-[var(--text-primary)] ${isMobile ? 'truncate' : ''}`}>{r.subName}</td>
+                    <td className="px-2.5 py-2 text-[13px] font-medium text-[var(--text-primary)]">{r.subName}</td>
                     <td className="px-2.5 py-2 text-right font-mono text-[12px]">
                       {isEditing ? (
                         <input
@@ -315,7 +411,7 @@ export default function BudgetPage() {
                     const isEditing = editingCell?.categoryId === sub.categoryId;
                     return (
                       <div key={sub.categoryId} className="flex items-center py-1 pl-3.5 gap-2">
-                        <span className={`flex-1 text-[12px] text-[var(--text-body)] ${isMobile ? 'min-w-0 truncate' : ''}`}>{sub.subName}</span>
+                        <span className="flex-1 text-[12px] text-[var(--text-body)]">{sub.subName}</span>
                         <div className="w-[50px] h-1 bg-[var(--progress-track)] rounded-sm overflow-hidden">
                           <div className="h-full rounded-sm" style={{
                             width: `${pct}%`,
@@ -355,6 +451,7 @@ export default function BudgetPage() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
