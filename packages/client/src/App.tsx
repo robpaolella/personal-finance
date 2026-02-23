@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
@@ -57,12 +57,11 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 function AppShell() {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const { theme, toggle: toggleTheme } = useTheme();
   const { addToast } = useToast();
   const isMobile = useIsMobile();
 
-  const showFab = isMobile && (location.pathname === '/' || location.pathname === '/transactions');
+  const showFab = isMobile && location.pathname === '/transactions';
 
   const handlePermissionDenied = useCallback((e: Event) => {
     const msg = (e as CustomEvent).detail || 'Permission denied';
@@ -175,11 +174,7 @@ function AppShell() {
       {showFab && (
         <button
           onClick={() => {
-            if (location.pathname === '/transactions') {
-              window.dispatchEvent(new CustomEvent('open-add-transaction'));
-            } else {
-              navigate('/transactions?add=1');
-            }
+            window.dispatchEvent(new CustomEvent('open-add-transaction'));
           }}
           className="mobile-only fixed z-10 flex items-center gap-1 cursor-pointer border-none"
           style={{
