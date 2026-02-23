@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TAB_BAR_ITEMS, MORE_MENU_ITEMS, MORE_ROUTES, icons } from '../lib/navItems';
+import BottomSheet from './BottomSheet';
 
 const MORE_DESCRIPTIONS: Record<string, string> = {
   '/reports': 'Annual income & expense breakdown',
@@ -24,58 +25,41 @@ export default function BottomTabBar() {
   return (
     <div className="mobile-only">
       {/* More Menu Bottom Sheet */}
-      {showMore && (
-        <div className="fixed inset-0 z-[44] flex flex-col justify-end">
-          <div
-            className="flex-1 bg-[var(--bg-modal)]"
-            onClick={() => setShowMore(false)}
-            style={{ animation: 'fadeIn 200ms ease-out' }}
-          />
-          <div
-            className="bg-[var(--bg-card)] rounded-t-2xl"
-            style={{ animation: 'sheetSlideUp 200ms ease-out', padding: '0 20px 24px' }}
-          >
-            {/* Drag handle */}
-            <div className="flex justify-center" style={{ padding: '8px 0 12px' }}>
-              <div className="w-9 h-1 rounded-full bg-[var(--bg-card-border)]" />
-            </div>
-
-            <div className="flex flex-col" style={{ gap: 12 }}>
-              {MORE_MENU_ITEMS.map((item) => {
-                const active = isTabActive(item.to);
-                return (
-                  <div
-                    key={item.to}
-                    onClick={() => {
-                      navigate(item.to);
-                      setShowMore(false);
-                    }}
-                    className="flex items-center cursor-pointer bg-[var(--bg-card)] border border-[var(--bg-card-border)] rounded-[10px]"
-                    style={{
-                      padding: '14px 16px',
-                      gap: 12,
-                      borderLeft: active ? '3px solid var(--color-accent)' : undefined,
-                    }}
-                  >
-                    <span style={{ fontSize: 20, flexShrink: 0, color: active ? 'var(--color-accent)' : 'var(--text-muted)' }}>
-                      {item.icon}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div style={{ fontSize: 14, fontWeight: 600, color: active ? 'var(--color-accent)' : 'var(--text-primary)' }}>
-                        {item.label}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>
-                        {MORE_DESCRIPTIONS[item.to]}
-                      </div>
-                    </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 14, flexShrink: 0 }}>›</span>
+      <BottomSheet isOpen={showMore} onClose={() => setShowMore(false)}>
+        <div className="flex flex-col" style={{ gap: 12 }}>
+          {MORE_MENU_ITEMS.map((item) => {
+            const active = isTabActive(item.to);
+            return (
+              <div
+                key={item.to}
+                onClick={() => {
+                  navigate(item.to);
+                  setShowMore(false);
+                }}
+                className="flex items-center cursor-pointer bg-[var(--bg-card)] border border-[var(--bg-card-border)] rounded-[10px]"
+                style={{
+                  padding: '14px 16px',
+                  gap: 12,
+                  borderLeft: active ? '3px solid var(--color-accent)' : undefined,
+                }}
+              >
+                <span style={{ fontSize: 20, flexShrink: 0, color: active ? 'var(--color-accent)' : 'var(--text-muted)' }}>
+                  {item.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontSize: 14, fontWeight: 600, color: active ? 'var(--color-accent)' : 'var(--text-primary)' }}>
+                    {item.label}
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>
+                    {MORE_DESCRIPTIONS[item.to]}
+                  </div>
+                </div>
+                <span style={{ color: 'var(--text-muted)', fontSize: 14, flexShrink: 0 }}>›</span>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </BottomSheet>
 
       {/* Tab Bar */}
       <div
