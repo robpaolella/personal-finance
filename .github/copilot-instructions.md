@@ -344,6 +344,18 @@ Form Input → Storage → Display:
 **Resolution:** Deactivate (soft delete) sets is_active = false — user can't log in but their row persists and they can be reactivated. Permanently delete removes the user row entirely — irreversible, all data dependencies must be handled first. Both options are available on user cards with different button styles and different confirmation flows.
 **Rule going forward:** Default to deactivation when the intent is ambiguous. Only offer permanent deletion with the full two-step confirmation flow. Never permanently delete without the username-typing confirmation step.
 
+### Bottom Sheet Pattern (2026-02-23)
+**Context:** Desktop modals don't work well on mobile — they float awkwardly and waste horizontal space
+**Problem:** Needed a consistent mobile interaction pattern for all modal content
+**Resolution:** Created BottomSheet component (slide-up from bottom, drag handle, 92vh max-height, scrollable content, portal to document.body). ResponsiveModal wrapper automatically chooses desktop modal or mobile bottom sheet based on viewport width. All modals in the app use ResponsiveModal.
+**Rule going forward:** Never render a centered floating modal on mobile. Always use ResponsiveModal. Content inside is identical for both — only the container changes. New modals must use ResponsiveModal from the start.
+
+### Mobile Input Optimization (2026-02-23)
+**Context:** Form inputs on mobile need keyboard-specific attributes for good UX
+**Problem:** Number fields showed full text keyboard, username fields auto-capitalized, autofocus covered the sheet
+**Resolution:** Added inputMode (decimal for money, numeric for digits), autoCapitalize off for usernames/search, disabled autofocus on mobile bottom sheets, added autoComplete for password manager support.
+**Rule going forward:** Every new input field must have the correct inputMode and autoCapitalize. Never autofocus inside a bottom sheet. Always add autoComplete to auth-related fields.
+
 ## Development Workflow
 
 ### Environments
