@@ -554,79 +554,82 @@ export default function NetWorthPage() {
               </button>
             </PermissionGate>
 
-            {/* Asset Edit/Add Form (mobile) */}
+            {/* Asset Edit/Add Modal (mobile) */}
             {editingAssetId != null && (
-              <div className="bg-[var(--bg-input)] border border-[var(--table-border)] rounded-lg p-4 mt-3">
-                <p className="font-semibold text-[13px] text-[var(--text-primary)] m-0 mb-3">
-                  {editingAssetId === 'new' ? 'Add Asset' : `Edit: ${assetForm.name}`}
-                </p>
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
-                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Asset Name</label>
-                    <input type="text" value={assetForm.name} onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Purchase Date</label>
-                    <input type="date" value={assetForm.purchaseDate} onChange={(e) => setAssetForm({ ...assetForm, purchaseDate: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
+              <div className="fixed inset-0 bg-black/30 z-50 flex items-end justify-center" onClick={() => setEditingAssetId(null)}>
+                <div className="bg-[var(--bg-card)] w-full rounded-t-2xl max-h-[90vh] overflow-y-auto px-5 pt-4 pb-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="w-10 h-1 rounded-full bg-[var(--text-muted)] mx-auto mb-4 opacity-40" />
+                  <p className="font-bold text-[16px] text-[var(--text-primary)] m-0 mb-4">
+                    {editingAssetId === 'new' ? 'Add Asset' : `Edit: ${assetForm.name}`}
+                  </p>
+                  <div className="flex flex-col gap-3">
                     <div>
-                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
-                      <input type="number" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Asset Name</label>
+                      <input type="text" value={assetForm.name} onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
+                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                     </div>
                     <div>
-                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
-                      <input type="number" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Purchase Date</label>
+                      <input type="date" value={assetForm.purchaseDate} onChange={(e) => setAssetForm({ ...assetForm, purchaseDate: e.target.value })}
+                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                     </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Depreciation Method</label>
-                    <select value={assetForm.depreciationMethod}
-                      onChange={(e) => setAssetForm({ ...assetForm, depreciationMethod: e.target.value as 'straight_line' | 'declining_balance' })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]">
-                      <option value="straight_line">Straight Line</option>
-                      <option value="declining_balance">Declining Balance</option>
-                    </select>
-                  </div>
-                  {assetForm.depreciationMethod === 'declining_balance' && (
-                    <div>
-                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Annual Rate %</label>
-                      <input type="number" min="1" max="99" placeholder="e.g., 30" value={assetForm.decliningRate}
-                        onChange={(e) => setAssetForm({ ...assetForm, decliningRate: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        <span className="text-[10px] text-[var(--text-muted)]">Common:</span>
-                        {[20, 25, 30, 40].map((r) => (
-                          <button key={r} onClick={() => setAssetForm({ ...assetForm, decliningRate: String(r) })}
-                            className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer font-medium ${
-                              assetForm.decliningRate === String(r)
-                                ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-transparent'
-                                : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-[var(--table-border)] hover:bg-[var(--bg-hover)]'
-                            }`}>{r}%</button>
-                        ))}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
+                        <input type="number" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
+                        <input type="number" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                       </div>
                     </div>
-                  )}
-                  <div>
-                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
-                    <input type="number" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-3 justify-end">
-                  {editingAssetId !== 'new' && hasPermission('assets.delete') && (
-                    <div className="mr-auto">
-                      <ConfirmDeleteButton onConfirm={() => deleteAsset(editingAssetId as number)} />
+                    <div>
+                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Depreciation Method</label>
+                      <select value={assetForm.depreciationMethod}
+                        onChange={(e) => setAssetForm({ ...assetForm, depreciationMethod: e.target.value as 'straight_line' | 'declining_balance' })}
+                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]">
+                        <option value="straight_line">Straight Line</option>
+                        <option value="declining_balance">Declining Balance</option>
+                      </select>
                     </div>
-                  )}
-                  <button onClick={() => setEditingAssetId(null)}
-                    className="px-3.5 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[12px] font-medium btn-secondary">Cancel</button>
-                  <button onClick={saveAsset}
-                    className="px-3.5 py-1.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[12px] font-medium btn-primary">Save</button>
+                    {assetForm.depreciationMethod === 'declining_balance' && (
+                      <div>
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Annual Rate %</label>
+                        <input type="number" min="1" max="99" placeholder="e.g., 30" value={assetForm.decliningRate}
+                          onChange={(e) => setAssetForm({ ...assetForm, decliningRate: e.target.value })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <span className="text-[10px] text-[var(--text-muted)]">Common:</span>
+                          {[20, 25, 30, 40].map((r) => (
+                            <button key={r} onClick={() => setAssetForm({ ...assetForm, decliningRate: String(r) })}
+                              className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer font-medium ${
+                                assetForm.decliningRate === String(r)
+                                  ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-transparent'
+                                  : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-[var(--table-border)] hover:bg-[var(--bg-hover)]'
+                              }`}>{r}%</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
+                      <input type="number" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
+                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4 justify-end">
+                    {editingAssetId !== 'new' && hasPermission('assets.delete') && (
+                      <div className="mr-auto">
+                        <ConfirmDeleteButton onConfirm={() => deleteAsset(editingAssetId as number)} />
+                      </div>
+                    )}
+                    <button onClick={() => setEditingAssetId(null)}
+                      className="px-3.5 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-secondary">Cancel</button>
+                    <button onClick={saveAsset}
+                      className="px-3.5 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-primary">Save</button>
+                  </div>
                 </div>
               </div>
             )}
