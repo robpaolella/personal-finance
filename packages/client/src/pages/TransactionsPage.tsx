@@ -7,6 +7,7 @@ import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import PermissionGate from '../components/PermissionGate';
 import SortableHeader from '../components/SortableHeader';
 import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge } from '../components/badges';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface DuplicateMatch {
   id: number;
@@ -389,6 +390,7 @@ function TransactionForm({
 export default function TransactionsPage() {
   const { addToast } = useToast();
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -403,6 +405,7 @@ export default function TransactionsPage() {
   const [datePreset, setDatePreset] = useState('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState('date');
@@ -628,10 +631,10 @@ export default function TransactionsPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Transactions</h1>
-          <p className="text-[var(--text-secondary)] text-[13px] mt-1">{total} transactions</p>
+          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Transactions</h1>
+          <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{total} transactions</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 desktop-only">
           {bulkMode ? (
             <button onClick={exitBulkMode}
               className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
@@ -656,8 +659,8 @@ export default function TransactionsPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] flex gap-3 items-center mb-5 px-4 py-3">
-        <div className="relative flex-1">
+      <div className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] mb-5 px-4 py-3 ${isMobile ? 'flex flex-col gap-3' : 'flex gap-3 items-center'}`}>
+        <div className={`relative ${isMobile ? 'w-full' : 'flex-1'}`}>
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </span>
@@ -665,51 +668,112 @@ export default function TransactionsPage() {
             placeholder="Search transactions..."
             className="w-full py-2 pl-[34px] pr-2 border border-[var(--table-border)] rounded-lg text-[13px] outline-none bg-[var(--bg-input)] text-[var(--text-secondary)]" />
         </div>
-        <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)}
-          className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-          <option value="All">All Accounts</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id.toString()}>{accountLabel(a)}</option>
-          ))}
-        </select>
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-          <option value="All">All</option>
-          <option value="Income">Income</option>
-          <option value="Expense">Expense</option>
-        </select>
-        <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}
-          className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-          <option value="all">All Time</option>
-          <option value="this-month">This Month</option>
-          <option value="last-month">Last Month</option>
-          <option value="this-quarter">This Quarter</option>
-          <option value="last-quarter">Last Quarter</option>
-          <option value="this-year">This Year</option>
-          <option value="last-year">Last Year</option>
-          <option value="ytd">Year to Date</option>
-          <option value="custom">Custom Range...</option>
-        </select>
-        {datePreset === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
-              className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
-            <span className="text-[var(--text-muted)] text-[11px]">to</span>
-            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
-              className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
-          </div>
-        )}
-        {hasActiveFilters && (
-          <button onClick={resetFilters}
-            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer btn-ghost whitespace-nowrap flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            Reset Filters
-          </button>
+        {isMobile ? (
+          <>
+            <div className="flex gap-2 items-center">
+              <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}
+                className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+                <option value="all">All Time</option>
+                <option value="this-month">This Month</option>
+                <option value="last-month">Last Month</option>
+                <option value="this-quarter">This Quarter</option>
+                <option value="last-quarter">Last Quarter</option>
+                <option value="this-year">This Year</option>
+                <option value="last-year">Last Year</option>
+                <option value="ytd">Year to Date</option>
+                <option value="custom">Custom Range...</option>
+              </select>
+              <button onClick={() => setShowMobileFilters(!showMobileFilters)}
+                className={`px-3 py-2 border rounded-lg text-[13px] font-medium cursor-pointer ${
+                  showMobileFilters || filterAccount !== 'All' || filterType !== 'All'
+                    ? 'border-[#3b82f6] text-[#3b82f6] bg-[var(--bg-input)]'
+                    : 'border-[var(--table-border)] text-[var(--text-secondary)] bg-[var(--bg-input)]'
+                }`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+              </button>
+              {hasActiveFilters && (
+                <button onClick={resetFilters}
+                  className="px-2 py-2 text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer btn-ghost">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              )}
+            </div>
+            {datePreset === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                  className="flex-1 px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
+                <span className="text-[var(--text-muted)] text-[11px]">to</span>
+                <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                  className="flex-1 px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
+              </div>
+            )}
+            {showMobileFilters && (
+              <div className="flex gap-2">
+                <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+                  <option value="All">All Accounts</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id.toString()}>{accountLabel(a)}</option>
+                  ))}
+                </select>
+                <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+                  <option value="All">All</option>
+                  <option value="Income">Income</option>
+                  <option value="Expense">Expense</option>
+                </select>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)}
+              className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+              <option value="All">All Accounts</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id.toString()}>{accountLabel(a)}</option>
+              ))}
+            </select>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+              <option value="All">All</option>
+              <option value="Income">Income</option>
+              <option value="Expense">Expense</option>
+            </select>
+            <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}
+              className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+              <option value="all">All Time</option>
+              <option value="this-month">This Month</option>
+              <option value="last-month">Last Month</option>
+              <option value="this-quarter">This Quarter</option>
+              <option value="last-quarter">Last Quarter</option>
+              <option value="this-year">This Year</option>
+              <option value="last-year">Last Year</option>
+              <option value="ytd">Year to Date</option>
+              <option value="custom">Custom Range...</option>
+            </select>
+            {datePreset === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                  className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
+                <span className="text-[var(--text-muted)] text-[11px]">to</span>
+                <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                  className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
+              </div>
+            )}
+            {hasActiveFilters && (
+              <button onClick={resetFilters}
+                className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer btn-ghost whitespace-nowrap flex items-center gap-1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Reset Filters
+              </button>
+            )}
+          </>
         )}
       </div>
 
       {/* Bulk Actions Toolbar */}
-      {bulkMode && (
+      {bulkMode && !isMobile && (
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-3">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-[13px] font-semibold text-[var(--text-primary)]">{selectedIds.size} selected</span>
@@ -770,86 +834,117 @@ export default function TransactionsPage() {
         </div>
       )}
       <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)]">
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
-            <tr>
-              {bulkMode && (
-                <th className="w-8 px-2 py-2 border-b-2 border-[var(--table-border)]">
-                  <input type="checkbox" checked={selectedIds.size === transactions.length && transactions.length > 0}
-                    onChange={toggleSelectAll} className="cursor-pointer" />
-                </th>
-              )}
-              <SortableHeader label="Date" sortKey="date" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-              <SortableHeader label="Description" sortKey="description" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-              <SortableHeader label="Account" sortKey="account" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-              <SortableHeader label="Category" sortKey="category" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
-              <SortableHeader label="Amount" sortKey="amount" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} align="right" />
-            </tr>
-          </thead>
-          <tbody>
+        {isMobile ? (
+          /* Mobile: Card list */
+          <div className="px-3 py-1">
             {transactions.map((t) => {
               const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
               return (
-                <tr key={t.id}
-                  onClick={() => { if (!bulkMode && hasPermission('transactions.edit')) { setEditing(t); } }}
-                  className={`border-b border-[var(--table-row-border)] transition-colors ${!bulkMode && hasPermission('transactions.edit') ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : 'hover:bg-[var(--bg-hover)]'}`}>
-                  {bulkMode && (
-                    <td className="w-8 px-2 py-2">
-                      <input type="checkbox" checked={selectedIds.has(t.id)}
-                        onChange={() => toggleSelect(t.id)} className="cursor-pointer" />
-                    </td>
-                  )}
-                  <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)]">{t.date}</td>
-                  <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
-                  <td className="px-2.5 py-2">
-                    <span className="inline-flex items-center gap-1.5 flex-wrap">
+                <div key={t.id}
+                  onClick={() => { if (hasPermission('transactions.edit')) setEditing(t); }}
+                  className={`flex justify-between items-center py-3 border-b border-[var(--table-row-border)] last:border-b-0 ${hasPermission('transactions.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
+                  <div className="flex-1 min-w-0 mr-3">
+                    <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</div>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className="font-mono text-[11px] text-[var(--text-muted)]">{t.date}</span>
+                      <span className="text-[var(--text-muted)]">·</span>
+                      <CategoryBadge name={t.category.subName} />
                       <AccountBadge name={accountLabel(t.account)} />
-                      {t.account.isShared ? (
-                        <SharedBadge />
-                      ) : t.account.owners?.length === 1 ? (
-                        <OwnerBadge user={t.account.owners[0]} />
-                      ) : null}
-                    </span>
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <span className="text-[11px] text-[var(--text-secondary)]">{t.category.groupName}</span>
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <CategoryBadge name={t.category.subName} />
-                  </td>
-                  <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>
-                    {amtText}
-                  </td>
-                </tr>
+                    </div>
+                  </div>
+                  <div className={`text-[13px] font-mono font-semibold flex-shrink-0 ${amtClass}`}>{amtText}</div>
+                </div>
               );
             })}
             {transactions.length === 0 && (
-              <tr>
-                <td colSpan={bulkMode ? 7 : 6} className="text-center py-8 text-[var(--text-muted)] text-[13px]">
-                  No transactions found for this period
-                </td>
-              </tr>
+              <p className="text-center py-8 text-[var(--text-muted)] text-[13px]">No transactions found for this period</p>
             )}
-          </tbody>
-        </table>
+          </div>
+        ) : (
+          /* Desktop: Table */
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                {bulkMode && (
+                  <th className="w-8 px-2 py-2 border-b-2 border-[var(--table-border)]">
+                    <input type="checkbox" checked={selectedIds.size === transactions.length && transactions.length > 0}
+                      onChange={toggleSelectAll} className="cursor-pointer" />
+                  </th>
+                )}
+                <SortableHeader label="Date" sortKey="date" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+                <SortableHeader label="Description" sortKey="description" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+                <SortableHeader label="Account" sortKey="account" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+                <SortableHeader label="Category" sortKey="category" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
+                <SortableHeader label="Amount" sortKey="amount" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} align="right" />
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((t) => {
+                const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
+                return (
+                  <tr key={t.id}
+                    onClick={() => { if (!bulkMode && hasPermission('transactions.edit')) { setEditing(t); } }}
+                    className={`border-b border-[var(--table-row-border)] transition-colors ${!bulkMode && hasPermission('transactions.edit') ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : 'hover:bg-[var(--bg-hover)]'}`}>
+                    {bulkMode && (
+                      <td className="w-8 px-2 py-2">
+                        <input type="checkbox" checked={selectedIds.has(t.id)}
+                          onChange={() => toggleSelect(t.id)} className="cursor-pointer" />
+                      </td>
+                    )}
+                    <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)]">{t.date}</td>
+                    <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
+                    <td className="px-2.5 py-2">
+                      <span className="inline-flex items-center gap-1.5 flex-wrap">
+                        <AccountBadge name={accountLabel(t.account)} />
+                        {t.account.isShared ? (
+                          <SharedBadge />
+                        ) : t.account.owners?.length === 1 ? (
+                          <OwnerBadge user={t.account.owners[0]} />
+                        ) : null}
+                      </span>
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <span className="text-[11px] text-[var(--text-secondary)]">{t.category.groupName}</span>
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <CategoryBadge name={t.category.subName} />
+                    </td>
+                    <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>
+                      {amtText}
+                    </td>
+                  </tr>
+                );
+              })}
+              {transactions.length === 0 && (
+                <tr>
+                  <td colSpan={bulkMode ? 7 : 6} className="text-center py-8 text-[var(--text-muted)] text-[13px]">
+                    No transactions found for this period
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Pagination */}
-      <div className="flex justify-between items-center mt-3 text-[13px] text-[var(--text-secondary)]">
+      <div className={`mt-3 text-[13px] text-[var(--text-secondary)] ${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center'}`}>
         <span className="font-mono text-[12px]">
-          {total > 0 ? `Showing ${showFrom}–${showTo} of ${total} transactions` : 'No transactions'}
+          {total > 0 ? `${showFrom}–${showTo} of ${total}` : 'No transactions'}
         </span>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <select value={pageSize} onChange={(e) => { const v = parseInt(e.target.value, 10); setPageSize(v); localStorage.setItem('ledger-page-size', v.toString()); setPage(1); }}
-              className="px-2 py-1 border border-[var(--table-border)] rounded text-[12px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-              <option value={250}>250</option>
-            </select>
-            <span className="text-[12px] text-[var(--text-muted)]">per page</span>
-          </div>
+        <div className={`flex items-center ${isMobile ? 'justify-between' : 'gap-3'}`}>
+          {!isMobile && (
+            <div className="flex items-center gap-1.5">
+              <select value={pageSize} onChange={(e) => { const v = parseInt(e.target.value, 10); setPageSize(v); localStorage.setItem('ledger-page-size', v.toString()); setPage(1); }}
+                className="px-2 py-1 border border-[var(--table-border)] rounded text-[12px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+              </select>
+              <span className="text-[12px] text-[var(--text-muted)]">per page</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
               className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default btn-secondary">
