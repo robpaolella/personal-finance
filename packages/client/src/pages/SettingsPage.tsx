@@ -1169,6 +1169,30 @@ function UsersPermissionsSection() {
   );
 }
 
+function StickyAddButton({ permission, label, onClick }: { permission: string; label: string; onClick: () => void }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 50);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  if (!visible) return null;
+  return (
+    <PermissionGate permission={permission} fallback="disabled">
+      <div className="fixed left-0 right-0 px-5 pb-[calc(12px+env(safe-area-inset-bottom,0px))] z-10"
+        style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
+        <button onClick={onClick}
+          className="w-full py-2.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 btn-secondary"
+          style={{ boxShadow: '0 -2px 8px rgba(0,0,0,0.08)' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          {label}
+        </button>
+      </div>
+    </PermissionGate>
+  );
+}
+
 export default function SettingsPage() {
   const { addToast } = useToast();
   const { isAdmin, hasPermission, user, logout } = useAuth();
@@ -1350,7 +1374,7 @@ export default function SettingsPage() {
         ) : mobileSubPage === 'categories' ? (
           <>
             <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Categories</h2>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 pb-16">
               {allGroups.map((g) => {
                 const allGroupNames = allGroups.map((x) => x.group);
                 const color = getCategoryColor(g.group, allGroupNames);
@@ -1372,13 +1396,7 @@ export default function SettingsPage() {
                 );
               })}
             </div>
-            <PermissionGate permission="categories.create" fallback="disabled">
-              <button onClick={() => setEditingCategory('new')}
-                className="w-full py-2.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 btn-secondary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Category
-              </button>
-            </PermissionGate>
+            <StickyAddButton permission="categories.create" label="Add Category" onClick={() => setEditingCategory('new')} />
           </>
         ) : mobileSubPage === 'users' ? (
           <>
