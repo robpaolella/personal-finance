@@ -39,7 +39,7 @@ export default function BottomTabBar() {
             ref={popoverRef}
             className="fixed z-[45] bg-[var(--bg-card)] border border-[var(--bg-card-border)] rounded-xl"
             style={{
-              bottom: 66,
+              bottom: 80,
               right: 16,
               padding: '6px 0',
               boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
@@ -75,7 +75,7 @@ export default function BottomTabBar() {
       {/* Tab Bar */}
       <div
         className="fixed bottom-0 left-0 right-0 z-40 flex justify-around items-center bg-[var(--bg-card)] border-t border-[var(--bg-card-border)]"
-        style={{ padding: '6px 0 env(safe-area-inset-bottom, 18px)' }}
+        style={{ padding: '10px 0 max(22px, env(safe-area-inset-bottom))' }}
       >
         {TAB_BAR_ITEMS.map((tab) => {
           const active = isTabActive(tab.to);
@@ -86,15 +86,16 @@ export default function BottomTabBar() {
                 navigate(tab.to);
                 setShowMore(false);
               }}
-              className="flex flex-col items-center cursor-pointer"
+              className="flex flex-col items-center justify-center cursor-pointer tab-bar-icon"
               style={{
-                gap: 2,
+                gap: 4,
                 color: active ? 'var(--color-accent)' : 'var(--text-muted)',
                 minWidth: 64,
+                minHeight: 48,
               }}
             >
               {tab.icon}
-              <span style={{ fontSize: 9, fontWeight: active ? 600 : 400 }}>{tab.label}</span>
+              <span style={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>{tab.label}</span>
             </div>
           );
         })}
@@ -102,15 +103,16 @@ export default function BottomTabBar() {
         {/* More Tab */}
         <div
           onClick={() => setShowMore(!showMore)}
-          className="flex flex-col items-center cursor-pointer"
+          className="flex flex-col items-center justify-center cursor-pointer tab-bar-icon"
           style={{
-            gap: 2,
+            gap: 4,
             color: (isMoreActive || showMore) ? 'var(--color-accent)' : 'var(--text-muted)',
             minWidth: 64,
+            minHeight: 48,
           }}
         >
           {icons.more}
-          <span style={{ fontSize: 9, fontWeight: isMoreActive ? 600 : 400 }}>More</span>
+          <span style={{ fontSize: 10, fontWeight: isMoreActive ? 600 : 400 }}>More</span>
         </div>
       </div>
     </div>

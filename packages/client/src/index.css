@@ -284,7 +284,11 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
 @media (max-width: 767px) {
   .desktop-only { display: none !important; }
   .mobile-main-content {
-    padding: 16px 16px 80px !important;
+    padding: 16px 16px 96px !important;
+  }
+  .tab-bar-icon svg {
+    width: 22px;
+    height: 22px;
   }
 }
 @media (min-width: 768px) {
