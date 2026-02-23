@@ -57,7 +57,7 @@ export default function BottomTabBar() {
                       borderLeft: active ? '3px solid var(--color-accent)' : undefined,
                     }}
                   >
-                    <span style={{ fontSize: 20, flexShrink: 0, color: active ? 'var(--color-accent)' : undefined }}>
+                    <span style={{ fontSize: 20, flexShrink: 0, color: active ? 'var(--color-accent)' : 'var(--text-muted)' }}>
                       {item.icon}
                     </span>
                     <div className="flex-1 min-w-0">
