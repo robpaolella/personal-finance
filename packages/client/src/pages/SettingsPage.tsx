@@ -1170,31 +1170,27 @@ function UsersPermissionsSection() {
 }
 
 function StickyAddButton({ permission, label, onClick }: { permission: string; label: string; onClick: () => void }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    // Main content scrolls inside .overflow-y-auto container, not window
-    const scrollContainer = document.querySelector('.overflow-y-auto');
-    if (!scrollContainer) return;
-    const onScroll = () => setVisible(scrollContainer.scrollTop > 50);
-    scrollContainer.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => scrollContainer.removeEventListener('scroll', onScroll);
-  }, []);
   return (
     <PermissionGate permission={permission} fallback="disabled">
-      <div
-        className="fixed left-0 right-0 px-5 z-10 transition-all duration-200"
-        style={{
-          bottom: 'calc(68px + env(safe-area-inset-bottom, 0px))',
-          opacity: visible ? 1 : 0,
-          pointerEvents: visible ? 'auto' : 'none',
-          transform: visible ? 'translateY(0)' : 'translateY(8px)',
-        }}>
+      <div className="fixed z-10" style={{
+        left: '50%',
+        transform: 'translateX(-50%)',
+        bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+      }}>
         <button onClick={onClick}
-          className="w-full py-2.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 btn-secondary"
-          style={{ boxShadow: '0 -2px 8px rgba(0,0,0,0.08)' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          {label}
+          className="flex items-center gap-1 cursor-pointer border-none"
+          style={{
+            background: 'var(--btn-primary-bg)',
+            color: 'var(--btn-primary-text)',
+            padding: '10px 24px',
+            borderRadius: 20,
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: "'DM Sans', sans-serif",
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            whiteSpace: 'nowrap',
+          }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> {label}
         </button>
       </div>
     </PermissionGate>
