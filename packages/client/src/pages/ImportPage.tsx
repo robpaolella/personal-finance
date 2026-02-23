@@ -10,6 +10,7 @@ import TransferBadge from '../components/TransferBadge';
 import BankSyncPanel from '../components/BankSyncPanel';
 import SortableHeader from '../components/SortableHeader';
 import InlineNotification from '../components/InlineNotification';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface Account {
   id: number;
@@ -78,6 +79,7 @@ function normalizeAmount(raw: string): number {
 export default function ImportPage() {
   const { addToast } = useToast();
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -401,8 +403,8 @@ export default function ImportPage() {
     <div>
       {/* Header */}
       <div className="mb-4">
-        <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Import Transactions</h1>
-        <p className="text-[var(--text-secondary)] text-[13px] mt-1">
+        <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Import Transactions</h1>
+        <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">
           {activeTab === 'csv' ? 'Import CSV from your bank, credit card, or Venmo' : 'Pull transactions directly from your connected bank accounts'}
         </p>
       </div>
@@ -542,7 +544,7 @@ export default function ImportPage() {
           {/* Column mapping */}
           <div className="bg-[var(--bg-input)] rounded-lg p-4 mb-4">
             <p className="text-[12px] font-medium text-[var(--text-body)] m-0 mb-2">Column Mapping</p>
-            <div className="flex gap-4">
+            <div className={isMobile ? 'flex flex-col gap-3' : 'flex gap-4'}>
               {(['date', 'description', 'amount'] as const).map((field) => (
                 <div key={field} className="flex-1">
                   <label className="text-[11px] text-[var(--text-secondary)] block mb-1 capitalize">{field}</label>
@@ -632,7 +634,7 @@ export default function ImportPage() {
       {/* Step 3: Review & Categorize */}
       {step === 2 && (
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-          <div className="flex justify-between items-center mb-4">
+          <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1 px-2.5 py-1 bg-[var(--badge-category-bg)] rounded-lg text-[11px] text-[var(--badge-category-text)] font-semibold">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -640,16 +642,18 @@ export default function ImportPage() {
                 </svg>
                 AI-categorized
               </span>
-              <span className="text-[12px] text-[var(--text-secondary)]">Click any category to change it</span>
+              {!isMobile && <span className="text-[12px] text-[var(--text-secondary)]">Click any category to change it</span>}
             </div>
             <button
               onClick={handleImport}
               disabled={importing || validImportCount === 0}
-              className="px-4 py-2 bg-[var(--color-positive)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed btn-success"
+              className={`px-4 py-2 bg-[var(--color-positive)] text-white rounded-lg text-[13px] font-semibold border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed btn-success ${isMobile ? 'w-full' : ''}`}
             >
               {importing ? 'Importing...' : `Import ${validImportCount} of ${categorizedRows.length} Transactions`}
             </button>
           </div>
+
+          <div className={isMobile ? 'overflow-x-auto -mx-5 px-5' : ''}>
 
           <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
             <colgroup>
@@ -763,6 +767,7 @@ export default function ImportPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
