@@ -833,35 +833,36 @@ export default function TransactionsPage() {
           </div>
         </div>
       )}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)]">
-        {isMobile ? (
-          /* Mobile: Card list */
-          <div className="px-3 py-1">
-            {transactions.map((t) => {
-              const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
-              return (
-                <div key={t.id}
-                  onClick={() => { if (hasPermission('transactions.edit')) setEditing(t); }}
-                  className={`flex justify-between items-center py-3 border-b border-[var(--table-row-border)] last:border-b-0 ${hasPermission('transactions.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
-                  <div className="flex-1 min-w-0 mr-3">
-                    <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</div>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className="font-mono text-[11px] text-[var(--text-muted)]">{t.date}</span>
-                      <span className="text-[var(--text-muted)]">·</span>
-                      <CategoryBadge name={t.category.subName} />
-                      <AccountBadge name={accountLabel(t.account)} />
-                    </div>
+      {isMobile ? (
+        /* Mobile: Standalone cards */
+        <div className="flex flex-col gap-1.5">
+          {transactions.map((t) => {
+            const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
+            return (
+              <div key={t.id}
+                onClick={() => { if (hasPermission('transactions.edit')) setEditing(t); }}
+                className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5 flex justify-between items-center ${hasPermission('transactions.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
+                <div className="flex-1 min-w-0 mr-3">
+                  <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</div>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span className="font-mono text-[10px] text-[var(--text-muted)]">{t.date}</span>
+                    <span className="text-[var(--text-muted)]">·</span>
+                    <CategoryBadge name={t.category.subName} />
                   </div>
-                  <div className={`text-[13px] font-mono font-semibold flex-shrink-0 ${amtClass}`}>{amtText}</div>
                 </div>
-              );
-            })}
-            {transactions.length === 0 && (
-              <p className="text-center py-8 text-[var(--text-muted)] text-[13px]">No transactions found for this period</p>
-            )}
-          </div>
-        ) : (
-          /* Desktop: Table */
+                <div className="text-right flex-shrink-0">
+                  <div className={`text-[14px] font-mono font-semibold ${amtClass}`}>{amtText}</div>
+                  <div className="text-[9px] text-[var(--text-muted)] mt-0.5">{accountLabel(t.account)}</div>
+                </div>
+              </div>
+            );
+          })}
+          {transactions.length === 0 && (
+            <p className="text-center py-8 text-[var(--text-muted)] text-[13px]">No transactions found for this period</p>
+          )}
+        </div>
+      ) : (
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)]">
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
@@ -925,8 +926,8 @@ export default function TransactionsPage() {
               )}
             </tbody>
           </table>
-        )}
       </div>
+      )}
 
       {/* Pagination */}
       <div className={`mt-3 text-[13px] text-[var(--text-secondary)] ${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center'}`}>
