@@ -11,6 +11,7 @@ import NetWorthPage from './pages/NetWorthPage';
 import ImportPage from './pages/ImportPage';
 import SettingsPage from './pages/SettingsPage';
 import MockupPage from './pages/MockupPage';
+import QAPage from './pages/QAPage';
 import MobileHeader from './components/MobileHeader';
 import BottomTabBar from './components/BottomTabBar';
 import { NAV_ITEMS } from './lib/navItems';
@@ -227,6 +228,7 @@ export default function App() {
           ) : (
             <>
               {import.meta.env.DEV && <Route path="/mockup" element={<MockupPage />} />}
+              {import.meta.env.DEV && <Route path="/qa" element={<QAPage />} />}
               <Route path="/login" element={<LoginPage />} />
               <Route
                 path="/*"
