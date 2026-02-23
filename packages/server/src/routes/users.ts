@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
+import rateLimit from 'express-rate-limit';
 import { db, sqlite } from '../db/index.js';
 import { users, userPermissions } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -455,6 +456,145 @@ router.delete('/:id', requireRole('admin'), (req: Request, res: Response): void 
   } catch (err) {
     console.error('DELETE /users/:id error:', err);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// DELETE /api/users/:id/permanent — permanently delete user with account reassignment
+const permanentDeleteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 3,
+  message: { error: 'Too many deletion attempts. Please try again in a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.delete('/:id/permanent', requireRole('admin'), permanentDeleteLimiter, (req: Request, res: Response): void => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const { reassignments, confirmUsername } = req.body as {
+      reassignments: { accountId: number; newOwnerId: number }[];
+      confirmUsername: string;
+    };
+
+    const user = db.select().from(users).where(eq(users.id, id)).get();
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Cannot delete yourself
+    if (id === req.user!.userId) {
+      res.status(400).json({ error: 'Cannot delete your own account' });
+      return;
+    }
+
+    // Owner cannot be deleted
+    if (user.role === 'owner') {
+      res.status(403).json({ error: 'The owner account cannot be deleted' });
+      return;
+    }
+
+    // Admin can only delete members
+    if (req.user!.role === 'admin' && user.role === 'admin') {
+      res.status(403).json({ error: 'Only the owner can manage admin accounts' });
+      return;
+    }
+
+    // Confirm username
+    if (!confirmUsername || confirmUsername !== user.username) {
+      res.status(400).json({ error: 'Username confirmation does not match' });
+      return;
+    }
+
+    // Check all sole-owned accounts have reassignments
+    const soleOwnedIds = (sqlite.prepare(`
+      SELECT ao.account_id FROM account_owners ao
+      JOIN accounts a ON ao.account_id = a.id AND a.is_active = 1
+      WHERE ao.user_id = ?
+        AND (SELECT COUNT(*) FROM account_owners ao2 WHERE ao2.account_id = ao.account_id) = 1
+    `).all(id) as { account_id: number }[]).map(r => r.account_id);
+
+    const reassignMap = new Map((reassignments || []).map(r => [r.accountId, r.newOwnerId]));
+
+    for (const acctId of soleOwnedIds) {
+      if (!reassignMap.has(acctId)) {
+        res.status(400).json({ error: 'All sole-owned accounts must be reassigned' });
+        return;
+      }
+    }
+
+    // Validate all new owners are active users
+    for (const newOwnerId of reassignMap.values()) {
+      const owner = sqlite.prepare('SELECT id FROM users WHERE id = ? AND is_active = 1').get(newOwnerId) as { id: number } | undefined;
+      if (!owner) {
+        res.status(400).json({ error: `Invalid new owner ID: ${newOwnerId}` });
+        return;
+      }
+    }
+
+    // Execute everything in a single transaction
+    const txn = sqlite.transaction(() => {
+      let accountsReassigned = 0;
+
+      // 1. Sole-owned accounts: add new owner, remove old
+      for (const [accountId, newOwnerId] of reassignMap.entries()) {
+        sqlite.prepare('INSERT OR IGNORE INTO account_owners (account_id, user_id) VALUES (?, ?)').run(accountId, newOwnerId);
+        sqlite.prepare('DELETE FROM account_owners WHERE account_id = ? AND user_id = ?').run(accountId, id);
+        accountsReassigned++;
+      }
+
+      // 2. Co-owned accounts: remove this user
+      const coOwnedRemoved = sqlite.prepare(`
+        DELETE FROM account_owners WHERE user_id = ?
+          AND account_id IN (
+            SELECT ao.account_id FROM account_owners ao
+            JOIN accounts a ON ao.account_id = a.id AND a.is_active = 1
+            WHERE ao.user_id = ?
+          )
+      `);
+      // Need to count co-owned before deleting
+      const coOwnedCount = (sqlite.prepare(`
+        SELECT COUNT(*) as cnt FROM account_owners WHERE user_id = ?
+      `).get(id) as { cnt: number }).cnt;
+      // Delete remaining ownership entries
+      sqlite.prepare('DELETE FROM account_owners WHERE user_id = ?').run(id);
+
+      // 3. User permissions
+      sqlite.prepare('DELETE FROM user_permissions WHERE user_id = ?').run(id);
+
+      // 4. Personal SimpleFIN connections and their links
+      const personalConns = sqlite.prepare(
+        'SELECT id FROM simplefin_connections WHERE user_id = ?'
+      ).all(id) as { id: number }[];
+      let connectionsRemoved = 0;
+      for (const conn of personalConns) {
+        sqlite.prepare('DELETE FROM simplefin_links WHERE simplefin_connection_id = ?').run(conn.id);
+        sqlite.prepare('DELETE FROM simplefin_connections WHERE id = ?').run(conn.id);
+        connectionsRemoved++;
+      }
+
+      // 5. Delete the user row
+      sqlite.prepare('DELETE FROM users WHERE id = ?').run(id);
+
+      return { accountsReassigned, coOwnershipRemoved: coOwnedCount, connectionsRemoved };
+    });
+
+    const result = txn();
+    invalidatePermissionCache(id);
+
+    console.log(`User ${req.user!.username} permanently deleted user ${user.username} (id: ${id})`);
+
+    res.json({
+      data: {
+        deleted: true,
+        accountsReassigned: result.accountsReassigned,
+        coOwnershipRemoved: result.coOwnershipRemoved,
+        connectionsRemoved: result.connectionsRemoved,
+      },
+    });
+  } catch (err) {
+    console.error('DELETE /users/:id/permanent error:', err);
+    res.status(500).json({ error: 'Failed to permanently delete user' });
   }
 });
 
