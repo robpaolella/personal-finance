@@ -11,7 +11,7 @@ export interface User {
   username: string;
   password_hash: string;
   display_name: string;
-  role: 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member';
   is_active: number;
   created_at: string;
 }
@@ -106,7 +106,7 @@ export interface AuthPayload {
   userId: number;
   username: string;
   displayName: string;
-  role: 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member';
 }
 
 // === SimpleFIN Types ===

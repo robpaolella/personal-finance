@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import { db, sqlite } from '../db/index.js';
 import { users, userPermissions } from '../db/schema.js';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { requireRole } from '../middleware/permissions.js';
 import { invalidatePermissionCache, ALL_PERMISSIONS } from '../middleware/permissions.js';
 import { DEFAULT_MEMBER_PERMISSIONS } from '../db/migrate-roles-permissions.js';
@@ -11,9 +11,9 @@ import { sanitize } from '../utils/sanitize.js';
 const router = Router();
 
 // GET /api/users — public for authenticated users (display names for dropdowns)
-// When called by admin, returns full user list with permissions
+// When called by admin/owner, returns full user list with permissions
 router.get('/', (req: Request, res: Response): void => {
-  if (req.user?.role === 'admin') {
+  if (req.user?.role === 'admin' || req.user?.role === 'owner') {
     const allUsers = db.select().from(users).all();
     const result = allUsers.map(u => {
       let permissions: Record<string, boolean> | null = null;
@@ -80,7 +80,16 @@ router.post('/', requireRole('admin'), async (req: Request, res: Response): Prom
       return;
     }
 
-    const validRole = role === 'admin' ? 'admin' : 'member';
+    const callerRole = req.user!.role;
+
+    // Owner can create admin or member; admin can only create member
+    let validRole = 'member';
+    if (role === 'admin' && callerRole === 'owner') {
+      validRole = 'admin';
+    } else if (role === 'admin' && callerRole !== 'owner') {
+      res.status(403).json({ error: 'Only the owner can create admin accounts' });
+      return;
+    }
 
     // Check uniqueness
     const existing = db.select({ id: users.id }).from(users).where(eq(users.username, username)).get();
@@ -129,7 +138,7 @@ router.post('/', requireRole('admin'), async (req: Request, res: Response): Prom
   }
 });
 
-// PUT /api/users/:id — update user (admin only)
+// PUT /api/users/:id — update user (admin+ only, with hierarchy checks)
 router.put('/:id', requireRole('admin'), (req: Request, res: Response): void => {
   try {
     const id = parseInt(req.params.id as string, 10);
@@ -143,23 +152,45 @@ router.put('/:id', requireRole('admin'), (req: Request, res: Response): void => 
       return;
     }
 
-    // Last-admin protection
-    if (user.role === 'admin') {
-      const adminCount = db.select({ cnt: sql<number>`COUNT(*)` })
-        .from(users)
-        .where(and(eq(users.role, 'admin'), eq(users.is_active, 1)))
-        .get()!.cnt;
+    const callerRole = req.user!.role;
+    const targetRole = user.role;
 
-      if (adminCount <= 1) {
-        if (role && role !== 'admin') {
-          res.status(400).json({ error: 'Cannot remove the last admin account' });
-          return;
-        }
-        if (isActive === false) {
-          res.status(400).json({ error: 'Cannot deactivate the last admin account' });
-          return;
-        }
+    // Owner cannot be modified (except display name by themselves)
+    if (targetRole === 'owner') {
+      if (id !== req.user!.userId) {
+        res.status(400).json({ error: 'The owner account cannot be modified' });
+        return;
       }
+      // Owner editing self: can change display name only, not role
+      if (role && role !== 'owner') {
+        res.status(400).json({ error: 'The owner role cannot be changed' });
+        return;
+      }
+      if (isActive === false) {
+        res.status(400).json({ error: 'The owner account cannot be deactivated' });
+        return;
+      }
+      const updates: Record<string, unknown> = {};
+      if (displayName !== undefined) updates.display_name = displayName;
+      if (Object.keys(updates).length > 0) {
+        const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+        const values = Object.values(updates);
+        sqlite.prepare(`UPDATE users SET ${setClauses} WHERE id = ?`).run(...values, id);
+      }
+      res.json({ data: { message: 'User updated' } });
+      return;
+    }
+
+    // Admin can only edit members, not other admins
+    if (callerRole === 'admin' && targetRole === 'admin') {
+      res.status(403).json({ error: 'Only the owner can manage admin accounts', message: 'Only the owner can manage admin accounts' });
+      return;
+    }
+
+    // Admin cannot promote to admin
+    if (callerRole === 'admin' && role === 'admin') {
+      res.status(403).json({ error: 'Only the owner can promote users to admin', message: 'Only the owner can promote users to admin' });
+      return;
     }
 
     // Cannot deactivate yourself
@@ -173,10 +204,15 @@ router.put('/:id', requireRole('admin'), (req: Request, res: Response): void => 
     if (isActive !== undefined) updates.is_active = isActive ? 1 : 0;
 
     if (role && (role === 'admin' || role === 'member')) {
+      // Only owner can set role to admin
+      if (role === 'admin' && callerRole !== 'owner') {
+        res.status(403).json({ error: 'Only the owner can promote users to admin' });
+        return;
+      }
       updates.role = role;
 
       // Role change: admin → member: insert default permissions
-      if (user.role === 'admin' && role === 'member') {
+      if (targetRole === 'admin' && role === 'member') {
         const insertPerm = sqlite.prepare('INSERT OR IGNORE INTO user_permissions (user_id, permission, granted) VALUES (?, ?, ?)');
         const txn = sqlite.transaction(() => {
           for (const [perm, granted] of Object.entries(DEFAULT_MEMBER_PERMISSIONS)) {
@@ -187,7 +223,7 @@ router.put('/:id', requireRole('admin'), (req: Request, res: Response): void => 
       }
 
       // Role change: member → admin: delete permission rows
-      if (user.role === 'member' && role === 'admin') {
+      if (targetRole === 'member' && role === 'admin') {
         db.delete(userPermissions).where(eq(userPermissions.user_id, id)).run();
         invalidatePermissionCache(id);
       }
@@ -206,7 +242,7 @@ router.put('/:id', requireRole('admin'), (req: Request, res: Response): void => 
   }
 });
 
-// PUT /api/users/:id/password — admin password reset
+// PUT /api/users/:id/password — admin password reset (with hierarchy checks)
 router.put('/:id/password', requireRole('admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
@@ -217,9 +253,17 @@ router.put('/:id/password', requireRole('admin'), async (req: Request, res: Resp
       return;
     }
 
-    const user = db.select({ id: users.id }).from(users).where(eq(users.id, id)).get();
+    const user = db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, id)).get();
     if (!user) {
       res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const callerRole = req.user!.role;
+
+    // Admin cannot reset another admin's or owner's password
+    if (callerRole === 'admin' && (user.role === 'admin' || user.role === 'owner') && id !== req.user!.userId) {
+      res.status(403).json({ error: 'Only the owner can manage admin accounts', message: 'Only the owner can manage admin accounts' });
       return;
     }
 
@@ -250,8 +294,8 @@ router.put('/:id/permissions', requireRole('admin'), (req: Request, res: Respons
       return;
     }
 
-    if (user.role === 'admin') {
-      res.status(400).json({ error: 'Admin users have all permissions' });
+    if (user.role === 'admin' || user.role === 'owner') {
+      res.status(400).json({ error: 'Admin and owner users have all permissions' });
       return;
     }
 
@@ -277,7 +321,7 @@ router.put('/:id/permissions', requireRole('admin'), (req: Request, res: Respons
   }
 });
 
-// DELETE /api/users/:id — soft delete (admin only)
+// DELETE /api/users/:id — soft delete (admin+ only, with hierarchy checks)
 router.delete('/:id', requireRole('admin'), (req: Request, res: Response): void => {
   try {
     const id = parseInt(req.params.id as string, 10);
@@ -294,17 +338,16 @@ router.delete('/:id', requireRole('admin'), (req: Request, res: Response): void 
       return;
     }
 
-    // Last-admin protection
-    if (user.role === 'admin') {
-      const adminCount = db.select({ cnt: sql<number>`COUNT(*)` })
-        .from(users)
-        .where(and(eq(users.role, 'admin'), eq(users.is_active, 1)))
-        .get()!.cnt;
+    // Owner cannot be deleted
+    if (user.role === 'owner') {
+      res.status(400).json({ error: 'The owner account cannot be deleted' });
+      return;
+    }
 
-      if (adminCount <= 1) {
-        res.status(400).json({ error: 'Cannot delete the last admin account' });
-        return;
-      }
+    // Admin can only delete members
+    if (req.user!.role === 'admin' && user.role === 'admin') {
+      res.status(403).json({ error: 'Only the owner can manage admin accounts', message: 'Only the owner can manage admin accounts' });
+      return;
     }
 
     sqlite.prepare('UPDATE users SET is_active = 0 WHERE id = ?').run(id);
