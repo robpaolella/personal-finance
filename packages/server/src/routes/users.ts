@@ -321,6 +321,104 @@ router.put('/:id/permissions', requireRole('admin'), (req: Request, res: Respons
   }
 });
 
+// GET /api/users/:id/delete-preview — preview deletion dependencies
+router.get('/:id/delete-preview', requireRole('admin'), (req: Request, res: Response): void => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+
+    const user = db.select().from(users).where(eq(users.id, id)).get();
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Cannot preview yourself
+    if (id === req.user!.userId) {
+      res.status(400).json({ error: 'Cannot delete your own account' });
+      return;
+    }
+
+    // Owner cannot be deleted
+    if (user.role === 'owner') {
+      res.status(403).json({ error: 'The owner account cannot be deleted' });
+      return;
+    }
+
+    // Admin can only preview members
+    if (req.user!.role === 'admin' && user.role === 'admin') {
+      res.status(403).json({ error: 'Only the owner can manage admin accounts' });
+      return;
+    }
+
+    // Sole-owned accounts: accounts where this user is the only entry in account_owners
+    const soleOwned = sqlite.prepare(`
+      SELECT a.id, a.name, a.last_four, a.type, a.classification
+      FROM account_owners ao
+      JOIN accounts a ON ao.account_id = a.id AND a.is_active = 1
+      WHERE ao.user_id = ?
+        AND (SELECT COUNT(*) FROM account_owners ao2 WHERE ao2.account_id = ao.account_id) = 1
+    `).all(id) as { id: number; name: string; last_four: string | null; type: string; classification: string }[];
+
+    // Co-owned accounts: accounts where this user is one of multiple owners
+    const coOwned = sqlite.prepare(`
+      SELECT a.id, a.name, a.last_four
+      FROM account_owners ao
+      JOIN accounts a ON ao.account_id = a.id AND a.is_active = 1
+      WHERE ao.user_id = ?
+        AND (SELECT COUNT(*) FROM account_owners ao2 WHERE ao2.account_id = ao.account_id) > 1
+    `).all(id) as { id: number; name: string; last_four: string | null }[];
+
+    // Get remaining owners for co-owned accounts
+    const coOwnedWithOwners = coOwned.map(acct => {
+      const others = sqlite.prepare(`
+        SELECT u.display_name FROM account_owners ao
+        JOIN users u ON ao.user_id = u.id
+        WHERE ao.account_id = ? AND ao.user_id != ?
+      `).all(acct.id, id) as { display_name: string }[];
+      return {
+        id: acct.id,
+        name: acct.name,
+        lastFour: acct.last_four,
+        remainingOwners: others.map(o => o.display_name),
+      };
+    });
+
+    // Personal SimpleFIN connections
+    const personalConnCount = sqlite.prepare(
+      'SELECT COUNT(*) as cnt FROM simplefin_connections WHERE user_id = ?'
+    ).get(id) as { cnt: number };
+
+    // Available owners (all active users except the one being deleted)
+    const available = sqlite.prepare(
+      'SELECT id, display_name FROM users WHERE is_active = 1 AND id != ? ORDER BY display_name'
+    ).all(id) as { id: number; display_name: string }[];
+
+    res.json({
+      data: {
+        user: {
+          id: user.id,
+          displayName: user.display_name,
+          username: user.username,
+          role: user.role,
+        },
+        soleOwnedAccounts: soleOwned.map(a => ({
+          id: a.id,
+          name: a.name,
+          lastFour: a.last_four,
+          type: a.type,
+          classification: a.classification,
+        })),
+        coOwnedAccounts: coOwnedWithOwners,
+        personalConnections: personalConnCount.cnt,
+        availableOwners: available.map(u => ({ id: u.id, displayName: u.display_name })),
+      },
+    });
+  } catch (err) {
+    console.error('GET /users/:id/delete-preview error:', err);
+    res.status(500).json({ error: 'Failed to load delete preview' });
+  }
+});
+
 // DELETE /api/users/:id — soft delete (admin+ only, with hierarchy checks)
 router.delete('/:id', requireRole('admin'), (req: Request, res: Response): void => {
   try {
