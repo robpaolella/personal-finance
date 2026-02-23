@@ -11,6 +11,7 @@ import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type Acco
 import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
 import PermissionGate from '../components/PermissionGate';
+import ResponsiveModal from '../components/ResponsiveModal';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment', 'retirement', 'venmo', 'cash'];
@@ -54,17 +55,6 @@ interface GroupedCategory {
   group: string;
   type: string;
   subs: Category[];
-}
-
-// --- Modal wrapper ---
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[var(--bg-card)] rounded-xl p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  );
 }
 
 // --- Account Form ---
@@ -125,7 +115,7 @@ function AccountForm({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
         {account ? 'Edit Account' : 'Add Account'}
       </h3>
@@ -224,7 +214,7 @@ function AccountForm({
           Save
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -260,7 +250,7 @@ function CategoryForm({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
         {category ? 'Edit Category' : 'Add Category'}
       </h3>
@@ -316,7 +306,7 @@ function CategoryForm({
           Save
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -523,7 +513,7 @@ function AddUserModal({ onClose, onCreated, callerRole }: { onClose: () => void;
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">Add User</h3>
       {error && <InlineNotification type="error" message={error} dismissible onDismiss={() => setError('')} className="mb-3" />}
       <div className="flex flex-col gap-3">
@@ -575,7 +565,7 @@ function AddUserModal({ onClose, onCreated, callerRole }: { onClose: () => void;
           Create User
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -641,7 +631,7 @@ function EditUserModal({ managedUser, currentUserId, callerRole, onClose, onUpda
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">Edit User</h3>
       {error && <InlineNotification type="error" message={error} dismissible onDismiss={() => setError('')} className="mb-3" />}
       <div className="flex flex-col gap-3">
@@ -713,7 +703,7 @@ function EditUserModal({ managedUser, currentUserId, callerRole, onClose, onUpda
           Save Changes
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -758,11 +748,9 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
 
   if (loading || !preview) {
     return (
-      <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-        <div className="bg-[var(--bg-card)] rounded-xl p-6 shadow-xl">
-          <div className="text-[13px] text-[var(--text-secondary)]">Loading...</div>
-        </div>
-      </div>
+      <ResponsiveModal isOpen={true} onClose={onClose} maxWidth="520px">
+        <div className="text-[13px] text-[var(--text-secondary)]">Loading...</div>
+      </ResponsiveModal>
     );
   }
 
@@ -818,9 +806,8 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
     : { bg: 'var(--badge-member-bg)', text: 'var(--badge-member-text)', label: 'Member' };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-xl w-full max-w-[520px] max-h-[90vh] overflow-y-auto"
-        style={{ padding: '24px 28px' }} onClick={e => e.stopPropagation()}>
+    <ResponsiveModal isOpen={true} onClose={onClose} maxWidth="520px">
+      <div style={{ padding: '0' }}>
 
         {step === 'preview' && (
           <>
@@ -983,7 +970,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
           </>
         )}
       </div>
-    </div>
+    </ResponsiveModal>
   );
 }
 

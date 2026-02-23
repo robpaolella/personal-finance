@@ -9,6 +9,7 @@ import PermissionGate from '../components/PermissionGate';
 import Spinner from '../components/Spinner';
 import Tooltip from '../components/Tooltip';
 import ScrollableList from '../components/ScrollableList';
+import ResponsiveModal from '../components/ResponsiveModal';
 import { OwnerBadge, SharedBadge } from '../components/badges';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -847,9 +848,7 @@ export default function NetWorthPage() {
       )}
 
       {/* Update Balances Modal */}
-      {showBalanceModal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowBalanceModal(false)}>
-          <div className="bg-[var(--bg-card)] rounded-xl shadow-lg w-[560px] max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+      <ResponsiveModal isOpen={showBalanceModal} onClose={() => setShowBalanceModal(false)} maxWidth="560px">
             <h3 className="text-[16px] font-bold text-[var(--text-primary)] m-0 mb-4">Update Account Balances</h3>
 
             {/* Tab Switcher — only if SimpleFIN connections exist */}
@@ -1016,9 +1015,7 @@ export default function NetWorthPage() {
                 )}
               </>
             )}
-          </div>
-        </div>
-      )}
+      </ResponsiveModal>
     </div>
   );
 }

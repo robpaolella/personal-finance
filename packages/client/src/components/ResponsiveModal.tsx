@@ -2,7 +2,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import BottomSheet from './BottomSheet';
 
 interface ResponsiveModalProps {
-  title: string;
+  title?: string;
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
