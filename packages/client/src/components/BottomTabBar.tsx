@@ -1,75 +1,80 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TAB_BAR_ITEMS, MORE_MENU_ITEMS, MORE_ROUTES, icons } from '../lib/navItems';
+
+const MORE_DESCRIPTIONS: Record<string, string> = {
+  '/reports': 'Annual income & expense breakdown',
+  '/net-worth': 'Account balances & assets',
+  '/import': 'CSV and bank sync import',
+  '/settings': 'Accounts, categories, users',
+};
 
 export default function BottomTabBar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [showMore, setShowMore] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
 
   const isMoreActive = MORE_ROUTES.some(r =>
     r === '/' ? pathname === '/' : pathname.startsWith(r)
   );
-
-  useEffect(() => {
-    if (!showMore) return;
-    const handleClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setShowMore(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMore]);
 
   const isTabActive = (to: string) =>
     to === '/' ? pathname === '/' : pathname.startsWith(to);
 
   return (
     <div className="mobile-only">
-      {/* More Menu Popover */}
+      {/* More Menu Bottom Sheet */}
       {showMore && (
-        <>
+        <div className="fixed inset-0 z-[44] flex flex-col justify-end">
           <div
-            className="fixed inset-0 z-[44]"
+            className="flex-1 bg-[var(--bg-modal)]"
             onClick={() => setShowMore(false)}
+            style={{ animation: 'fadeIn 200ms ease-out' }}
           />
           <div
-            ref={popoverRef}
-            className="fixed z-[45] bg-[var(--bg-card)] border border-[var(--bg-card-border)] rounded-xl"
-            style={{
-              bottom: 80,
-              right: 16,
-              padding: '6px 0',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-              minWidth: 160,
-            }}
+            className="bg-[var(--bg-card)] rounded-t-2xl"
+            style={{ animation: 'sheetSlideUp 200ms ease-out', padding: '0 20px 24px' }}
           >
-            {MORE_MENU_ITEMS.map((item) => {
-              const active = isTabActive(item.to);
-              return (
-                <div
-                  key={item.to}
-                  onClick={() => {
-                    navigate(item.to);
-                    setShowMore(false);
-                  }}
-                  className="flex items-center gap-2.5 cursor-pointer"
-                  style={{
-                    padding: '10px 16px',
-                    fontSize: 13,
-                    color: active ? 'var(--color-accent)' : 'var(--text-primary)',
-                    fontWeight: active ? 600 : 400,
-                  }}
-                >
-                  {item.icon}
-                  {item.label}
-                </div>
-              );
-            })}
+            {/* Drag handle */}
+            <div className="flex justify-center" style={{ padding: '8px 0 12px' }}>
+              <div className="w-9 h-1 rounded-full bg-[var(--bg-card-border)]" />
+            </div>
+
+            <div className="flex flex-col" style={{ gap: 12 }}>
+              {MORE_MENU_ITEMS.map((item) => {
+                const active = isTabActive(item.to);
+                return (
+                  <div
+                    key={item.to}
+                    onClick={() => {
+                      navigate(item.to);
+                      setShowMore(false);
+                    }}
+                    className="flex items-center cursor-pointer bg-[var(--bg-card)] border border-[var(--bg-card-border)] rounded-[10px]"
+                    style={{
+                      padding: '14px 16px',
+                      gap: 12,
+                      borderLeft: active ? '3px solid var(--color-accent)' : undefined,
+                    }}
+                  >
+                    <span style={{ fontSize: 20, flexShrink: 0, color: active ? 'var(--color-accent)' : undefined }}>
+                      {item.icon}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div style={{ fontSize: 14, fontWeight: 600, color: active ? 'var(--color-accent)' : 'var(--text-primary)' }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>
+                        {MORE_DESCRIPTIONS[item.to]}
+                      </div>
+                    </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 14, flexShrink: 0 }}>›</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Tab Bar */}
