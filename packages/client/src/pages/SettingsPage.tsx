@@ -838,7 +838,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
             </div>
 
             {/* Destructive warning */}
-            <div className="rounded-lg p-3 mb-4 text-[13px] leading-relaxed bg-[var(--inline-error-bg)] border border-[var(--inline-error-border)] text-[var(--inline-error-text)]">
+            <div className="rounded-lg p-3 mb-4 text-[13px] leading-relaxed bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)]">
               <strong>This action is permanent and cannot be undone.</strong> The user account will be completely removed from the system. All permissions will be deleted. The user will no longer appear in the app.
             </div>
 
@@ -916,7 +916,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
               </div>
             )}
 
-            {error && <div className="rounded-lg p-3 mb-4 text-[13px] bg-[var(--inline-error-bg)] border border-[var(--inline-error-border)] text-[var(--inline-error-text)]">{error}</div>}
+            {error && <div className="rounded-lg p-3 mb-4 text-[13px] bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)]">{error}</div>}
 
             {/* Buttons */}
             <div className="flex justify-end gap-2 mt-6">
@@ -940,11 +940,11 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
             <h2 className="text-[18px] font-bold text-[var(--text-primary)] mb-4">Final Confirmation</h2>
 
             {/* Big red warning */}
-            <div className="rounded-lg p-4 mb-5 text-center bg-[var(--inline-error-bg)] border border-[var(--inline-error-border)] text-[var(--inline-error-text)]">
+            <div className="rounded-lg p-4 mb-5 text-center bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)]">
               <div className="text-[20px] mb-2">⚠️</div>
               <strong className="text-[13px]">You are about to permanently delete the user &ldquo;{preview.user.displayName}&rdquo;.</strong>
               {summaryLines.length > 0 && (
-                <div className="mt-2 text-[12px]" style={{ color: 'var(--inline-error-text)', opacity: 0.9 }}>
+                <div className="mt-2 text-[12px]" style={{ color: 'var(--text-inline-error)', opacity: 0.9 }}>
                   {summaryLines.map((line, i) => <div key={i}>{line}</div>)}
                 </div>
               )}
@@ -964,7 +964,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
               />
             </div>
 
-            {error && <div className="rounded-lg p-3 mb-4 text-[13px] bg-[var(--inline-error-bg)] border border-[var(--inline-error-border)] text-[var(--inline-error-text)]">{error}</div>}
+            {error && <div className="rounded-lg p-3 mb-4 text-[13px] bg-[var(--bg-inline-error)] border border-[var(--bg-inline-error-border)] text-[var(--text-inline-error)]">{error}</div>}
 
             {/* Buttons */}
             <div className="flex justify-between mt-6">
