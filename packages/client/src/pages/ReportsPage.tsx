@@ -6,6 +6,7 @@ import OwnerFilter from '../components/OwnerFilter';
 import Spinner from '../components/Spinner';
 import InlineNotification from '../components/InlineNotification';
 import { getCategoryColor } from '../lib/categoryColors';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -26,6 +27,7 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
 );
 
 export default function ReportsPage() {
+  const isMobile = useIsMobile();
   const currentYear = new Date().getFullYear();
   const currentMonthIdx = new Date().getMonth();
   const [year, setYear] = useState(currentYear);
@@ -101,17 +103,18 @@ export default function ReportsPage() {
   }
 
   const thCls = "text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-1.5 py-2 border-b-2 border-[var(--table-border)]";
-  const tdCls = "px-1.5 py-2 font-mono text-[11px]";
+  const tdCls = `px-1.5 py-2 font-mono ${isMobile ? 'text-[10px]' : 'text-[11px]'}`;
+  const stickyCol = isMobile ? 'sticky left-0 bg-[var(--bg-card)] z-[1]' : '';
 
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className={`flex justify-between items-center mb-6 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Annual Report</h1>
-          <p className="text-[var(--text-secondary)] text-[13px] mt-1">{year} {isYTD ? 'Year-to-Date' : 'Full Year'}</p>
+          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Annual Report</h1>
+          <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{year} {isYTD ? 'Year-to-Date' : 'Full Year'}</p>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className={`flex gap-3 items-center ${isMobile ? 'justify-between' : ''}`}>
           <OwnerFilter value={owner} onChange={setOwner} users={users} />
           <select
             value={year}
@@ -129,7 +132,7 @@ export default function ReportsPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="kpi-grid grid grid-cols-4 gap-4 mb-6">
         <KPICard label={`${isYTD ? 'YTD' : ''} Income`} value={fmtWhole(totalIncome)} />
         <KPICard label={`${isYTD ? 'YTD' : ''} Expenses`} value={fmtWhole(totalExpenses)} />
         <KPICard label={`${isYTD ? 'YTD' : ''} Net`} value={fmtWhole(totalNet)} />
@@ -157,7 +160,7 @@ export default function ReportsPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className={`${thCls} text-left`} style={{ width: 200, minWidth: 180 }}>Category</th>
+              <th className={`${thCls} text-left ${stickyCol}`} style={{ width: 200, minWidth: isMobile ? 120 : 180 }}>Category</th>
               {MONTHS.map((m) => <th key={m} className={`${thCls} text-right`}>{m}</th>)}
               <th className={`${thCls} text-right font-bold`}>Total</th>
             </tr>
@@ -169,7 +172,7 @@ export default function ReportsPage() {
               style={{ borderBottom: '2px solid rgba(187, 247, 208, 0.25)' }}
               onClick={() => setExpandIncome(!expandIncome)}
             >
-              <td className="px-2.5 py-2 font-bold text-[var(--color-positive)] text-[13px]">
+              <td className={`px-2.5 py-2 font-bold text-[var(--color-positive)] text-[13px] ${stickyCol}`}>
                 <span className="flex items-center gap-1.5">
                   <ChevronIcon open={expandIncome} />Total Income
                 </span>
@@ -185,7 +188,7 @@ export default function ReportsPage() {
             {/* Expanded income categories */}
             {expandIncome && Object.entries(data.incomeByCategory).map(([cat, vals]) => (
               <tr key={cat} className="border-b border-[var(--table-row-border)]">
-                <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)]" style={{ paddingLeft: 36 }}>{cat}</td>
+                <td className={`px-2.5 py-2 text-[12px] text-[var(--text-secondary)] ${stickyCol}`} style={{ paddingLeft: 36 }}>{cat}</td>
                 {vals.map((v, i) => (
                   <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--table-border)]'}`}>
                     {v !== 0 ? fmtShort(v) : '—'}
@@ -201,7 +204,7 @@ export default function ReportsPage() {
               style={{ borderBottom: '2px solid rgba(254, 215, 170, 0.25)' }}
               onClick={() => setExpandExpenses(!expandExpenses)}
             >
-              <td className="px-2.5 py-2 font-bold text-[var(--color-orange)] text-[13px]">
+              <td className={`px-2.5 py-2 font-bold text-[var(--color-orange)] text-[13px] ${stickyCol}`}>
                 <span className="flex items-center gap-1.5">
                   <ChevronIcon open={expandExpenses} />Total Expenses
                 </span>
@@ -227,7 +230,7 @@ export default function ReportsPage() {
                     style={{ borderBottom: '1px solid var(--table-row-border)' }}
                     onClick={() => toggleGroup(group)}
                   >
-                    <td className="px-2.5 py-2 font-semibold text-[12px] text-[var(--text-body)]" style={{ paddingLeft: 28 }}>
+                    <td className={`px-2.5 py-2 font-semibold text-[12px] text-[var(--text-body)] ${stickyCol}`} style={{ paddingLeft: 28 }}>
                       <span className="flex items-center gap-[5px]">
                         <ChevronIcon open={!!isOpen} />
                         <span className="w-1.5 h-1.5 rounded-sm inline-block" style={{ background: color }} />
@@ -243,7 +246,7 @@ export default function ReportsPage() {
                   </tr>
                   {isOpen && Object.entries(subs).map(([sub, vals]) => (
                     <tr key={sub} className="border-b border-[var(--bg-hover)]">
-                      <td className="px-2.5 py-2 text-[11px] text-[var(--text-muted)]" style={{ paddingLeft: 52 }}>{sub}</td>
+                      <td className={`px-2.5 py-2 text-[11px] text-[var(--text-muted)] ${stickyCol}`} style={{ paddingLeft: 52 }}>{sub}</td>
                       {vals.map((v, i) => (
                         <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-muted)]' : v < 0 ? 'text-[#10b981]' : 'text-[var(--table-border)]'}`}>
                           {v !== 0 ? fmtShort(v) : '—'}
@@ -258,7 +261,7 @@ export default function ReportsPage() {
 
             {/* NET Row */}
             <tr style={{ background: 'var(--bg-hover)', borderTop: '2px solid var(--table-border)' }}>
-              <td className="px-2.5 py-2 font-bold text-[13px] text-[var(--text-primary)]" style={{ paddingLeft: 30 }}>NET</td>
+              <td className={`px-2.5 py-2 font-bold text-[13px] text-[var(--text-primary)] ${stickyCol}`} style={{ paddingLeft: 30 }}>NET</td>
               {data.monthlyNetTotals.map((v, i) => (
                 <td key={i} className={`${tdCls} text-right font-semibold ${
                   data.monthlyIncomeTotals[i] === 0 && data.monthlyExpenseTotals[i] === 0
