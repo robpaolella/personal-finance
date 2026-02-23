@@ -10,6 +10,7 @@ import Spinner from '../components/Spinner';
 import Tooltip from '../components/Tooltip';
 import ScrollableList from '../components/ScrollableList';
 import { OwnerBadge, SharedBadge } from '../components/badges';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface Account {
   accountId: number;
@@ -164,6 +165,7 @@ function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?
 export default function NetWorthPage() {
   const { addToast } = useToast();
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<NetWorthData | null>(null);
   const [editingAssetId, setEditingAssetId] = useState<number | 'new' | null>(null);
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
@@ -359,18 +361,18 @@ export default function NetWorthPage() {
   };
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className={isMobile ? '' : 'flex flex-col'} style={isMobile ? undefined : { height: 'calc(100vh - 56px)' }}>
       {/* Header */}
       <div className="mb-6 flex-shrink-0">
-        <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Net Worth</h1>
-        <p className="text-[var(--text-secondary)] text-[13px] mt-1">As of {today}</p>
+        <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Net Worth</h1>
+        <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">As of {today}</p>
       </div>
 
       {/* Hero Card */}
-      <div className="rounded-xl border border-[var(--bg-card-border)] text-center p-8 mb-6 shadow-[var(--bg-card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)] flex-shrink-0">
+      <div className={`rounded-xl border border-[var(--bg-card-border)] text-center mb-6 shadow-[var(--bg-card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)] flex-shrink-0 ${isMobile ? 'p-5' : 'p-8'}`}>
         <p className="text-[13px] text-[var(--text-muted)] m-0 tracking-[0.05em] uppercase">Total Net Worth</p>
-        <p className="text-[40px] font-extrabold font-mono text-white my-2 tracking-[-0.02em]">{fmt(data.netWorth)}</p>
-        <div className="flex justify-center gap-6 mt-3 flex-wrap">
+        <p className={`font-extrabold font-mono text-white my-2 tracking-[-0.02em] ${isMobile ? 'text-[28px]' : 'text-[40px]'}`}>{fmt(data.netWorth)}</p>
+        <div className={`flex justify-center mt-3 flex-wrap ${isMobile ? 'gap-4' : 'gap-6'}`}>
           {[
             { l: 'Liquid Assets', v: data.liquidTotal, c: '#38bdf8' },
             { l: 'Investments', v: data.investmentTotal, c: '#a78bfa' },
@@ -388,7 +390,7 @@ export default function NetWorthPage() {
       </div>
 
       {/* Two-Column Layout */}
-      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
+      <div className={`grid gap-5 ${isMobile ? 'grid-cols-1' : 'grid-cols-2 flex-1 min-h-[300px]'}`}>
         {/* Accounts */}
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <div className="flex justify-between items-center flex-shrink-0">
