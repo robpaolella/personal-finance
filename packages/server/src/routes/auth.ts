@@ -134,17 +134,22 @@ router.get('/me', (req: Request, res: Response): void => {
     return;
   }
 
-  // Build permissions map
+  // Fetch fresh display name and role from DB (JWT may be stale after profile/role update)
+  const freshUser = sqlite.prepare('SELECT display_name, role FROM users WHERE id = ?').get(req.user.userId) as { display_name: string; role: string } | undefined;
+  if (!freshUser) {
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+
+  // Build permissions map using DB role (not JWT role, which may be stale)
   let permissions: Record<string, boolean>;
 
-  if (req.user.role === 'admin' || req.user.role === 'owner') {
-    // Admins have all permissions implicitly
+  if (freshUser.role === 'admin' || freshUser.role === 'owner') {
     permissions = {};
     for (const perm of ALL_PERMISSIONS) {
       permissions[perm] = true;
     }
   } else {
-    // Query member's actual permissions
     const rows = db.select({
       permission: userPermissions.permission,
       granted: userPermissions.granted,
@@ -157,13 +162,6 @@ router.get('/me', (req: Request, res: Response): void => {
     for (const row of rows) {
       permissions[row.permission] = row.granted === 1;
     }
-  }
-
-  // Fetch fresh display name and role from DB (JWT may be stale after profile update)
-  const freshUser = sqlite.prepare('SELECT display_name, role FROM users WHERE id = ?').get(req.user.userId) as { display_name: string; role: string } | undefined;
-  if (!freshUser) {
-    res.status(401).json({ error: 'User not found' });
-    return;
   }
 
   res.json({
