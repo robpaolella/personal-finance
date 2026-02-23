@@ -927,7 +927,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
               <button onClick={() => allAssigned && setStep('confirm')}
                 disabled={!allAssigned}
                 className="px-4 py-2 rounded-lg border-none text-[13px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: allAssigned ? 'var(--color-negative)' : undefined, color: allAssigned ? '#fff' : undefined }}>
+                style={{ background: 'var(--color-negative)', color: '#fff' }}>
                 Continue to Confirmation
               </button>
             </div>
@@ -975,7 +975,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
               <button onClick={handleDelete}
                 disabled={!confirmReady || deleting}
                 className="px-5 py-2 rounded-lg border-none text-[13px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: confirmReady ? 'var(--color-negative)' : undefined, color: confirmReady ? '#fff' : undefined }}>
+                style={{ background: 'var(--color-negative)', color: '#fff' }}>
                 {deleting ? 'Deleting...' : 'Permanently Delete User'}
               </button>
             </div>
