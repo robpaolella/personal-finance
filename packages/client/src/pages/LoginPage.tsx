@@ -67,6 +67,8 @@ export default function LoginPage() {
               placeholder="Enter username"
               required
               autoFocus
+              autoCapitalize="off"
+              autoComplete="username"
             />
           </div>
 
@@ -81,6 +83,7 @@ export default function LoginPage() {
               className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none"
               placeholder="Enter password"
               required
+              autoComplete="current-password"
             />
           </div>
 

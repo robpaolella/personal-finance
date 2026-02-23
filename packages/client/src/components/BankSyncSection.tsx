@@ -117,7 +117,7 @@ function NewAccountForm({
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Last Four</label>
-          <input value={lastFour} onChange={(e) => setLastFour(e.target.value)}
+          <input value={lastFour} onChange={(e) => setLastFour(e.target.value)} inputMode="numeric"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" maxLength={5} />
         </div>
         <div>

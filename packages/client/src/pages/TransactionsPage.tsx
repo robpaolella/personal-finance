@@ -305,7 +305,7 @@ function TransactionForm({
           </Field>
         </div>
         <Field label="Amount" required error={errAmount}>
-          <input ref={amountRef} type="number" step="0.01" value={amount}
+          <input ref={amountRef} type="number" step="0.01" inputMode="decimal" value={amount}
             onChange={(e) => setAmount(e.target.value)}
             className={`${inputCls(!!errAmount)} font-mono`} />
         </Field>
@@ -672,7 +672,7 @@ export default function TransactionsPage() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </span>
           <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search transactions..."
+            placeholder="Search transactions..." autoCapitalize="off"
             className="w-full py-2 pl-[34px] pr-2 border border-[var(--table-border)] rounded-lg text-[13px] outline-none bg-[var(--bg-input)] text-[var(--text-secondary)]" />
         </div>
         {isMobile ? (
