@@ -11,6 +11,7 @@ import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type Acco
 import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
 import PermissionGate from '../components/PermissionGate';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment', 'retirement', 'venmo', 'cash'];
 const CLASSIFICATIONS = ['liquid', 'investment', 'liability'];
@@ -1183,8 +1184,10 @@ function UsersPermissionsSection() {
 export default function SettingsPage() {
   const { addToast } = useToast();
   const { isAdmin, hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'settings';
+  const [mobileSubPage, setMobileSubPage] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [userList, setUserList] = useState<{ id: number; displayName: string }[]>([]);
@@ -1293,25 +1296,133 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-[22px] font-bold text-[var(--text-primary)]">Settings</h1>
+        {isMobile && mobileSubPage ? (
+          <button onClick={() => setMobileSubPage(null)}
+            className="flex items-center gap-1 text-[13px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer font-medium">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Settings
+          </button>
+        ) : (
+          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)]">Settings</h1>
+        )}
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex bg-[var(--bg-hover)] rounded-lg p-0.5 w-fit">
-        {[{ id: 'settings', label: 'Settings' }, { id: 'preferences', label: 'Preferences' }].map((tab) => (
-          <button key={tab.id} onClick={() => switchTab(tab.id)}
-            className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${
-              activeTab === tab.id
-                ? 'bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-sm'
-                : 'bg-transparent text-[var(--text-secondary)] font-normal'
-            }`}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Tab Navigation — desktop only when no sub-page */}
+      {!(isMobile && mobileSubPage) && (
+        <div className="flex bg-[var(--bg-hover)] rounded-lg p-0.5 w-fit">
+          {[{ id: 'settings', label: 'Settings' }, { id: 'preferences', label: 'Preferences' }].map((tab) => (
+            <button key={tab.id} onClick={() => switchTab(tab.id)}
+              className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-sm'
+                  : 'bg-transparent text-[var(--text-secondary)] font-normal'
+              }`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {activeTab === 'preferences' ? (
         <PreferencesTab />
+      ) : isMobile ? (
+        /* Mobile: drill-through navigation */
+        mobileSubPage === 'accounts' ? (
+          <>
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Accounts</h2>
+            <div className="flex flex-col gap-2">
+              {accounts.map((a) => (
+                <div key={a.id}
+                  onClick={() => hasPermission('accounts.edit') ? setEditingAccount(a) : null}
+                  className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)] ${hasPermission('accounts.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">
+                        {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {(a.owners || []).map((o) => <OwnerBadge key={o.id} user={o} />)}
+                        {a.isShared && <SharedBadge />}
+                        <span className="text-[11px] text-[var(--text-muted)] capitalize">{a.type}</span>
+                      </div>
+                    </div>
+                    <ClassificationBadge classification={a.classification as AccountClassification} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <PermissionGate permission="accounts.create" fallback="disabled">
+              <button onClick={() => setEditingAccount('new')}
+                className="w-full py-2.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Account
+              </button>
+            </PermissionGate>
+          </>
+        ) : mobileSubPage === 'categories' ? (
+          <>
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Categories</h2>
+            <div className="flex flex-col gap-3">
+              {allGroups.map((g) => {
+                const allGroupNames = allGroups.map((x) => x.group);
+                const color = getCategoryColor(g.group, allGroupNames);
+                return (
+                  <div key={`${g.type}:${g.group}`} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-sm" style={{ background: color }} />{g.group}
+                      </span>
+                      <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
+                    </div>
+                    {g.subs.map((s) => (
+                      <div key={s.id} onClick={() => hasPermission('categories.edit') ? setEditingCategory(s) : null}
+                        className={`py-1.5 pl-4 text-[12px] text-[var(--text-secondary)] border-b border-[var(--table-row-border)] last:border-b-0 ${hasPermission('categories.edit') ? 'cursor-pointer active:text-[var(--btn-secondary-text)]' : ''}`}>
+                        {s.sub_name}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+            <PermissionGate permission="categories.create" fallback="disabled">
+              <button onClick={() => setEditingCategory('new')}
+                className="w-full py-2.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Category
+              </button>
+            </PermissionGate>
+          </>
+        ) : mobileSubPage === 'users' ? (
+          <>
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Users & Permissions</h2>
+            {isAdmin() && <UsersPermissionsSection />}
+          </>
+        ) : mobileSubPage === 'banksync' ? (
+          <>
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Bank Sync</h2>
+            <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
+          </>
+        ) : (
+          /* Mobile navigation list */
+          <div className="flex flex-col gap-3">
+            {[
+              { id: 'accounts', icon: '🏦', label: 'Accounts', desc: `${accounts.length} accounts configured`, show: true },
+              { id: 'categories', icon: '📂', label: 'Categories', desc: `${categories.length} categories`, show: true },
+              { id: 'users', icon: '👥', label: 'Users & Permissions', desc: 'Manage users and roles', show: isAdmin() },
+              { id: 'banksync', icon: '🔗', label: 'Bank Sync', desc: 'SimpleFIN connections', show: true },
+            ].filter(item => item.show).map((item) => (
+              <button key={item.id} onClick={() => setMobileSubPage(item.id)}
+                className="w-full bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3.5 shadow-[var(--bg-card-shadow)] flex items-center gap-3 text-left cursor-pointer active:bg-[var(--bg-hover)]">
+                <span className="text-[20px]">{item.icon}</span>
+                <div className="flex-1">
+                  <div className="text-[14px] font-semibold text-[var(--text-primary)]">{item.label}</div>
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">{item.desc}</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            ))}
+          </div>
+        )
       ) : (
         <>
           {/* Bank Sync Section */}
