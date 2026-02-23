@@ -159,12 +159,19 @@ router.get('/me', (req: Request, res: Response): void => {
     }
   }
 
+  // Fetch fresh display name and role from DB (JWT may be stale after profile update)
+  const freshUser = sqlite.prepare('SELECT display_name, role FROM users WHERE id = ?').get(req.user.userId) as { display_name: string; role: string } | undefined;
+  if (!freshUser) {
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+
   res.json({
     data: {
       id: req.user.userId,
       username: req.user.username,
-      displayName: req.user.displayName,
-      role: req.user.role,
+      displayName: freshUser.display_name,
+      role: freshUser.role,
       permissions,
     },
   });
