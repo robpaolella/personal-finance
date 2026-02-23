@@ -40,6 +40,8 @@ export default function ReportsPage() {
     try { return JSON.parse(sessionStorage.getItem('reports-expanded-groups') || '{}'); } catch { return {}; }
   });
   const [users, setUsers] = useState<{ id: number; displayName: string }[]>([]);
+  const [mobileView, setMobileView] = useState<'monthly' | 'annual'>('monthly');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
 
   useEffect(() => {
     apiFetch<{ data: { id: number; display_name: string }[] }>('/users').then((res) =>
@@ -176,7 +178,201 @@ export default function ReportsPage() {
         />
       </div>
 
-      {/* Monthly Breakdown Table */}
+      {/* Mobile Reports Layout */}
+      {isMobile ? (
+        <div>
+          {/* View Toggle */}
+          <div className="flex rounded-lg p-0.5 mb-3.5" style={{ background: 'var(--toggle-bg)' }}>
+            {(['monthly', 'annual'] as const).map(v => (
+              <button key={v} onClick={() => setMobileView(v)}
+                className="flex-1 py-1.5 px-3 text-[11px] border-none cursor-pointer rounded-md capitalize"
+                style={{
+                  background: mobileView === v ? 'var(--toggle-active-bg)' : 'transparent',
+                  color: mobileView === v ? 'var(--toggle-active-text)' : 'var(--toggle-inactive-text)',
+                  fontWeight: mobileView === v ? 600 : 400,
+                  boxShadow: mobileView === v ? 'var(--toggle-shadow)' : 'none',
+                }}>
+                {v === 'monthly' ? 'Monthly Detail' : 'Annual Totals'}
+              </button>
+            ))}
+          </div>
+
+          {mobileView === 'monthly' && (
+            <>
+              {/* Month pill selector */}
+              <div className="flex gap-1.5 mb-4 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+                {MONTHS.map((m, i) => (
+                  <button key={m} onClick={() => setSelectedMonth(i)}
+                    className="flex-shrink-0 border-none cursor-pointer rounded-lg text-[12px] px-3.5 py-2"
+                    style={{
+                      minWidth: 44,
+                      background: selectedMonth === i ? 'var(--color-accent)' : 'var(--bg-card)',
+                      color: selectedMonth === i ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: selectedMonth === i ? 700 : 400,
+                      boxShadow: selectedMonth === i ? 'none' : 'inset 0 0 0 1px var(--bg-card-border)',
+                    }}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              {/* Month Summary Card */}
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-3">
+                <div className="text-[14px] font-bold text-[var(--text-primary)] mb-2.5">
+                  {MONTHS[selectedMonth]} {year}
+                </div>
+                <div className="flex justify-between py-2 border-b border-[var(--bg-card-border)]">
+                  <span className="text-[13px] text-[#10b981] font-semibold">Income</span>
+                  <span className={`text-[14px] font-bold font-mono ${data.monthlyIncomeTotals[selectedMonth] > 0 ? 'text-[#10b981]' : 'text-[var(--text-muted)]'}`}>
+                    {data.monthlyIncomeTotals[selectedMonth] !== 0 ? fmtShort(data.monthlyIncomeTotals[selectedMonth]) : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-[var(--bg-card-border)]">
+                  <span className="text-[13px] text-[#f59e0b] font-semibold">Expenses</span>
+                  <span className="text-[14px] font-bold font-mono text-[var(--text-primary)]">
+                    {data.monthlyExpenseTotals[selectedMonth] !== 0 ? fmtShort(data.monthlyExpenseTotals[selectedMonth]) : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-[13px] font-bold text-[var(--text-primary)]">Net</span>
+                  <span className={`text-[14px] font-bold font-mono ${
+                    data.monthlyNetTotals[selectedMonth] > 0 ? 'text-[#10b981]' : data.monthlyNetTotals[selectedMonth] < 0 ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'
+                  }`}>
+                    {data.monthlyNetTotals[selectedMonth] !== 0
+                      ? `${data.monthlyNetTotals[selectedMonth] > 0 ? '+' : ''}${fmtShort(data.monthlyNetTotals[selectedMonth])}`
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Income Breakdown Card */}
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-2.5">
+                <div className="flex justify-between items-center cursor-pointer" onClick={() => setExpandIncome(!expandIncome)}>
+                  <span className="text-[13px] font-bold text-[#10b981]">Income</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[13px] font-bold font-mono ${data.monthlyIncomeTotals[selectedMonth] > 0 ? 'text-[#10b981]' : 'text-[var(--text-muted)]'}`}>
+                      {data.monthlyIncomeTotals[selectedMonth] !== 0 ? fmtShort(data.monthlyIncomeTotals[selectedMonth]) : '—'}
+                    </span>
+                    <span className="text-[10px] text-[var(--text-muted)] inline-block transition-transform duration-150"
+                      style={{ transform: expandIncome ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                  </div>
+                </div>
+                {expandIncome && (
+                  <div className="mt-2">
+                    {Object.entries(data.incomeByCategory).map(([cat, vals], i, arr) => (
+                      <div key={cat} className="flex justify-between py-1.5 pl-3"
+                        style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                        <span className="text-[12px] text-[var(--text-body)]">{cat}</span>
+                        <span className={`text-[12px] font-mono ${vals[selectedMonth] !== 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}>
+                          {vals[selectedMonth] !== 0 ? fmtShort(vals[selectedMonth]) : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Expense Group Cards */}
+              {Object.entries(data.expensesByGroup).sort(([a], [b]) => a.localeCompare(b)).map(([group, subs]) => {
+                const allGroups = Object.keys(data.expensesByGroup);
+                const color = getCategoryColor(group, allGroups);
+                const groupMonthTotal = Object.values(subs).reduce((s, a) => s + a[selectedMonth], 0);
+                const isOpen = expandedGroups[group];
+                return (
+                  <div key={group} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-2.5">
+                    <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleGroup(group)}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
+                        <span className="text-[13px] font-bold text-[var(--text-primary)]">{group}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[13px] font-bold font-mono ${groupMonthTotal !== 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
+                          {groupMonthTotal !== 0 ? fmtShort(groupMonthTotal) : '—'}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-muted)] inline-block transition-transform duration-150"
+                          style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                      </div>
+                    </div>
+                    {isOpen && (
+                      <div className="mt-2">
+                        {Object.entries(subs).map(([sub, vals], i, arr) => (
+                          <div key={sub} className="flex justify-between py-1.5 pl-3"
+                            style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                            <span className="text-[12px] text-[var(--text-body)]">{sub}</span>
+                            <span className={`text-[12px] font-mono ${
+                              vals[selectedMonth] > 0 ? 'text-[var(--text-secondary)]' : vals[selectedMonth] < 0 ? 'text-[#10b981]' : 'text-[var(--text-muted)]'
+                            }`}>
+                              {vals[selectedMonth] !== 0 ? fmtShort(vals[selectedMonth]) : '—'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {mobileView === 'annual' && (
+            <>
+              {/* Annual Income Card */}
+              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-2.5">
+                <div className="text-[13px] font-bold text-[#10b981] mb-2">Annual Income</div>
+                {Object.entries(data.incomeByCategory).map(([cat, vals], i, arr) => {
+                  const catTotal = sum(vals);
+                  return (
+                    <div key={cat} className="flex justify-between py-1.5"
+                      style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                      <span className="text-[12px] text-[var(--text-body)]">{cat}</span>
+                      <span className={`text-[12px] font-mono ${catTotal !== 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
+                        {catTotal !== 0 ? fmtShort(catTotal) : '—'}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div className="flex justify-between pt-2 mt-1 border-t-2 border-[var(--bg-card-border)]">
+                  <span className="text-[12px] font-bold text-[var(--text-primary)]">Total</span>
+                  <span className="text-[13px] font-bold font-mono text-[#10b981]">{fmtShort(totalIncome)}</span>
+                </div>
+              </div>
+
+              {/* Annual Expense Group Cards */}
+              {Object.entries(data.expensesByGroup).sort(([a], [b]) => a.localeCompare(b)).map(([group, subs]) => {
+                const allGroups = Object.keys(data.expensesByGroup);
+                const color = getCategoryColor(group, allGroups);
+                const groupTotal = Object.values(subs).reduce((s, a) => s + sum(a), 0);
+                return (
+                  <div key={group} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-2.5">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
+                        <span className="text-[13px] font-bold text-[var(--text-primary)]">{group}</span>
+                      </div>
+                      <span className="text-[13px] font-bold font-mono text-[var(--text-primary)]">{fmtShort(groupTotal)}</span>
+                    </div>
+                    {Object.entries(subs).map(([sub, vals], i, arr) => {
+                      const subTotal = sum(vals);
+                      return (
+                        <div key={sub} className="flex justify-between py-1.5 pl-3"
+                          style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                          <span className="text-[12px] text-[var(--text-body)]">{sub}</span>
+                          <span className={`text-[12px] font-mono ${
+                            subTotal > 0 ? 'text-[var(--text-secondary)]' : subTotal < 0 ? 'text-[#10b981]' : 'text-[var(--text-muted)]'
+                          }`}>
+                            {subTotal !== 0 ? fmtShort(subTotal) : '—'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      ) : (
+      /* Desktop Monthly Breakdown Table */
       <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] overflow-x-auto">
         <div className="flex items-center justify-between">
           <div>
@@ -310,6 +506,7 @@ export default function ReportsPage() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
