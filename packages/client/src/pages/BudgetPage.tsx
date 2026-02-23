@@ -8,6 +8,7 @@ import InlineNotification from '../components/InlineNotification';
 import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
 import { useAuth } from '../context/AuthContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface IncomeRow {
   categoryId: number;
@@ -65,6 +66,7 @@ function nextMonth(d: Date): Date {
 
 export default function BudgetPage() {
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const canEditBudgets = hasPermission('budgets.edit');
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [owner, setOwner] = useState('All');
@@ -125,14 +127,14 @@ export default function BudgetPage() {
   const expRemaining = totals.budgetedExpenses - totals.actualExpenses;
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className={isMobile ? '' : 'flex flex-col'} style={isMobile ? undefined : { height: 'calc(100vh - 56px)' }}>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 flex-shrink-0">
+      <div className={`flex justify-between items-center mb-6 flex-shrink-0 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Monthly Budget</h1>
-          <p className="text-[var(--text-secondary)] text-[13px] mt-1">{monthLabel(month)}</p>
+          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Monthly Budget</h1>
+          <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{monthLabel(month)}</p>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className={`flex gap-3 items-center ${isMobile ? 'justify-between' : ''}`}>
           <OwnerFilter value={owner} onChange={setOwner} users={users} />
           <div className="flex gap-2 items-center">
             <button
@@ -160,7 +162,7 @@ export default function BudgetPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6 flex-shrink-0">
+      <div className="kpi-grid grid grid-cols-4 gap-4 mb-6 flex-shrink-0">
         <KPICard label="Budgeted Income" value={fmtWhole(totals.budgetedIncome)} />
         <KPICard
           label="Actual Income"
@@ -180,7 +182,7 @@ export default function BudgetPage() {
       </div>
 
       {/* Two Column: Income + Expenses */}
-      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
+      <div className={`grid gap-5 ${isMobile ? 'grid-cols-1' : 'grid-cols-2 flex-1 min-h-[300px]'}`}>
         {/* Income */}
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
