@@ -716,6 +716,276 @@ function EditUserModal({ managedUser, currentUserId, callerRole, onClose, onUpda
   );
 }
 
+// --- Delete User Modal (Two-Step) ---
+interface DeletePreview {
+  user: { id: number; displayName: string; username: string; role: string };
+  soleOwnedAccounts: { id: number; name: string; lastFour: string | null; type: string; classification: string }[];
+  coOwnedAccounts: { id: number; name: string; lastFour: string | null; remainingOwners: string[] }[];
+  personalConnections: number;
+  availableOwners: { id: number; displayName: string }[];
+}
+
+function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClose: () => void; onDeleted: () => void }) {
+  const { addToast } = useToast();
+  const [step, setStep] = useState<'preview' | 'confirm'>('preview');
+  const [preview, setPreview] = useState<DeletePreview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [assignments, setAssignments] = useState<Record<number, number>>({});
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    apiFetch<{ data: DeletePreview }>(`/users/${userId}/delete-preview`)
+      .then(res => {
+        setPreview(res.data);
+        // Auto-select if only one available owner
+        if (res.data.availableOwners.length === 1) {
+          const autoAssign: Record<number, number> = {};
+          for (const acct of res.data.soleOwnedAccounts) {
+            autoAssign[acct.id] = res.data.availableOwners[0].id;
+          }
+          setAssignments(autoAssign);
+        }
+      })
+      .catch(err => {
+        addToast(err instanceof Error ? err.message : 'Failed to load delete preview', 'error');
+        onClose();
+      })
+      .finally(() => setLoading(false));
+  }, [userId, addToast, onClose]);
+
+  if (loading || !preview) {
+    return (
+      <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <div className="bg-[var(--bg-card)] rounded-xl p-6 shadow-xl">
+          <div className="text-[13px] text-[var(--text-secondary)]">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  const allAssigned = preview.soleOwnedAccounts.length === 0 ||
+    preview.soleOwnedAccounts.every(a => assignments[a.id]);
+  const confirmReady = confirmText === preview.user.username;
+
+  // Build summary lines for step 2
+  const summaryLines: string[] = [];
+  const reassignedCount = Object.keys(assignments).length;
+  if (reassignedCount > 0) {
+    const ownerNames = [...new Set(Object.values(assignments).map(oid => preview.availableOwners.find(o => o.id === oid)?.displayName || ''))];
+    summaryLines.push(`${reassignedCount} account${reassignedCount !== 1 ? 's' : ''} will be reassigned to ${ownerNames.join(', ')}.`);
+  }
+  if (preview.coOwnedAccounts.length > 0) {
+    summaryLines.push(`${preview.coOwnedAccounts.length} co-owned account${preview.coOwnedAccounts.length !== 1 ? 's' : ''} will have ${preview.user.displayName} removed.`);
+  }
+  if (preview.personalConnections > 0) {
+    summaryLines.push(`${preview.personalConnections} personal SimpleFIN connection${preview.personalConnections !== 1 ? 's' : ''} will be deleted.`);
+  }
+
+  const handleDelete = async () => {
+    setError('');
+    setDeleting(true);
+    try {
+      await apiFetch(`/users/${userId}/permanent`, {
+        method: 'DELETE',
+        body: JSON.stringify({
+          reassignments: Object.entries(assignments).map(([accountId, newOwnerId]) => ({
+            accountId: Number(accountId),
+            newOwnerId,
+          })),
+          confirmUsername: confirmText,
+        }),
+      });
+      addToast('User permanently deleted', 'success');
+      onDeleted();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const OWNER_COLORS = [
+    { bg: 'var(--badge-owner-1-bg)', text: 'var(--badge-owner-1-text)' },
+    { bg: 'var(--badge-owner-2-bg)', text: 'var(--badge-owner-2-text)' },
+  ];
+
+  const roleBadge = preview.user.role === 'admin'
+    ? { bg: 'var(--badge-admin-bg)', text: 'var(--badge-admin-text)', label: 'Admin' }
+    : { bg: 'var(--badge-member-bg)', text: 'var(--badge-member-text)', label: 'Member' };
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-xl w-full max-w-[520px] max-h-[90vh] overflow-y-auto"
+        style={{ padding: '24px 28px' }} onClick={e => e.stopPropagation()}>
+
+        {step === 'preview' && (
+          <>
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-[16px] flex-shrink-0"
+                style={{ background: OWNER_COLORS[1]?.bg || '#4a1942', color: OWNER_COLORS[1]?.text || '#f472b6' }}>
+                {preview.user.displayName.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h2 className="text-[18px] font-bold text-[var(--text-primary)] m-0">Permanently Delete {preview.user.displayName}?</h2>
+                <span className="text-[12px] text-[var(--text-secondary)]">
+                  @{preview.user.username} · <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: roleBadge.bg, color: roleBadge.text }}>{roleBadge.label}</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Destructive warning */}
+            <div className="rounded-lg p-3 mb-4 text-[13px] leading-relaxed bg-[var(--inline-error-bg)] border border-[var(--inline-error-border)] text-[var(--inline-error-text)]">
+              <strong>This action is permanent and cannot be undone.</strong> The user account will be completely removed from the system. All permissions will be deleted. The user will no longer appear in the app.
+            </div>
+
+            {/* What will be preserved */}
+            <div className="mb-5">
+              <div className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-2">What Will Be Preserved</div>
+              <div className="text-[13px] text-[var(--text-body)] leading-relaxed">
+                Transactions, budgets, balance history, and all other financial data are tied to accounts — not users. Deleting this user will <strong className="text-[var(--text-primary)]">not</strong> remove any financial data.
+              </div>
+            </div>
+
+            {/* What will be removed */}
+            <div className="mb-5">
+              <div className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-2">What Will Be Removed</div>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex gap-2 text-[13px] text-[var(--text-body)]">
+                  <span className="text-[var(--color-negative)]">✗</span> User account and login credentials
+                </div>
+                <div className="flex gap-2 text-[13px] text-[var(--text-body)]">
+                  <span className="text-[var(--color-negative)]">✗</span> All permission settings
+                </div>
+                {preview.personalConnections > 0 && (
+                  <div className="flex gap-2 text-[13px] text-[var(--text-body)]">
+                    <span className="text-[var(--color-negative)]">✗</span> {preview.personalConnections} personal SimpleFIN connection{preview.personalConnections !== 1 ? 's' : ''} and linked accounts
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Account reassignment */}
+            {preview.soleOwnedAccounts.length > 0 && (
+              <div className="mb-5">
+                <div className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-1">Account Reassignment Required</div>
+                <div className="text-[12px] text-[var(--text-muted)] mb-3">The following accounts are solely owned by {preview.user.displayName} and must be reassigned to another user before deletion.</div>
+                <div className="flex flex-col gap-2">
+                  {preview.soleOwnedAccounts.map(acct => (
+                    <div key={acct.id} className="flex items-center justify-between p-2.5 bg-[var(--bg-hover)] rounded-lg">
+                      <div>
+                        <span className="text-[13px] font-medium text-[var(--text-primary)]">{acct.name}</span>
+                        {acct.lastFour && <span className="text-[11px] text-[var(--text-muted)] font-mono ml-1.5">({acct.lastFour})</span>}
+                        <div className="text-[11px] text-[var(--text-muted)] mt-0.5 capitalize">{acct.type} · {acct.classification}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-[var(--text-muted)]">→</span>
+                        <select
+                          value={assignments[acct.id] || ''}
+                          onChange={e => setAssignments(prev => ({ ...prev, [acct.id]: Number(e.target.value) }))}
+                          className="px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[12px] bg-[var(--bg-input)] text-[var(--text-primary)] cursor-pointer min-w-[140px]"
+                        >
+                          <option value="">Select new owner</option>
+                          {preview.availableOwners.map(o => (
+                            <option key={o.id} value={o.id}>{o.displayName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Co-owned accounts */}
+            {preview.coOwnedAccounts.length > 0 && (
+              <div className="mb-5">
+                <div className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-1">Co-Owned Accounts</div>
+                <div className="text-[12px] text-[var(--text-muted)] mb-2">{preview.user.displayName} will be removed as co-owner. Other owners are unaffected.</div>
+                <div className="flex flex-col gap-1.5">
+                  {preview.coOwnedAccounts.map(acct => (
+                    <div key={acct.id} className="p-2 bg-[var(--bg-hover)] rounded-lg text-[13px] text-[var(--text-body)]">
+                      {acct.name} {acct.lastFour && <span className="font-mono text-[11px] text-[var(--text-muted)]">({acct.lastFour})</span>}
+                      <span className="text-[11px] text-[var(--text-muted)]"> — {acct.remainingOwners.join(', ')} remain{acct.remainingOwners.length === 1 ? 's' : ''} as owner</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {error && <div className="rounded-lg p-3 mb-4 text-[13px] bg-[var(--inline-error-bg)] border border-[var(--inline-error-border)] text-[var(--inline-error-text)]">{error}</div>}
+
+            {/* Buttons */}
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={onClose}
+                className="px-4 py-2 rounded-lg border-none text-[13px] font-semibold cursor-pointer bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] btn-secondary">
+                Cancel
+              </button>
+              <button onClick={() => allAssigned && setStep('confirm')}
+                disabled={!allAssigned}
+                className="px-4 py-2 rounded-lg border-none text-[13px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: allAssigned ? 'var(--color-negative)' : undefined, color: allAssigned ? '#fff' : undefined }}>
+                Continue to Confirmation
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'confirm' && (
+          <>
+            {/* Header */}
+            <h2 className="text-[18px] font-bold text-[var(--text-primary)] mb-4">Final Confirmation</h2>
+
+            {/* Big red warning */}
+            <div className="rounded-lg p-4 mb-5 text-center bg-[var(--inline-error-bg)] border border-[var(--inline-error-border)] text-[var(--inline-error-text)]">
+              <div className="text-[20px] mb-2">⚠️</div>
+              <strong className="text-[13px]">You are about to permanently delete the user &ldquo;{preview.user.displayName}&rdquo;.</strong>
+              {summaryLines.length > 0 && (
+                <div className="mt-2 text-[12px]" style={{ color: 'var(--inline-error-text)', opacity: 0.9 }}>
+                  {summaryLines.map((line, i) => <div key={i}>{line}</div>)}
+                </div>
+              )}
+            </div>
+
+            {/* Type to confirm */}
+            <div className="mb-5">
+              <label className="text-[13px] text-[var(--text-body)] block mb-2">
+                Type <strong className="text-[var(--text-primary)] font-mono">{preview.user.username}</strong> to confirm deletion:
+              </label>
+              <input
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value)}
+                placeholder="Type username here..."
+                className="w-full px-3 py-2.5 rounded-lg text-[14px] bg-[var(--bg-input)] text-[var(--text-primary)] outline-none font-mono"
+                style={{ border: `1px solid ${confirmReady ? 'var(--color-negative)' : 'var(--table-border)'}` }}
+              />
+            </div>
+
+            {error && <div className="rounded-lg p-3 mb-4 text-[13px] bg-[var(--inline-error-bg)] border border-[var(--inline-error-border)] text-[var(--inline-error-text)]">{error}</div>}
+
+            {/* Buttons */}
+            <div className="flex justify-between mt-6">
+              <button onClick={() => setStep('preview')}
+                className="px-4 py-2 rounded-lg border-none text-[13px] font-semibold cursor-pointer bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] btn-secondary">
+                ← Back
+              </button>
+              <button onClick={handleDelete}
+                disabled={!confirmReady || deleting}
+                className="px-5 py-2 rounded-lg border-none text-[13px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: confirmReady ? 'var(--color-negative)' : undefined, color: confirmReady ? '#fff' : undefined }}>
+                {deleting ? 'Deleting...' : 'Permanently Delete User'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // --- Users & Permissions Section ---
 function UsersPermissionsSection() {
   const { user } = useAuth();
@@ -723,6 +993,7 @@ function UsersPermissionsSection() {
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState<ManagedUser | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<Set<number>>(new Set());
 
   const loadUsers = useCallback(async () => {
@@ -817,6 +1088,13 @@ function UsersPermissionsSection() {
                     ✎
                   </button>
                 )}
+                {/* Delete button: same visibility as edit, but not on self */}
+                {mu.id !== user?.id && mu.role !== 'owner' && (callerRole === 'owner' || (callerRole === 'admin' && mu.role === 'member')) && (
+                  <button onClick={() => setDeletingUser(mu)}
+                    className="text-[var(--color-negative)] hover:opacity-80 bg-transparent border-none cursor-pointer text-[11px] font-medium">
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
 
@@ -889,6 +1167,13 @@ function UsersPermissionsSection() {
           callerRole={callerRole}
           onClose={() => setEditingUser(null)}
           onUpdated={loadUsers}
+        />
+      )}
+      {deletingUser && (
+        <DeleteUserModal
+          userId={deletingUser.id}
+          onClose={() => setDeletingUser(null)}
+          onDeleted={loadUsers}
         />
       )}
     </div>
