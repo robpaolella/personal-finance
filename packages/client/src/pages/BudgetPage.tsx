@@ -231,7 +231,7 @@ export default function BudgetPage() {
                   <div className="flex gap-4">
                     <span className="w-[50px] text-right text-[12px] font-mono text-[var(--text-muted)]">
                       {isEditing ? (
-                        <input type="number" min="0" step="1" inputMode="decimal"
+                        <input type="number" min="0" step="1" inputMode="decimal" autoFocus
                           className="w-full text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                           value={editingCell.value}
                           onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
@@ -276,9 +276,9 @@ export default function BudgetPage() {
                         <span className="text-[12px] text-[var(--text-body)]">{sub.subName}</span>
                         <div className="flex items-center">
                           {isEditing ? (
-                            <span className="text-[11px] font-mono">
+                            <span className="text-[11px] font-mono text-[var(--text-muted)]">
                               {sub.actual > 0 ? fmt(sub.actual) : '—'} /
-                              <input type="number" min="0" step="1" inputMode="decimal"
+                              <input type="number" min="0" step="1" inputMode="decimal" autoFocus
                                 className="w-[50px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 ml-1 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                                 value={editingCell.value}
                                 onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
