@@ -3,6 +3,7 @@ import { db } from '../db/index.js';
 import { assets } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { calculateCurrentValue } from '../utils/depreciation.js';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
@@ -51,7 +52,7 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 // POST /api/assets
-router.post('/', (req: Request, res: Response) => {
+router.post('/', requirePermission('assets.create'), (req: Request, res: Response) => {
   try {
     const { name, purchaseDate, cost, lifespanYears, salvageValue, depreciationMethod, decliningRate } = req.body;
     if (!name || !purchaseDate || cost == null || salvageValue == null) {
@@ -84,7 +85,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // PUT /api/assets/:id
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', requirePermission('assets.edit'), (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const existing = db.select().from(assets).where(eq(assets.id, id)).get();
@@ -113,7 +114,7 @@ router.put('/:id', (req: Request, res: Response) => {
 });
 
 // DELETE /api/assets/:id
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', requirePermission('assets.delete'), (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const existing = db.select().from(assets).where(eq(assets.id, id)).get();

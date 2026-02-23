@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { categories, transactions } from '../db/schema.js';
 import { eq, asc, sql } from 'drizzle-orm';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
@@ -28,7 +29,7 @@ router.get('/groups', (_req: Request, res: Response): void => {
 });
 
 // POST /api/categories
-router.post('/', (req: Request, res: Response): void => {
+router.post('/', requirePermission('categories.create'), (req: Request, res: Response): void => {
   const { groupName, subName, type, isDeductible } = req.body;
   if (!groupName || !subName || !type) {
     res.status(400).json({ error: 'groupName, subName, and type are required' });
@@ -49,7 +50,7 @@ router.post('/', (req: Request, res: Response): void => {
 });
 
 // PUT /api/categories/:id
-router.put('/:id', (req: Request, res: Response): void => {
+router.put('/:id', requirePermission('categories.edit'), (req: Request, res: Response): void => {
   const id = Number(req.params.id);
   const existing = db.select().from(categories).where(eq(categories.id, id)).get();
   if (!existing) {
@@ -73,7 +74,7 @@ router.put('/:id', (req: Request, res: Response): void => {
 });
 
 // DELETE /api/categories/:id
-router.delete('/:id', (req: Request, res: Response): void => {
+router.delete('/:id', requirePermission('categories.delete'), (req: Request, res: Response): void => {
   const id = Number(req.params.id);
   const existing = db.select().from(categories).where(eq(categories.id, id)).get();
   if (!existing) {

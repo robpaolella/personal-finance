@@ -5,6 +5,8 @@ interface User {
   id: number;
   username: string;
   displayName: string;
+  role: 'owner' | 'admin' | 'member';
+  permissions: Record<string, boolean>;
 }
 
 interface AuthContextType {
@@ -13,6 +15,10 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  isAdmin: () => boolean;
+  isOwner: () => boolean;
+  hasPermission: (permission: string) => boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -22,6 +28,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchMe = useCallback(async () => {
+    const res = await apiFetch<{ data: User }>('/auth/me');
+    setUser(res.data);
+  }, []);
+
   // Validate existing token on mount
   useEffect(() => {
     if (!token) {
@@ -29,10 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    apiFetch<{ data: User }>('/auth/me')
-      .then((res) => {
-        setUser(res.data);
-      })
+    fetchMe()
       .catch(() => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -40,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       })
       .finally(() => setIsLoading(false));
-  }, [token]);
+  }, [token, fetchMe]);
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await apiFetch<{ data: { token: string; user: User } }>('/auth/login', {
@@ -52,7 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('token', res.data.token);
     localStorage.setItem('user', JSON.stringify(res.data.user));
     setToken(res.data.token);
-    setUser(res.data.user);
+    // Fetch full user with permissions from /me
+    const meRes = await apiFetch<{ data: User }>('/auth/me');
+    setUser(meRes.data);
   }, []);
 
   const logout = useCallback(() => {
@@ -62,8 +72,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const isAdmin = useCallback(() => user?.role === 'admin' || user?.role === 'owner', [user]);
+
+  const isOwner = useCallback(() => user?.role === 'owner', [user]);
+
+  const hasPermission = useCallback((permission: string) => {
+    if (!user) return false;
+    if (user.role === 'admin' || user.role === 'owner') return true;
+    return user.permissions[permission] === true;
+  }, [user]);
+
+  const refreshUser = useCallback(async () => {
+    if (token) await fetchMe();
+  }, [token, fetchMe]);
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin, isOwner, hasPermission, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

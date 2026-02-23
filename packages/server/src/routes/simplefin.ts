@@ -16,13 +16,14 @@ import { convertToLedgerSign } from '../services/signConversion.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
 import { detectTransfers } from '../services/transferDetector.js';
 import type { AccountClassification, SyncTransaction, SyncBalanceUpdate, SyncHoldingsUpdate } from '@ledger/shared/src/types.js';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
 // === Connection CRUD ===
 
 // POST /api/simplefin/connections
-router.post('/connections', async (req: Request, res: Response) => {
+router.post('/connections', requirePermission('simplefin.manage'), async (req: Request, res: Response) => {
   try {
     const { setupToken, accessUrl: rawAccessUrl, label, shared } = req.body as {
       setupToken?: string;
@@ -89,10 +90,11 @@ router.get('/connections', (req: Request, res: Response) => {
         sc.label,
         sc.created_at,
         sc.updated_at,
-        COUNT(sl.id) as linked_account_count,
+        COUNT(a.id) as linked_account_count,
         MAX(sl.last_synced_at) as last_synced_at
       FROM simplefin_connections sc
       LEFT JOIN simplefin_links sl ON sl.simplefin_connection_id = sc.id
+      LEFT JOIN accounts a ON sl.account_id = a.id AND a.is_active = 1
       WHERE sc.user_id IS NULL OR sc.user_id = ?
       GROUP BY sc.id
       ORDER BY sc.created_at
@@ -122,7 +124,7 @@ router.get('/connections', (req: Request, res: Response) => {
 });
 
 // PUT /api/simplefin/connections/:id
-router.put('/connections/:id', async (req: Request, res: Response) => {
+router.put('/connections/:id', requirePermission('simplefin.manage'), async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
     const userId = req.user!.userId;
@@ -161,7 +163,7 @@ router.put('/connections/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/simplefin/connections/:id
-router.delete('/connections/:id', (req: Request, res: Response) => {
+router.delete('/connections/:id', requirePermission('simplefin.manage'), (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
     const userId = req.user!.userId;
@@ -221,11 +223,20 @@ router.get('/connections/:id/accounts', async (req: Request, res: Response) => {
     // Fetch accounts from SimpleFIN (no transactions needed for listing)
     const response = await fetchAccounts(conn.access_url);
 
-    // Get existing links for this connection
-    const existingLinks = db.select().from(simplefinLinks)
-      .where(eq(simplefinLinks.simplefin_connection_id, id))
-      .all();
+    // Get existing links for this connection, filtering out links to inactive accounts
+    const existingLinks = sqlite.prepare(`
+      SELECT sl.* FROM simplefin_links sl
+      JOIN accounts a ON sl.account_id = a.id AND a.is_active = 1
+      WHERE sl.simplefin_connection_id = ?
+    `).all(id) as (typeof simplefinLinks.$inferSelect)[];
     const linkMap = new Map(existingLinks.map((l) => [l.simplefin_account_id, l]));
+
+    // Clean up any orphaned links (pointing to inactive accounts)
+    sqlite.prepare(`
+      DELETE FROM simplefin_links
+      WHERE simplefin_connection_id = ?
+        AND account_id IN (SELECT id FROM accounts WHERE is_active = 0)
+    `).run(id);
 
     const data = response.accounts.map((acct) => {
       const link = linkMap.get(acct.id);
@@ -310,7 +321,7 @@ router.get('/linked-accounts', (req: Request, res: Response) => {
 });
 
 // POST /api/simplefin/links
-router.post('/links', (req: Request, res: Response) => {
+router.post('/links', requirePermission('simplefin.manage'), (req: Request, res: Response) => {
   try {
     const { simplefinConnectionId, simplefinAccountId, accountId, simplefinAccountName, simplefinOrgName } = req.body;
 
@@ -343,7 +354,7 @@ router.post('/links', (req: Request, res: Response) => {
 });
 
 // DELETE /api/simplefin/links/:id
-router.delete('/links/:id', (req: Request, res: Response) => {
+router.delete('/links/:id', requirePermission('simplefin.manage'), (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 
@@ -368,7 +379,7 @@ router.delete('/links/:id', (req: Request, res: Response) => {
 // === Sync & Commit ===
 
 // POST /api/simplefin/sync
-router.post('/sync', async (req: Request, res: Response) => {
+router.post('/sync', requirePermission('import.bank_sync'), async (req: Request, res: Response) => {
   try {
     const { connectionIds, accountIds, startDate, endDate } = req.body as {
       connectionIds?: number[];
@@ -582,7 +593,7 @@ router.post('/sync', async (req: Request, res: Response) => {
 });
 
 // POST /api/simplefin/commit
-router.post('/commit', (req: Request, res: Response) => {
+router.post('/commit', requirePermission('import.bank_sync'), (req: Request, res: Response) => {
   try {
     const { transactions: txns, balanceUpdates, holdingsUpdates } = req.body as {
       transactions: {
@@ -708,7 +719,7 @@ router.post('/commit', (req: Request, res: Response) => {
 });
 
 // GET /api/simplefin/balances — lightweight balance fetch for all linked accounts
-router.get('/balances', async (req: Request, res: Response) => {
+router.get('/balances', requirePermission('balances.update'), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
 

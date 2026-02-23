@@ -302,11 +302,47 @@ Form Input → Storage → Display:
 **Resolution:** Added declining balance as a second method. Straight line for even-wear items (furniture, home improvements), declining balance for fast-depreciation items (electronics, vehicles). The `calculateCurrentValue` function is in `packages/server/src/utils/depreciation.ts` (shared between assets.ts and networth.ts routes). UI includes suggested rates and explanatory tooltips.
 **Rule going forward:** When adding asset-related features, always check the `depreciation_method` field and handle both calculation paths. Never assume straight-line. The calculation utility lives in `utils/depreciation.ts` — do not duplicate it in route files.
 
+### Role-Based Permission System (2026-02-23)
+**Context:** Adding admin/member roles with 18 granular permissions
+**Problem:** Multiple approaches to permission checking exist (JWT-only, DB-only, hybrid). Pure JWT means permissions can't be hot-reloaded. Pure DB means every request hits the database.
+**Resolution:** Hybrid approach: JWT contains `role` for fast admin bypass, DB queried for member permissions with 60s in-memory cache. Cache invalidated on admin update via `invalidatePermissionCache(userId)`. Admin role bypasses all permission checks entirely — no DB lookup needed.
+**Rule going forward:** Always check role first (admin = pass through), then check DB permissions for members. Never store individual permissions in JWT — they must be hot-reloadable. Use `requirePermission()` middleware for route protection, `hasPermission()` in frontend for UI gating.
+
+### First-Run Setup Flow (2026-02-23)
+**Context:** Fresh installs need an admin account before the app can be used
+**Problem:** Hardcoded seed users prevented generic installs. Need a one-time setup without authentication.
+**Resolution:** `app_config` table tracks `setup_complete` flag. GET `/api/setup/status` is public. POST `/api/setup/create-admin` works only once (checks flag + user count). App.tsx checks setup status on mount and routes to SetupPage if needed. Existing installs are auto-migrated (first user becomes admin, `setup_complete = true`).
+**Rule going forward:** All new public endpoints must be added to `PUBLIC_PATHS` in auth middleware. The setup status check must happen before any auth check in the app boot sequence.
+
+### UI Permission Gate Patterns (2026-02-23)
+**Context:** Different UI elements need different behavior when user lacks permission
+**Problem:** Three distinct patterns needed: hide entirely (destructive actions), show but disable (creative actions), and show permission denied message (full-page features)
+**Resolution:** Created `<PermissionGate>` component with `fallback="hidden"` and `fallback="disabled"` modes. For full-page denials (Import tabs), use inline conditional rendering with a styled message. For 403 API errors, dispatch `permission-denied` custom event from api.ts, caught by AppShell to show toast.
+**Rule going forward:** Delete buttons → `fallback="hidden"`. Add/Edit buttons → `fallback="disabled"`. Admin-only sections → conditional render with `isAdmin()`. API 403 errors → handled automatically via event + toast. Never use both PermissionGate and manual `hasPermission()` check on the same element.
+
 ### Development Workflow Scripts (2026-02-22)
 **Context:** Needed standardized commands for database management and deployment
 **Problem:** Database resets, backups, and deployments were done with ad-hoc commands that weren't documented
 **Resolution:** Created shell scripts in scripts/ with npm shortcut commands. Deploy script automates the full push-build-restart-verify cycle with automatic database backup and health check.
 **Rule going forward:** All repeatable operations should have a script. Never run raw database commands in production without backing up first. The deploy script is the only way to ship to production — never manually docker compose build on the server.
+
+### Owner > Admin > Member Hierarchy (2026-02-22)
+**Context:** The original two-tier system (admin/member) treated all admins equally
+**Problem:** Once someone was promoted to admin, no one could demote them. The app creator had no special authority over other admins.
+**Resolution:** Added "owner" role for the account creator. Owner can manage everyone including admins. Admins can only manage members. There is always exactly one owner. First-run setup creates owner. Migration promotes first admin to owner for existing installs.
+**Rule going forward:** Always check both the requesting user's role AND the target user's role when processing user management actions. Owner > Admin > Member. Never allow lateral or upward management (admin cannot edit admin, member cannot edit anyone). The owner role cannot be assigned through the UI — it is set only during first-run setup or migration.
+
+### Permanent User Deletion (2026-02-23)
+**Context:** Need to permanently remove users while preserving all financial data
+**Problem:** Users own accounts via the account_owners junction table. Simply deleting the user row would leave orphaned ownership records.
+**Resolution:** Two-step deletion flow: Step 1 previews all data dependencies (GET /users/:id/delete-preview) and requires reassignment of sole-owned accounts. Step 2 requires typing the username to confirm. The actual deletion (DELETE /users/:id/permanent) handles all dependencies in a single database transaction: reassign sole-owned accounts, remove co-ownership entries, delete permissions, delete personal SimpleFIN connections, then delete the user row.
+**Rule going forward:** Never delete a user without first calling the delete-preview endpoint to check for dependencies. All data cleanup must happen in a single transaction — if any step fails, roll back everything. Require username confirmation for all permanent deletions.
+
+### Deactivate vs Delete (2026-02-23)
+**Context:** Two ways to remove a user's access
+**Problem:** Need clear distinction between temporary removal (might come back) and permanent removal (gone forever)
+**Resolution:** Deactivate (soft delete) sets is_active = false — user can't log in but their row persists and they can be reactivated. Permanently delete removes the user row entirely — irreversible, all data dependencies must be handled first. Both options are available on user cards with different button styles and different confirmation flows.
+**Rule going forward:** Default to deactivation when the intent is ambiguous. Only offer permanent deletion with the full two-step confirmation flow. Never permanently delete without the username-typing confirmation step.
 
 ## Development Workflow
 

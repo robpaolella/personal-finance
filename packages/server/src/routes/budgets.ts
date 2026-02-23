@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { budgets, categories, transactions, accounts } from '../db/schema.js';
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
@@ -44,7 +45,7 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 // POST /api/budgets — upsert
-router.post('/', (req: Request, res: Response) => {
+router.post('/', requirePermission('budgets.edit'), (req: Request, res: Response) => {
   try {
     const { categoryId, month, amount } = req.body;
     if (!categoryId || !month || amount == null) {
@@ -76,7 +77,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // PUT /api/budgets/:id
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', requirePermission('budgets.edit'), (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const { amount } = req.body;
@@ -100,7 +101,7 @@ router.put('/:id', (req: Request, res: Response) => {
 });
 
 // DELETE /api/budgets/:id
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', requirePermission('budgets.edit'), (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const existing = db.select().from(budgets).where(eq(budgets.id, id)).get();

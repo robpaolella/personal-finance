@@ -6,7 +6,26 @@ export const users = sqliteTable('users', {
   username: text('username').notNull().unique(),
   password_hash: text('password_hash').notNull(),
   display_name: text('display_name').notNull(),
+  role: text('role').notNull().default('member'),
+  is_active: integer('is_active').notNull().default(1),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+});
+
+// === User Permissions ===
+export const userPermissions = sqliteTable('user_permissions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  user_id: integer('user_id').notNull().references(() => users.id),
+  permission: text('permission').notNull(),
+  granted: integer('granted').notNull().default(0),
+}, (table) => [
+  uniqueIndex('user_permissions_user_perm_idx').on(table.user_id, table.permission),
+]);
+
+// === App Config ===
+export const appConfig = sqliteTable('app_config', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  key: text('key').notNull().unique(),
+  value: text('value').notNull(),
 });
 
 // === Accounts ===

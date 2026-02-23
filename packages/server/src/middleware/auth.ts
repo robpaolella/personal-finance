@@ -10,11 +10,11 @@ declare global {
   }
 }
 
-const PUBLIC_PATHS = ['/api/auth/login', '/api/health'];
+const PUBLIC_PATHS = ['/api/auth/login', '/api/health', '/api/setup'];
 
 export function authenticate(req: Request, res: Response, next: NextFunction): void {
   // Use originalUrl for full path matching since middleware may be mounted at a sub-path
-  if (PUBLIC_PATHS.some(p => req.originalUrl === p || req.originalUrl.startsWith(p + '?'))) {
+  if (PUBLIC_PATHS.some(p => req.originalUrl === p || req.originalUrl.startsWith(p + '?') || req.originalUrl.startsWith(p + '/'))) {
     next();
     return;
   }
