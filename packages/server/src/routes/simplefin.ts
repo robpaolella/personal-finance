@@ -737,7 +737,7 @@ router.get('/balances', requirePermission('balances.update'), async (req: Reques
       return;
     }
 
-    const results: { accountId: number; accountName: string; simplefinBalance: number; balanceDate: string }[] = [];
+    const results: { accountId: number; accountName: string; simplefinBalance: number; balanceDate: string; classification: string; holdings: { symbol: string; description: string; shares: number; costBasis: number; marketValue: number }[] }[] = [];
 
     for (const conn of connections) {
       const response = await fetchAccounts(conn.access_url);
@@ -765,11 +765,22 @@ router.get('/balances', requirePermission('balances.update'), async (req: Reques
         // (positive = asset, negative = liability)
         const balance = parseFloat(sfAcct.balance);
 
+        // Include holdings for investment accounts
+        const holdings = (sfAcct.holdings || []).map(h => ({
+          symbol: h.symbol || '',
+          description: h.description || '',
+          shares: parseFloat(h.shares) || 0,
+          costBasis: parseFloat(h.cost_basis) || 0,
+          marketValue: parseFloat(h.market_value) || 0,
+        }));
+
         results.push({
           accountId: link.account_id,
           accountName: acct.name,
           simplefinBalance: balance,
           balanceDate: sfAcct['balance-date'] ? new Date(sfAcct['balance-date'] * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+          classification: acct.classification,
+          holdings,
         });
       }
     }
