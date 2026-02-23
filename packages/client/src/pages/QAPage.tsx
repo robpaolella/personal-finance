@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-const qaModules = import.meta.glob('/../../../.github/qa/*.json', { eager: true });
+const qaModules = import.meta.glob('../../../../.github/qa/*.json', { eager: true });
 
 interface QAGroup {
   name: string;
