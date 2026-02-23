@@ -212,8 +212,7 @@ export default function NetWorthPage() {
       const res = await apiFetch<{ data: typeof syncBalances }>('/simplefin/balances');
       setSyncBalances(res.data);
       setSyncBalanceSelected(new Set(res.data.map(b => b.accountId)));
-      // Auto-select holdings updates for accounts that have holdings
-      setSyncHoldingsSelected(new Set(res.data.filter(b => b.holdings.length > 0).map(b => b.accountId)));
+      setSyncHoldingsSelected(new Set(res.data.filter(b => (b.holdings || []).length > 0).map(b => b.accountId)));
     } catch (err: any) {
       setSyncBalanceError(err.message || 'Failed to fetch balances from SimpleFIN');
     } finally {
@@ -224,7 +223,7 @@ export default function NetWorthPage() {
   const applySyncBalances = async () => {
     if (!data) return;
     const selected = syncBalances.filter(b => syncBalanceSelected.has(b.accountId));
-    const holdingsToUpdate = syncBalances.filter(b => syncHoldingsSelected.has(b.accountId) && b.holdings.length > 0);
+    const holdingsToUpdate = syncBalances.filter(b => syncHoldingsSelected.has(b.accountId) && (b.holdings || []).length > 0);
 
     // Use the commit endpoint to handle both balances and holdings in one request
     await apiFetch('/simplefin/commit', {
@@ -709,7 +708,7 @@ export default function NetWorthPage() {
                               </td>
                               <td className="px-2.5 py-2 font-medium text-[var(--text-primary)]">
                                 {b.accountName}
-                                {b.holdings.length > 0 && (
+                                {(b.holdings || []).length > 0 && (
                                   <span className="ml-1.5 text-[10px] font-medium bg-[var(--badge-investment-bg)] text-[var(--badge-investment-text)] px-1.5 py-0.5 rounded">
                                     {b.holdings.length} holding{b.holdings.length !== 1 ? 's' : ''}
                                   </span>
@@ -738,7 +737,7 @@ export default function NetWorthPage() {
                       </tbody>
                     </table>
                     <div className="flex items-center justify-between">
-                      {syncBalances.some(b => b.holdings.length > 0) && (
+                      {syncBalances.some(b => (b.holdings || []).length > 0) && (
                         <label className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)] cursor-pointer select-none">
                           <input type="checkbox"
                             checked={syncHoldingsSelected.size > 0}
@@ -746,7 +745,7 @@ export default function NetWorthPage() {
                               if (syncHoldingsSelected.size > 0) {
                                 setSyncHoldingsSelected(new Set());
                               } else {
-                                setSyncHoldingsSelected(new Set(syncBalances.filter(b => b.holdings.length > 0).map(b => b.accountId)));
+                                setSyncHoldingsSelected(new Set(syncBalances.filter(b => (b.holdings || []).length > 0).map(b => b.accountId)));
                               }
                             }}
                             className="cursor-pointer" />

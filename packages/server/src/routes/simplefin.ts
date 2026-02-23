@@ -766,12 +766,13 @@ router.get('/balances', requirePermission('balances.update'), async (req: Reques
         const balance = parseFloat(sfAcct.balance);
 
         // Include holdings for investment accounts
-        const holdings = (sfAcct.holdings || []).map(h => ({
+        const rawHoldings = Array.isArray(sfAcct.holdings) ? sfAcct.holdings : [];
+        const holdings = rawHoldings.map(h => ({
           symbol: h.symbol || '',
           description: h.description || '',
-          shares: parseFloat(h.shares) || 0,
-          costBasis: parseFloat(h.cost_basis) || 0,
-          marketValue: parseFloat(h.market_value) || 0,
+          shares: parseFloat(String(h.shares ?? 0)) || 0,
+          costBasis: parseFloat(String(h.cost_basis ?? 0)) || 0,
+          marketValue: parseFloat(String(h.market_value ?? 0)) || 0,
         }));
 
         results.push({
