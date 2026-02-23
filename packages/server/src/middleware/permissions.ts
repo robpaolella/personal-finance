@@ -74,9 +74,12 @@ function loadPermissions(userId: number): Map<string, boolean> {
   return perms;
 }
 
+/** Role hierarchy levels for comparison */
+const ROLE_LEVEL: Record<string, number> = { owner: 3, admin: 2, member: 1 };
+
 /**
- * Middleware: require the user to have a specific role.
- * Returns 403 if role doesn't match.
+ * Middleware: require the user to have at least the specified role.
+ * owner satisfies admin checks; admin satisfies admin checks; member does not.
  */
 export function requireRole(role: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -85,7 +88,10 @@ export function requireRole(role: string) {
       return;
     }
 
-    if (req.user.role !== role) {
+    const requiredLevel = ROLE_LEVEL[role] ?? 99;
+    const userLevel = ROLE_LEVEL[req.user.role] ?? 0;
+
+    if (userLevel < requiredLevel) {
       res.status(403).json({
         error: 'Forbidden',
         message: 'This action requires administrator privileges',
@@ -108,8 +114,8 @@ export function requirePermission(permission: string) {
       return;
     }
 
-    // Admins have all permissions
-    if (req.user.role === 'admin') {
+    // Owners and admins have all permissions
+    if (req.user.role === 'owner' || req.user.role === 'admin') {
       next();
       return;
     }

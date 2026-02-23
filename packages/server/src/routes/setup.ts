@@ -68,7 +68,7 @@ router.post('/create-admin', setupLimiter, async (req: Request, res: Response): 
     username,
     password_hash: passwordHash,
     display_name: displayName.trim(),
-    role: 'admin',
+    role: 'owner',
     is_active: 1,
   }).run();
 
@@ -79,7 +79,7 @@ router.post('/create-admin', setupLimiter, async (req: Request, res: Response): 
 
   const secret = process.env.JWT_SECRET || 'fallback-secret';
   const token = jwt.sign(
-    { userId, username, displayName: displayName.trim(), role: 'admin' as const },
+    { userId, username, displayName: displayName.trim(), role: 'owner' as const },
     secret,
     { expiresIn: '7d' }
   );
@@ -87,7 +87,7 @@ router.post('/create-admin', setupLimiter, async (req: Request, res: Response): 
   res.status(201).json({
     data: {
       token,
-      user: { id: userId, username, displayName: displayName.trim(), role: 'admin' },
+      user: { id: userId, username, displayName: displayName.trim(), role: 'owner' },
     },
   });
 });

@@ -47,10 +47,10 @@ export function migrateRolesPermissions(sqlite: Database.Database): void {
 
   if (!colNames.has('role')) {
     sqlite.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
-    // Set the first user (lowest ID) to admin
+    // Set the first user (lowest ID) to owner
     const firstUser = sqlite.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get() as { id: number } | undefined;
     if (firstUser) {
-      sqlite.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(firstUser.id);
+      sqlite.prepare("UPDATE users SET role = 'owner' WHERE id = ?").run(firstUser.id);
     }
     console.log('Migration: Added role column to users table.');
   }
@@ -102,5 +102,15 @@ export function migrateRolesPermissions(sqlite: Database.Database): void {
   const userCount = sqlite.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number };
   if (userCount.cnt > 0) {
     sqlite.prepare("INSERT OR IGNORE INTO app_config (key, value) VALUES ('setup_complete', 'true')").run();
+  }
+
+  // Ensure exactly one owner exists — promote the lowest-ID admin if no owner found
+  const ownerCount = sqlite.prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'owner'").get() as { cnt: number };
+  if (ownerCount.cnt === 0) {
+    const firstAdmin = sqlite.prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1").get() as { id: number } | undefined;
+    if (firstAdmin) {
+      sqlite.prepare("UPDATE users SET role = 'owner' WHERE id = ?").run(firstAdmin.id);
+      console.log(`Migration: Promoted user ${firstAdmin.id} to owner.`);
+    }
   }
 }

@@ -137,7 +137,7 @@ router.get('/me', (req: Request, res: Response): void => {
   // Build permissions map
   let permissions: Record<string, boolean>;
 
-  if (req.user.role === 'admin') {
+  if (req.user.role === 'admin' || req.user.role === 'owner') {
     // Admins have all permissions implicitly
     permissions = {};
     for (const perm of ALL_PERMISSIONS) {
