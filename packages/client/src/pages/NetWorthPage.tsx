@@ -170,8 +170,9 @@ export default function NetWorthPage() {
   const [showBalanceModal, setShowBalanceModal] = useState(false);
   const [balanceTab, setBalanceTab] = useState<'manual' | 'sync'>('manual');
   const [balanceInputs, setBalanceInputs] = useState<Record<number, string>>({});
-  const [syncBalances, setSyncBalances] = useState<{ accountId: number; accountName: string; simplefinBalance: number; balanceDate: string }[]>([]);
+  const [syncBalances, setSyncBalances] = useState<{ accountId: number; accountName: string; simplefinBalance: number; balanceDate: string; classification: string; holdings: { symbol: string; description: string; shares: number; costBasis: number; marketValue: number }[] }[]>([]);
   const [syncBalanceSelected, setSyncBalanceSelected] = useState<Set<number>>(new Set());
+  const [syncHoldingsSelected, setSyncHoldingsSelected] = useState<Set<number>>(new Set());
   const [syncBalanceLoading, setSyncBalanceLoading] = useState(false);
   const [syncBalanceError, setSyncBalanceError] = useState<string | null>(null);
   const [hasSimplefinConnections, setHasSimplefinConnections] = useState(false);
@@ -211,6 +212,8 @@ export default function NetWorthPage() {
       const res = await apiFetch<{ data: typeof syncBalances }>('/simplefin/balances');
       setSyncBalances(res.data);
       setSyncBalanceSelected(new Set(res.data.map(b => b.accountId)));
+      // Auto-select holdings updates for accounts that have holdings
+      setSyncHoldingsSelected(new Set(res.data.filter(b => b.holdings.length > 0).map(b => b.accountId)));
     } catch (err: any) {
       setSyncBalanceError(err.message || 'Failed to fetch balances from SimpleFIN');
     } finally {
@@ -221,16 +224,25 @@ export default function NetWorthPage() {
   const applySyncBalances = async () => {
     if (!data) return;
     const selected = syncBalances.filter(b => syncBalanceSelected.has(b.accountId));
-    const promises = selected.map(b =>
-      apiFetch('/balances', {
-        method: 'POST',
-        body: JSON.stringify({ accountId: b.accountId, balance: b.simplefinBalance, date: b.balanceDate }),
-      })
-    );
-    await Promise.all(promises);
-    addToast(`Updated ${selected.length} account balance${selected.length !== 1 ? 's' : ''}`, 'success');
+    const holdingsToUpdate = syncBalances.filter(b => syncHoldingsSelected.has(b.accountId) && b.holdings.length > 0);
+
+    // Use the commit endpoint to handle both balances and holdings in one request
+    await apiFetch('/simplefin/commit', {
+      method: 'POST',
+      body: JSON.stringify({
+        transactions: [],
+        balanceUpdates: selected.map(b => ({ accountId: b.accountId, balance: b.simplefinBalance, date: b.balanceDate })),
+        holdingsUpdates: holdingsToUpdate.map(b => ({ accountId: b.accountId, holdings: b.holdings })),
+      }),
+    });
+
+    const parts: string[] = [];
+    if (selected.length > 0) parts.push(`${selected.length} balance${selected.length !== 1 ? 's' : ''}`);
+    if (holdingsToUpdate.length > 0) parts.push(`${holdingsToUpdate.length} holdings`);
+    addToast(`Updated ${parts.join(' and ')}`, 'success');
     setShowBalanceModal(false);
     loadData();
+    loadHoldings();
   };
 
   const startEditAsset = (asset: Asset) => {
@@ -695,7 +707,14 @@ export default function NetWorthPage() {
                                   })}
                                   className="cursor-pointer" />
                               </td>
-                              <td className="px-2.5 py-2 font-medium text-[var(--text-primary)]">{b.accountName}</td>
+                              <td className="px-2.5 py-2 font-medium text-[var(--text-primary)]">
+                                {b.accountName}
+                                {b.holdings.length > 0 && (
+                                  <span className="ml-1.5 text-[10px] font-medium bg-[var(--badge-investment-bg)] text-[var(--badge-investment-text)] px-1.5 py-0.5 rounded">
+                                    {b.holdings.length} holding{b.holdings.length !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </td>
                               <td className="px-2.5 py-2 text-right font-mono text-[var(--text-body)]">
                                 {current !== null ? fmt(current) : '—'}
                               </td>
@@ -718,14 +737,31 @@ export default function NetWorthPage() {
                         })}
                       </tbody>
                     </table>
-                    <div className="flex gap-2 justify-end">
-                      <button onClick={() => setShowBalanceModal(false)}
-                        className="px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-secondary">Cancel</button>
-                      <button onClick={applySyncBalances}
-                        disabled={syncBalanceSelected.size === 0}
-                        className="px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50 btn-primary">
-                        Apply {syncBalanceSelected.size} Update{syncBalanceSelected.size !== 1 ? 's' : ''}
-                      </button>
+                    <div className="flex items-center justify-between">
+                      {syncBalances.some(b => b.holdings.length > 0) && (
+                        <label className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)] cursor-pointer select-none">
+                          <input type="checkbox"
+                            checked={syncHoldingsSelected.size > 0}
+                            onChange={() => {
+                              if (syncHoldingsSelected.size > 0) {
+                                setSyncHoldingsSelected(new Set());
+                              } else {
+                                setSyncHoldingsSelected(new Set(syncBalances.filter(b => b.holdings.length > 0).map(b => b.accountId)));
+                              }
+                            }}
+                            className="cursor-pointer" />
+                          Also update holdings for investment accounts
+                        </label>
+                      )}
+                      <div className="flex gap-2 ml-auto">
+                        <button onClick={() => setShowBalanceModal(false)}
+                          className="px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-secondary">Cancel</button>
+                        <button onClick={applySyncBalances}
+                          disabled={syncBalanceSelected.size === 0}
+                          className="px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[13px] font-medium disabled:opacity-50 btn-primary">
+                          Apply {syncBalanceSelected.size} Update{syncBalanceSelected.size !== 1 ? 's' : ''}
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}
