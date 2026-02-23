@@ -1172,16 +1172,24 @@ function UsersPermissionsSection() {
 function StickyAddButton({ permission, label, onClick }: { permission: string; label: string; onClick: () => void }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 50);
-    window.addEventListener('scroll', onScroll, { passive: true });
+    // Main content scrolls inside .overflow-y-auto container, not window
+    const scrollContainer = document.querySelector('.overflow-y-auto');
+    if (!scrollContainer) return;
+    const onScroll = () => setVisible(scrollContainer.scrollTop > 50);
+    scrollContainer.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
+    return () => scrollContainer.removeEventListener('scroll', onScroll);
   }, []);
-  if (!visible) return null;
   return (
     <PermissionGate permission={permission} fallback="disabled">
-      <div className="fixed left-0 right-0 px-5 pb-[calc(12px+env(safe-area-inset-bottom,0px))] z-10"
-        style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
+      <div
+        className="fixed left-0 right-0 px-5 z-10 transition-all duration-200"
+        style={{
+          bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+          opacity: visible ? 1 : 0,
+          pointerEvents: visible ? 'auto' : 'none',
+          transform: visible ? 'translateY(0)' : 'translateY(8px)',
+        }}>
         <button onClick={onClick}
           className="w-full py-2.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 btn-secondary"
           style={{ boxShadow: '0 -2px 8px rgba(0,0,0,0.08)' }}>
