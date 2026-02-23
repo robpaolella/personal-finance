@@ -1183,7 +1183,7 @@ function UsersPermissionsSection() {
 
 export default function SettingsPage() {
   const { addToast } = useToast();
-  const { isAdmin, hasPermission } = useAuth();
+  const { isAdmin, hasPermission, user, logout } = useAuth();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'settings';
@@ -1404,6 +1404,7 @@ export default function SettingsPage() {
           </>
         ) : (
           /* Mobile navigation list */
+          <>
           <div className="flex flex-col gap-3">
             {[
               { id: 'accounts', icon: '🏦', label: 'Accounts', desc: `${accounts.length} accounts configured`, show: true },
@@ -1422,6 +1423,50 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
+
+          {/* My Profile Card */}
+          {user && (
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-4 mt-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-[16px] font-bold text-white flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #3b82f6, #10b981)' }}>
+                  {user.displayName.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-bold text-[var(--text-primary)]">{user.displayName}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[11px] text-[var(--text-secondary)]">@{user.username}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded capitalize ${
+                      user.role === 'owner' ? 'bg-[var(--badge-owner-bg)] text-[var(--badge-owner-text)]' :
+                      user.role === 'admin' ? 'bg-[var(--badge-investment-bg)] text-[var(--badge-investment-text)]' :
+                      'bg-[var(--badge-account-bg)] text-[var(--badge-account-text)]'
+                    }`}>{user.role}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => switchTab('preferences')}
+                className="w-full mt-3 py-2 rounded-lg border-none cursor-pointer text-[12px] font-semibold bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] btn-secondary"
+              >
+                Edit Profile & Password
+              </button>
+            </div>
+          )}
+
+          {/* App Info Card */}
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-4 mt-3">
+            <div className="flex justify-between items-center text-[12px] text-[var(--text-secondary)]">
+              <span>Ledger</span>
+              <span className="font-mono text-[11px] text-[var(--text-muted)]">v1.0.0</span>
+            </div>
+            <button
+              onClick={logout}
+              className="w-full mt-3 py-2 bg-transparent border-none cursor-pointer text-[13px] font-semibold text-[#ef4444] text-center"
+            >
+              Sign Out
+            </button>
+          </div>
+          </>
         )
       ) : (
         <>
