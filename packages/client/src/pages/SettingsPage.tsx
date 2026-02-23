@@ -1309,10 +1309,10 @@ export default function SettingsPage() {
 
       {/* Tab Navigation — desktop only when no sub-page */}
       {!(isMobile && mobileSubPage) && (
-        <div className="flex bg-[var(--bg-hover)] rounded-lg p-0.5 w-fit">
+        <div className={`flex bg-[var(--bg-hover)] rounded-lg p-0.5 ${isMobile ? 'w-full' : 'w-fit'}`}>
           {[{ id: 'settings', label: 'Settings' }, { id: 'preferences', label: 'Preferences' }].map((tab) => (
             <button key={tab.id} onClick={() => switchTab(tab.id)}
-              className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${
+              className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${isMobile ? 'flex-1' : ''} ${
                 activeTab === tab.id
                   ? 'bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-sm'
                   : 'bg-transparent text-[var(--text-secondary)] font-normal'
