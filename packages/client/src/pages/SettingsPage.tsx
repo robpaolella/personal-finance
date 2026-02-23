@@ -130,7 +130,7 @@ function AccountForm({
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Last Four (optional)</label>
-          <input value={lastFour} onChange={(e) => setLastFour(e.target.value)}
+          <input value={lastFour} onChange={(e) => setLastFour(e.target.value)} inputMode="numeric"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" maxLength={5} />
         </div>
         <div>
@@ -432,13 +432,13 @@ function PreferencesTab() {
         <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Change Password</label>
         {pwError && <InlineNotification type="error" message={pwError} dismissible onDismiss={() => setPwError('')} className="mb-2" />}
         <div className="grid grid-cols-3 gap-3">
-          <input type="password" placeholder="Current password" value={currentPassword}
+          <input type="password" placeholder="Current password" value={currentPassword} autoComplete="current-password"
             onChange={(e) => setCurrentPassword(e.target.value)}
             className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-          <input type="password" placeholder="New password" value={newPassword}
+          <input type="password" placeholder="New password" value={newPassword} autoComplete="new-password"
             onChange={(e) => setNewPassword(e.target.value)}
             className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-          <input type="password" placeholder="Confirm new" value={confirmPassword}
+          <input type="password" placeholder="Confirm new" value={confirmPassword} autoComplete="new-password"
             onChange={(e) => setConfirmPassword(e.target.value)}
             className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
         </div>
@@ -524,19 +524,19 @@ function AddUserModal({ onClose, onCreated, callerRole }: { onClose: () => void;
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Username</label>
-          <input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())}
+          <input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} autoCapitalize="off"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           <p className="text-[10px] text-[var(--text-muted)] mt-1">Lowercase letters and numbers only</p>
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           <p className="text-[10px] text-[var(--text-muted)] mt-1">Minimum 8 characters</p>
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Confirm Password</label>
-          <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+          <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
         </div>
         <div>
@@ -679,10 +679,10 @@ function EditUserModal({ managedUser, currentUserId, callerRole, onClose, onUpda
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Reset Password (optional)</label>
           <div className="grid grid-cols-2 gap-2">
-            <input type="password" placeholder="New password" value={newPassword}
+            <input type="password" placeholder="New password" value={newPassword} autoComplete="new-password"
               onChange={(e) => setNewPassword(e.target.value)}
               className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-            <input type="password" placeholder="Confirm" value={confirmPassword}
+            <input type="password" placeholder="Confirm" value={confirmPassword} autoComplete="new-password"
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           </div>
@@ -947,6 +947,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
                 value={confirmText}
                 onChange={e => setConfirmText(e.target.value)}
                 placeholder="Type username here..."
+                autoCapitalize="off"
                 className="w-full px-3 py-2.5 rounded-lg text-[14px] bg-[var(--bg-input)] text-[var(--text-primary)] outline-none font-mono"
                 style={{ border: `1px solid ${confirmReady ? 'var(--color-negative)' : 'var(--table-border)'}` }}
               />

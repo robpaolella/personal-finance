@@ -577,12 +577,12 @@ export default function NetWorthPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
-                        <input type="number" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
+                        <input type="number" inputMode="decimal" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
                           className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                       </div>
                       <div>
                         <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
-                        <input type="number" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                        <input type="number" inputMode="numeric" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
                           className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                       </div>
                     </div>
@@ -598,7 +598,7 @@ export default function NetWorthPage() {
                     {assetForm.depreciationMethod === 'declining_balance' && (
                       <div>
                         <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Annual Rate %</label>
-                        <input type="number" min="1" max="99" placeholder="e.g., 30" value={assetForm.decliningRate}
+                        <input type="number" inputMode="decimal" min="1" max="99" placeholder="e.g., 30" value={assetForm.decliningRate}
                           onChange={(e) => setAssetForm({ ...assetForm, decliningRate: e.target.value })}
                           className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                         <div className="flex items-center gap-1.5 mt-1.5">
@@ -616,7 +616,7 @@ export default function NetWorthPage() {
                     )}
                     <div>
                       <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
-                      <input type="number" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
+                      <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
                         className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                     </div>
                   </div>
@@ -766,13 +766,13 @@ export default function NetWorthPage() {
                 {/* Original Cost */}
                 <div>
                   <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
-                  <input type="number" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
+                  <input type="number" inputMode="decimal" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
                     className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                 </div>
                 {/* Lifespan */}
                 <div>
                   <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
-                  <input type="number" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                  <input type="number" inputMode="numeric" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
                     className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                 </div>
                 {/* Depreciation Method */}
@@ -802,7 +802,7 @@ export default function NetWorthPage() {
                       </Tooltip>
                     </label>
                     <input
-                      type="number" min="1" max="99" placeholder="e.g., 30"
+                      type="number" inputMode="decimal" min="1" max="99" placeholder="e.g., 30"
                       value={assetForm.decliningRate}
                       onChange={(e) => setAssetForm({ ...assetForm, decliningRate: e.target.value })}
                       className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]"
@@ -824,7 +824,7 @@ export default function NetWorthPage() {
                 {/* Salvage Value */}
                 <div>
                   <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
-                  <input type="number" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
+                  <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
                     className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                 </div>
               </div>
@@ -881,6 +881,7 @@ export default function NetWorthPage() {
                       </span>
                       <input
                         type="number"
+                        inputMode="decimal"
                         step="0.01"
                         value={balanceInputs[a.accountId] ?? ''}
                         onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
