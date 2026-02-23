@@ -2,7 +2,49 @@
 
 ## Project Overview
 
-This is "Ledger" — a locally-hosted personal finance tracking web application built with React, Express, TypeScript, SQLite, and Tailwind CSS. It replaces a manual spreadsheet system for tracking income, expenses, budgets, net worth, and asset depreciation for a two-person household.
+This is "Ledger" — a locally-hosted personal finance tracking web application built with React, Express, TypeScript, SQLite (via Drizzle ORM), and Tailwind CSS. It tracks income, expenses, budgets, net worth, asset depreciation, and investment holdings for a multi-user household with role-based permissions (owner/admin/member). It integrates with SimpleFIN Bridge for automated bank transaction and balance syncing.
+
+## Architecture
+
+### Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| Backend | Express, TypeScript |
+| Database | SQLite via better-sqlite3, Drizzle ORM |
+| Auth | JWT (Bearer tokens), bcrypt password hashing |
+| Fonts | DM Sans (UI), DM Mono (numbers/dates) |
+| Containerization | Docker, Docker Compose |
+| Bank Sync | SimpleFIN Bridge API |
+
+### Monorepo Structure
+
+```
+packages/
+├── client/          # React SPA (Vite)
+│   ├── src/
+│   │   ├── pages/          # Page components (DashboardPage, TransactionsPage, etc.)
+│   │   ├── components/     # Shared UI (PermissionGate, ResponsiveModal, BottomSheet, Tooltip, ScrollableList, ConfirmDeleteButton, InlineNotification, etc.)
+│   │   ├── context/        # AuthContext (role, permissions), ToastContext
+│   │   ├── hooks/          # useIsMobile, usePageTitle, custom hooks
+│   │   ├── lib/            # api.ts (API client), formatters.ts, categoryColors.ts
+│   │   └── index.css       # CSS custom properties (light/dark themes)
+│   
+├── server/          # Express API
+│   ├── src/
+│   │   ├── routes/         # REST endpoints (auth, users, transactions, accounts, categories, budgets, reports, networth, balances, assets, import, simplefin, dashboard)
+│   │   ├── middleware/     # auth.ts (JWT), permissions.ts (requireRole, requirePermission), errorHandler.ts
+│   │   ├── services/       # simplefin.ts, venmoParser.ts, duplicateDetector.ts, transferDetector.ts, signConversion.ts
+│   │   ├── db/             # index.ts (connection), schema.ts (Drizzle), seed.ts, migrations
+│   │   └── utils/          # depreciation.ts, sanitize.ts
+│   
+└── shared/          # Shared TypeScript types
+    └── src/types.ts
+
+scripts/             # Workflow scripts (db-reset, db-backup, db-restore, build, deploy, docker-seed, docker-reset)
+.github/             # Design files, prompts, and this instructions file
+```
 
 ## Git Commit Conventions
 
@@ -50,8 +92,9 @@ Examples:
 
 ### Branch Strategy
 
-- Work directly on `main` for now (single developer)
-- If experimenting with something risky, create a feature branch first
+- Use feature branches for all new work (e.g., `feature/bank-sync`, `design/implement-design-guide`)
+- Merge to `main` after testing
+- If experimenting with something risky, create a branch first
 
 ## Code Style & Conventions
 
@@ -65,8 +108,10 @@ Examples:
 
 - All API routes are prefixed with `/api/`
 - Return consistent JSON: `{ data: ... }` for success, `{ error: string }` for errors
-- Use proper HTTP status codes (200, 201, 400, 401, 404, 500)
+- Use proper HTTP status codes (200, 201, 400, 401, 403, 404, 500)
 - Validate request bodies before processing
+- Every mutating endpoint must have `requirePermission()` or `requireRole()` middleware
+- 403 responses include: `{ error: "Forbidden", message: "...", requiredPermission: "..." }`
 
 ### Frontend
 
@@ -74,70 +119,198 @@ Examples:
 - Keep page components in `pages/`, reusable UI in `components/`
 - Use the shared formatters from `lib/formatters.ts` for all monetary values
 - DM Mono font for all numbers and dates, DM Sans for everything else
+- All modals must use `<ResponsiveModal>` (renders desktop modal or mobile bottom sheet)
+- All permission-dependent UI must use `<PermissionGate>` or `hasPermission()` from AuthContext
 
 ### Database
 
-- Never delete data — use soft deletes (is_active flags) where appropriate
+- Never delete data — use soft deletes (is_active flags) where appropriate (exception: permanent user deletion has its own explicit flow)
 - All monetary values stored as numeric (not text)
 - Dates stored as ISO strings (YYYY-MM-DD)
+- Migrations must be backward-compatible (work on both fresh and existing databases)
+- The seed script creates schema and reference data (categories) only — never seed user accounts
 
-## Design Reference
+## Permission System
 
-The file `.github/design-reference.jsx` is the approved interactive prototype for this application. **It is the single source of truth for all visual design decisions.** When building any page or component, you MUST match the prototype's design faithfully.
+### Roles
 
-### How to Use the Design Reference
-- Before building any frontend page, re-read the corresponding section of the prototype
-- Match the exact color values, spacing, font sizes, font weights, and layout structure
-- Do not invent new styles or deviate from the prototype unless I explicitly ask for a change
-- If a design detail is ambiguous in the written prompts but clear in the prototype, follow the prototype
+Three-tier hierarchy: **Owner** > **Admin** > **Member**
 
-### Core Design System (extracted from prototype)
+- **Owner:** Exactly one, created at first-run setup. All permissions. Can manage admins and members. Cannot be demoted/deactivated/deleted.
+- **Admin:** All app permissions implicitly. Can manage members only. Cannot manage other admins or the owner.
+- **Member:** Granular permissions toggled by owner/admin.
 
-#### Colors
-- **Background:** #f4f6f9 (main content area), #0f172a (sidebar)
-- **Cards:** #fff with 1px #e8ecf1 border, 12px border-radius, shadow: 0 1px 2px rgba(0,0,0,0.04)
-- **Primary text:** #0f172a (headings), #475569 (body), #64748b (secondary), #94a3b8 (muted)
-- **Primary action:** #0f172a background, white text
-- **Positive/Income:** #10b981 (green)
-- **Negative/Over budget:** #ef4444 (red)
-- **Links/Accents:** #3b82f6 (blue)
-- **Category colors:** Auto/Transportation #ef4444, Clothing #ec4899, Daily Living #10b981, Discretionary #a855f7, Dues/Subscriptions #6366f1, Entertainment #8b5cf6, Household #3b82f6, Insurance #f59e0b, Health #14b8a6, Utilities #f97316, Savings #06b6d4
+### Permission Keys and Defaults
+
+| Permission | Description | Member Default |
+|---|---|---|
+| `transactions.create` | Add transactions | ✅ |
+| `transactions.edit` | Edit transactions | ✅ |
+| `transactions.delete` | Delete transactions | ❌ |
+| `transactions.bulk_edit` | Bulk edit/delete | ❌ |
+| `import.csv` | CSV import | ✅ |
+| `import.bank_sync` | Bank sync import | ✅ |
+| `categories.create` | Add categories | ❌ |
+| `categories.edit` | Edit categories | ❌ |
+| `categories.delete` | Delete categories | ❌ |
+| `accounts.create` | Add accounts | ❌ |
+| `accounts.edit` | Edit accounts | ❌ |
+| `accounts.delete` | Delete accounts | ❌ |
+| `budgets.edit` | Edit budget values | ✅ |
+| `balances.update` | Update balances | ✅ |
+| `assets.create` | Add assets | ❌ |
+| `assets.edit` | Edit assets | ❌ |
+| `assets.delete` | Delete assets | ❌ |
+| `simplefin.manage` | Manage connections | ❌ |
+
+`users.manage` is implicit to admin/owner roles — not stored in the permissions table.
+
+### Backend Enforcement
+
+- `requireRole('admin')` — blocks non-admin users
+- `requirePermission('transactions.create')` — admin passes through, members checked against DB with 60s cache
+- Invalidate cache with `invalidatePermissionCache(userId)` when permissions change
+
+### Frontend Enforcement
+
+- `<PermissionGate permission="x" fallback="hidden">` — for destructive actions (delete buttons)
+- `<PermissionGate permission="x" fallback="disabled">` — for creative/edit actions (add/edit buttons)
+- Conditional render with `isAdmin()` — for admin-only sections (Users & Permissions)
+- 403 API errors dispatched as `permission-denied` custom event → caught by AppShell → toast
+
+## Design System
+
+### Design File Hierarchy
+
+Three design files exist with clear precedence:
+
+1. **`.github/design-system.jsx`** — **Authoritative** for all colors, components, patterns, hover states, and notifications in both light and dark mode. This is the single source of truth for visual decisions. When any other file conflicts with this one, this one wins.
+2. **`.github/design-reference.jsx`** — Original interactive prototype. Still valid for page layout and structure (sidebar width, grid arrangements, section order). Color values in this file may be outdated — defer to the design system guide.
+3. **`.github/mobile-prototype.jsx`** — Authoritative for all mobile layouts, bottom sheet designs, and mobile-specific interactions.
+
+### Core Design System
+
+#### Colors (defined as CSS custom properties in `index.css`)
+
+All component colors must use CSS variables (`var(--*)`), never hardcoded hex values (except semantic colors identical in both modes).
+
+**Light / Dark backgrounds:**
+- Main: `#f4f6f9` / `#0b0f1a`
+- Card: `#ffffff` / `#141926`
+- Sidebar: `#0f172a` / `#060a13`
+
+**Semantic (same both modes):** positive `#10b981`, negative `#ef4444`, accent `#3b82f6`, warning `#f59e0b`
+
+**Buttons:**
+- Primary: `#0f172a` / `#e2e8f0` background
+- Secondary: `#ebeff3` / `#1a2234` background
+- Destructive: `#ef4444` both modes
+- Success/Import: `#10b981` both modes
 
 #### Typography
-- **Font families:** DM Sans (body, UI), DM Mono (monetary values, dates, code)
-- **Page titles:** 22px, weight 700, #0f172a
-- **Page subtitles:** 13px, #64748b
-- **Card titles:** 14px, weight 700, #0f172a
-- **KPI labels:** 11px, uppercase, letter-spacing 0.05em, weight 500, #64748b
-- **KPI values:** 22px, weight 800, DM Mono, letter-spacing -0.02em
-- **Table headers:** 11px, uppercase, weight 600, letter-spacing 0.04em, #64748b, 2px #e2e8f0 bottom border
+
+- **Font families:** DM Sans (body, UI), DM Mono (monetary values, dates, account badges)
+- **Page titles:** 22px, weight 700 (17px on mobile)
+- **KPI values:** 22px, weight 800, DM Mono (20px on mobile)
+- **Table headers:** 11px, uppercase, weight 600, letter-spacing 0.04em
 - **Table cells:** 13px, padding 8px 10px
-- **Monospace badges (accounts):** 11px, DM Mono, #f1f5f9 background, #475569 text, 6px border-radius
-- **Blue badges (categories):** 11px, DM Sans, #eff6ff background, #3b82f6 text, 6px border-radius
-- **Owner badges:** Robert = #dbeafe bg / #2563eb text, Kathleen = #fce7f3 bg / #db2777 text
-- **Classification badges:** liquid = #d1fae5/#059669, investment = #ede9fe/#7c3aed, liability = #fef2f2/#dc2626
+- **Badges:** 11px, 2px 8px padding, 6px radius, fit-content width
+- **Owner badges:** Dynamically assigned — first user gets owner-1 colors, second gets owner-2. Never hardcode names to colors.
 
-#### Layout
-- **Sidebar:** 220px wide, #0f172a background
-- **Logo:** 28px gradient square (#3b82f6 → #10b981) with white "$", next to "Ledger" in 16px weight 700
-- **Nav items:** 13px, 9px 12px padding, 8px border-radius, 10px gap for icon
-- **Active nav:** rgba(59,130,246,0.15) background, #93c5fd text, weight 600
-- **Main content:** 28px top/bottom padding, 36px left/right padding
-- **KPI card grid:** 4 columns, 16px gap
-- **Two-column layouts:** 1fr 1fr grid, 20px gap
-- **Section spacing:** 28px between major sections, 24px after headers
+#### Category Colors
 
-#### Interactive Elements
-- **Buttons (primary):** #0f172a background, white text, 8px border-radius, 8px 16px padding, weight 600
-- **Buttons (secondary):** #f1f5f9 background, #334155 text
-- **Select dropdowns:** 1px #e2e8f0 border, 8px border-radius, #f8fafc background
-- **Search inputs:** #f8fafc background, 1px #e2e8f0 border, 34px left padding for icon
-- **Table row hover:** #f8fafc background
-- **Owner filter:** pill toggle group, #f1f5f9 container, active pill is white with shadow
-- **Expandable rows (reports):** chevron icon rotates on expand, indentation increases per level (28px → 52px)
+Dynamically assigned from a 16-color palette via `getCategoryColor()` in `lib/categoryColors.ts`. Never hardcode a category name to a color.
 
 #### Dark Mode
-The app supports light and dark modes via CSS custom properties defined in `index.css`. All component colors must reference CSS variables (`var(--*)`, never hardcoded hex values. The dark palette uses deep navy/charcoal backgrounds (#0b0f1a, #141926) — not pure black. Accent colors (green, red, blue, category colors) remain the same in both modes. Badge backgrounds get darker but more saturated equivalents. Text inverts: primary becomes #f1f5f9, body becomes #94a3b8. The toggle is in the sidebar footer, preference stored in `localStorage('ledger-theme')` with system preference fallback.
+
+CSS custom properties in `index.css`. Dark palette uses deep navy/charcoal (#0b0f1a, #141926) — not pure black. Accent colors unchanged between modes. Toggle stored in `localStorage('ledger-theme')` with system preference fallback.
+
+### Notification Rules
+
+| Scenario | Toast | Inline |
+|---|---|---|
+| Successful save/delete/import | ✓ | — |
+| API failure (network, server) | ✓ | — |
+| Missing required field | — | ✓ |
+| Can't delete (has dependencies) | — | ✓ |
+| Contextual info (filter, limit) | — | ✓ |
+| Duplicate detected (manual entry) | ✓ (with action) | — |
+
+**Never both for the same action.** Toasts for outcomes, inline for input problems.
+
+### Interactive States
+
+All interactive elements must have visible hover/focus states:
+
+- **Primary/Destructive/Success buttons:** Darken bg + `translateY(-1px)` + shadow on hover. `transition: all 150ms ease`
+- **Secondary button:** Darken bg only. Hover: `#dfe3e8` (light) / `#243044` (dark)
+- **Ghost/link buttons:** `text-decoration: underline` on hover (instant, no transition)
+- **Toggle pills (inactive):** `var(--bg-hover)` background on hover
+- **Table rows (clickable):** `var(--bg-hover)` background + `cursor: pointer`
+- **Clickable badges:** `filter: brightness(1.1)` on hover
+- **Clickable cards:** Border lightens + shadow increases on hover
+- **Input focus:** Blue ring — `border-color: var(--color-accent)` + `box-shadow: 0 0 0 3px rgba(59,130,246,0.2)`
+- **Input error focus:** Red ring — same pattern with `var(--color-negative)`
+
+### Tooltip Spec
+
+- Render via React portal to `document.body` with `position: fixed`
+- Always dark style (#0f172a bg, #f1f5f9 text) regardless of theme
+- `width: max-content` with `max-width: 250px`, padding `6px 12px`
+- Viewport-aware: flips direction when near edges
+- Show on mouseenter with 200ms delay, hide immediately on mouseleave
+
+### Layout
+
+- **Sidebar:** 220px wide, #0f172a background (hidden on mobile)
+- **Main content:** 28px top/bottom, 36px left/right padding
+- **KPI card grid:** 4 columns desktop, 2×2 mobile
+- **Cards:** 12px radius, 1px border, `var(--bg-card-shadow)`
+
+## Mobile Responsive Design
+
+### Breakpoint
+
+Single breakpoint: **768px**. Below = mobile layout. At or above = desktop layout (unchanged).
+
+```css
+@media (max-width: 767px) { /* mobile overrides */ }
+```
+
+Utility classes: `.desktop-only` (hidden on mobile), `.mobile-only` (hidden on desktop)
+
+### Navigation
+
+- **Desktop:** Sidebar (unchanged)
+- **Mobile:** Bottom tab bar (Home, Transactions, Budget, More) + More bottom sheet menu (Reports, Net Worth, Import, Settings)
+
+### Page Patterns
+
+- **Tables → Card lists:** Desktop tables convert to stacked cards on mobile. Each card: description + amount top line, date · badges bottom line.
+- **Side-by-side layouts → Stacked:** Two-column grids stack vertically
+- **4-column KPIs → 2×2 grid**
+- **Settings → Drill-through:** Navigation list with sub-pages and "← Back" links
+
+### Bottom Sheets
+
+All modals render as bottom sheets on mobile via `<ResponsiveModal>`:
+- Slide up from bottom, 200ms ease-out animation
+- Drag handle (36px × 4px) at top
+- `max-height: 92vh`, scrollable content
+- Backdrop closes on tap
+- Render via React portal
+
+### Floating Transaction Pill
+
+Centered pill button `+ Transaction` floating above the tab bar on Dashboard and Transactions pages. Mobile only. Hidden when sheets are open.
+
+### Mobile Input Rules
+
+- Amount fields: `inputMode="decimal"`
+- Username fields: `autoCapitalize="off"`
+- No autofocus inside bottom sheets (prevents keyboard covering the sheet)
+- Auth fields: `autoComplete="username"` / `autoComplete="current-password"` / `autoComplete="new-password"`
+- All touch targets: minimum 44px height
 
 ## Project Learnings
 
@@ -320,12 +493,6 @@ Form Input → Storage → Display:
 **Resolution:** Created `<PermissionGate>` component with `fallback="hidden"` and `fallback="disabled"` modes. For full-page denials (Import tabs), use inline conditional rendering with a styled message. For 403 API errors, dispatch `permission-denied` custom event from api.ts, caught by AppShell to show toast.
 **Rule going forward:** Delete buttons → `fallback="hidden"`. Add/Edit buttons → `fallback="disabled"`. Admin-only sections → conditional render with `isAdmin()`. API 403 errors → handled automatically via event + toast. Never use both PermissionGate and manual `hasPermission()` check on the same element.
 
-### Development Workflow Scripts (2026-02-22)
-**Context:** Needed standardized commands for database management and deployment
-**Problem:** Database resets, backups, and deployments were done with ad-hoc commands that weren't documented
-**Resolution:** Created shell scripts in scripts/ with npm shortcut commands. Deploy script automates the full push-build-restart-verify cycle with automatic database backup and health check.
-**Rule going forward:** All repeatable operations should have a script. Never run raw database commands in production without backing up first. The deploy script is the only way to ship to production — never manually docker compose build on the server.
-
 ### Owner > Admin > Member Hierarchy (2026-02-22)
 **Context:** The original two-tier system (admin/member) treated all admins equally
 **Problem:** Once someone was promoted to admin, no one could demote them. The app creator had no special authority over other admins.
@@ -344,6 +511,12 @@ Form Input → Storage → Display:
 **Resolution:** Deactivate (soft delete) sets is_active = false — user can't log in but their row persists and they can be reactivated. Permanently delete removes the user row entirely — irreversible, all data dependencies must be handled first. Both options are available on user cards with different button styles and different confirmation flows.
 **Rule going forward:** Default to deactivation when the intent is ambiguous. Only offer permanent deletion with the full two-step confirmation flow. Never permanently delete without the username-typing confirmation step.
 
+### Development Workflow Scripts (2026-02-22)
+**Context:** Needed standardized commands for database management and deployment
+**Problem:** Database resets, backups, and deployments were done with ad-hoc commands that weren't documented
+**Resolution:** Created shell scripts in scripts/ with npm shortcut commands. Deploy script automates the full push-build-restart-verify cycle with automatic database backup and health check.
+**Rule going forward:** All repeatable operations should have a script. Never run raw database commands in production without backing up first. The deploy script is the only way to ship to production — never manually docker compose build on the server.
+
 ### Bottom Sheet Pattern (2026-02-23)
 **Context:** Desktop modals don't work well on mobile — they float awkwardly and waste horizontal space
 **Problem:** Needed a consistent mobile interaction pattern for all modal content
@@ -355,6 +528,18 @@ Form Input → Storage → Display:
 **Problem:** Number fields showed full text keyboard, username fields auto-capitalized, autofocus covered the sheet
 **Resolution:** Added inputMode (decimal for money, numeric for digits), autoCapitalize off for usernames/search, disabled autofocus on mobile bottom sheets, added autoComplete for password manager support.
 **Rule going forward:** Every new input field must have the correct inputMode and autoCapitalize. Never autofocus inside a bottom sheet. Always add autoComplete to auth-related fields.
+
+### Mobile Reports Redesign (2026-02-23)
+**Context:** The desktop Reports page uses a 12-column horizontal table that doesn't work on mobile
+**Problem:** Horizontal scrolling with sticky columns was cramped and awkward. The data is too wide for a phone screen regardless of how it's formatted.
+**Resolution:** Replaced the table on mobile with two views: "Monthly Detail" (scrollable month pill selector + expandable category cards for the selected month) and "Annual Totals" (simple category lists with year totals). Desktop table unchanged.
+**Rule going forward:** When data has too many columns for mobile, don't force horizontal scroll — redesign the interaction pattern entirely. Prefer drill-down (select a month, then see its data) over scroll (see all months at once).
+
+### Mobile Net Worth Layout (2026-02-23)
+**Context:** The desktop Net Worth page has side-by-side Accounts and Depreciable Assets sections
+**Problem:** Side-by-side doesn't fit on mobile, and the depreciable assets table columns are too cramped
+**Resolution:** On mobile: hero card → Update Balances button → accounts grouped by classification as individual cards (with expandable holdings for investment accounts) → depreciable assets as individual cards with method badges → + Add Asset button.
+**Rule going forward:** Investment accounts with holdings should show an expandable section within their card. Depreciable assets show name, date, cost, method badge (SL/DB X%), and current value — no table columns.
 
 ## Development Workflow
 
