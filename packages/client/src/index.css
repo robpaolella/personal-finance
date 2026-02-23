@@ -143,6 +143,8 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
   --badge-admin-text: #059669;
   --badge-member-bg: #dbeafe;
   --badge-member-text: #2563eb;
+  --badge-owner-bg: #fffbeb;
+  --badge-owner-text: #b45309;
 
   /* Table */
   --table-border: #e2e8f0;
@@ -250,6 +252,8 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
   --badge-admin-text: #34d399;
   --badge-member-bg: #1e3a5f;
   --badge-member-text: #60a5fa;
+  --badge-owner-bg: #78350f;
+  --badge-owner-text: #fbbf24;
 
   /* Table */
   --table-border: #1e293b;

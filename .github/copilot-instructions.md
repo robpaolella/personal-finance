@@ -326,6 +326,12 @@ Form Input → Storage → Display:
 **Resolution:** Created shell scripts in scripts/ with npm shortcut commands. Deploy script automates the full push-build-restart-verify cycle with automatic database backup and health check.
 **Rule going forward:** All repeatable operations should have a script. Never run raw database commands in production without backing up first. The deploy script is the only way to ship to production — never manually docker compose build on the server.
 
+### Owner > Admin > Member Hierarchy (2026-02-22)
+**Context:** The original two-tier system (admin/member) treated all admins equally
+**Problem:** Once someone was promoted to admin, no one could demote them. The app creator had no special authority over other admins.
+**Resolution:** Added "owner" role for the account creator. Owner can manage everyone including admins. Admins can only manage members. There is always exactly one owner. First-run setup creates owner. Migration promotes first admin to owner for existing installs.
+**Rule going forward:** Always check both the requesting user's role AND the target user's role when processing user management actions. Owner > Admin > Member. Never allow lateral or upward management (admin cannot edit admin, member cannot edit anyone). The owner role cannot be assigned through the UI — it is set only during first-run setup or migration.
+
 ## Development Workflow
 
 ### Environments

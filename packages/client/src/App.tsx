@@ -163,7 +163,13 @@ function AppShell() {
             <span className="text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
               v1.0 · {user?.displayName}
               {user?.role && (
-                <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${user.role === 'admin' ? 'bg-[rgba(16,185,129,0.15)] text-[#6ee7b7]' : 'bg-[rgba(59,130,246,0.15)] text-[#93c5fd]'}`}>
+                <span
+                  className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                  style={{
+                    backgroundColor: `var(--badge-${user.role === 'owner' ? 'owner' : user.role === 'admin' ? 'admin' : 'member'}-bg)`,
+                    color: `var(--badge-${user.role === 'owner' ? 'owner' : user.role === 'admin' ? 'admin' : 'member'}-text)`,
+                  }}
+                >
                   {user.role}
                 </span>
               )}
