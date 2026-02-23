@@ -84,6 +84,7 @@ export default function ImportPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'csv' | 'sync'>(searchParams.get('tab') === 'csv' ? 'csv' : searchParams.get('tab') === 'sync' ? 'sync' : 'csv');
+  const [mobileFlowActive, setMobileFlowActive] = useState(false);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [step, setStep] = useState(0);
   const [dragOver, setDragOver] = useState(false);
@@ -401,6 +402,48 @@ export default function ImportPage() {
 
   return (
     <div>
+      {isMobile && !mobileFlowActive ? (
+        /* Mobile: Two stacked action cards */
+        <div>
+          <div className="mb-4">
+            <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Import</h1>
+          </div>
+
+          {/* Bank Sync Card */}
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-5 py-6 mb-4 text-center">
+            <div className="text-[32px] mb-2">🏦</div>
+            <div className="text-[15px] font-bold text-[var(--text-primary)] mb-1">Bank Sync</div>
+            <div className="text-[12px] text-[var(--text-secondary)] mb-4">Pull transactions from your connected bank accounts</div>
+            <button
+              onClick={() => { switchTab('sync'); setMobileFlowActive(true); }}
+              disabled={!hasPermission('import.bank_sync')}
+              className="w-full py-2.5 rounded-lg border-none cursor-pointer text-[13px] font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] disabled:opacity-50 btn-primary"
+            >
+              Sync Now
+            </button>
+            {hasConnections && (
+              <div className="text-[10px] text-[var(--text-muted)] mt-2">
+                Bank accounts linked
+              </div>
+            )}
+          </div>
+
+          {/* CSV Import Card */}
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-5 py-6 text-center">
+            <div className="text-[32px] mb-2">📄</div>
+            <div className="text-[15px] font-bold text-[var(--text-primary)] mb-1">CSV Import</div>
+            <div className="text-[12px] text-[var(--text-secondary)] mb-4">Upload a CSV file from your bank or credit card</div>
+            <button
+              onClick={() => { switchTab('csv'); setMobileFlowActive(true); }}
+              disabled={!hasPermission('import.csv')}
+              className="w-full py-2.5 rounded-lg border-none cursor-pointer text-[13px] font-semibold bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] disabled:opacity-50 btn-secondary"
+            >
+              Upload File
+            </button>
+          </div>
+        </div>
+      ) : (
+      <div>
       {/* Header */}
       <div className="mb-4">
         <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Import Transactions</h1>
@@ -806,6 +849,8 @@ export default function ImportPage() {
       )}
       </>
       )}
+    </div>
+    )}
     </div>
   );
 }
