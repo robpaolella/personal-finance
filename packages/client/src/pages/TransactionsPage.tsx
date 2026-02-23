@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtTransaction } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
@@ -437,6 +438,21 @@ export default function TransactionsPage() {
 
   // Modal
   const [editing, setEditing] = useState<Transaction | null | 'new'>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Open add form from FAB (via URL param or custom event)
+  useEffect(() => {
+    if (searchParams.get('add') === '1') {
+      setEditing('new');
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const handler = () => setEditing('new');
+    window.addEventListener('open-add-transaction', handler);
+    return () => window.removeEventListener('open-add-transaction', handler);
+  }, []);
 
   // Bulk edit mode
   const [bulkMode, setBulkMode] = useState(false);
