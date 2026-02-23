@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
@@ -15,6 +15,7 @@ import BottomTabBar from './components/BottomTabBar';
 import { NAV_ITEMS } from './lib/navItems';
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { apiFetch } from './lib/api';
+import { useIsMobile } from './hooks/useIsMobile';
 
 function getInitialTheme(): 'light' | 'dark' {
   const stored = localStorage.getItem('ledger-theme');
@@ -56,8 +57,12 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 function AppShell() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { theme, toggle: toggleTheme } = useTheme();
   const { addToast } = useToast();
+  const isMobile = useIsMobile();
+
+  const showFab = isMobile && (location.pathname === '/' || location.pathname === '/transactions');
 
   const handlePermissionDenied = useCallback((e: Event) => {
     const msg = (e as CustomEvent).detail || 'Permission denied';
@@ -167,6 +172,34 @@ function AppShell() {
           </Routes>
         </div>
       </div>
+      {showFab && (
+        <button
+          onClick={() => {
+            if (location.pathname === '/transactions') {
+              window.dispatchEvent(new CustomEvent('open-add-transaction'));
+            } else {
+              navigate('/transactions?add=1');
+            }
+          }}
+          className="mobile-only fixed z-10 flex items-center gap-1 cursor-pointer border-none"
+          style={{
+            left: '50%',
+            transform: 'translateX(-50%)',
+            bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+            background: 'var(--btn-primary-bg)',
+            color: 'var(--btn-primary-text)',
+            padding: '10px 24px',
+            borderRadius: 20,
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: "'DM Sans', sans-serif",
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Transaction
+        </button>
+      )}
       <BottomTabBar />
     </div>
   );
