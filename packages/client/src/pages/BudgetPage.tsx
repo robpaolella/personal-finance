@@ -7,6 +7,7 @@ import Spinner from '../components/Spinner';
 import InlineNotification from '../components/InlineNotification';
 import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
+import { useAuth } from '../context/AuthContext';
 
 interface IncomeRow {
   categoryId: number;
@@ -63,6 +64,8 @@ function nextMonth(d: Date): Date {
 }
 
 export default function BudgetPage() {
+  const { hasPermission } = useAuth();
+  const canEditBudgets = hasPermission('budgets.edit');
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [owner, setOwner] = useState('All');
   const [data, setData] = useState<BudgetSummary | null>(null);
@@ -214,8 +217,8 @@ export default function BudgetPage() {
                         />
                       ) : (
                         <span
-                          onClick={() => setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
-                          className="cursor-pointer hover:bg-[var(--bg-hover)] rounded px-1.5 py-0.5 -mx-1.5 text-[var(--text-body)]"
+                          onClick={() => canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
+                          className={`${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1.5 py-0.5 -mx-1.5 text-[var(--text-body)]`}
                         >
                           {r.budgeted > 0 ? fmt(r.budgeted) : '—'}
                         </span>
@@ -300,8 +303,8 @@ export default function BudgetPage() {
                           />
                         ) : (
                           <span
-                            onClick={() => setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                            className={`w-[60px] text-right text-[11px] font-mono cursor-pointer hover:bg-[var(--bg-hover)] rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
+                            onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
+                            className={`w-[60px] text-right text-[11px] font-mono ${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
                           >
                             {sub.budgeted > 0 ? fmt(sub.budgeted) : ''}
                           </span>

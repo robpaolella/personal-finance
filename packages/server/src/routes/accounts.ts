@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
-import { accounts, accountOwners, users, transactions } from '../db/schema.js';
+import { accounts, accountOwners, users, transactions, simplefinLinks } from '../db/schema.js';
 import { eq, asc, sql } from 'drizzle-orm';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
@@ -55,7 +56,7 @@ router.get('/:id', (req: Request, res: Response): void => {
 });
 
 // POST /api/accounts
-router.post('/', (req: Request, res: Response): void => {
+router.post('/', requirePermission('accounts.create'), (req: Request, res: Response): void => {
   const { name, lastFour, type, classification, ownerIds } = req.body;
   const ids: number[] = ownerIds || [];
   if (!name || !type || !classification || ids.length === 0) {
@@ -82,7 +83,7 @@ router.post('/', (req: Request, res: Response): void => {
 });
 
 // PUT /api/accounts/:id
-router.put('/:id', (req: Request, res: Response): void => {
+router.put('/:id', requirePermission('accounts.edit'), (req: Request, res: Response): void => {
   const id = Number(req.params.id);
   const existing = db.select().from(accounts).where(eq(accounts.id, id)).get();
   if (!existing) {
@@ -119,7 +120,7 @@ router.put('/:id', (req: Request, res: Response): void => {
 });
 
 // DELETE /api/accounts/:id (soft delete)
-router.delete('/:id', (req: Request, res: Response): void => {
+router.delete('/:id', requirePermission('accounts.delete'), (req: Request, res: Response): void => {
   const id = Number(req.params.id);
   const existing = db.select().from(accounts).where(eq(accounts.id, id)).get();
   if (!existing) {
@@ -136,6 +137,8 @@ router.delete('/:id', (req: Request, res: Response): void => {
     return;
   }
   db.update(accounts).set({ is_active: 0 }).where(eq(accounts.id, id)).run();
+  // Clean up SimpleFIN links pointing to this account
+  db.delete(simplefinLinks).where(eq(simplefinLinks.account_id, id)).run();
   res.json({ data: { message: 'Account deactivated' } });
 });
 

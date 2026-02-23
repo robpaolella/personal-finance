@@ -3,7 +3,9 @@ import React from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtShort } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
+import PermissionGate from '../components/PermissionGate';
 import Spinner from '../components/Spinner';
 import Tooltip from '../components/Tooltip';
 import ScrollableList from '../components/ScrollableList';
@@ -161,6 +163,7 @@ function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?
 
 export default function NetWorthPage() {
   const { addToast } = useToast();
+  const { hasPermission } = useAuth();
   const [data, setData] = useState<NetWorthData | null>(null);
   const [editingAssetId, setEditingAssetId] = useState<number | 'new' | null>(null);
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
@@ -219,7 +222,7 @@ export default function NetWorthPage() {
     if (!data) return;
     const selected = syncBalances.filter(b => syncBalanceSelected.has(b.accountId));
     const promises = selected.map(b =>
-      apiFetch('/networth/balance-snapshots', {
+      apiFetch('/balances', {
         method: 'POST',
         body: JSON.stringify({ accountId: b.accountId, balance: b.simplefinBalance, date: b.balanceDate }),
       })
@@ -379,20 +382,22 @@ export default function NetWorthPage() {
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <div className="flex justify-between items-center flex-shrink-0">
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Accounts</h3>
-            <button
-              onClick={() => {
-                const inputs: Record<number, string> = {};
-                data.accounts.forEach((a) => { inputs[a.accountId] = String(a.balance); });
-                setBalanceInputs(inputs);
-                const defaultTab = hasSimplefinConnections ? 'sync' : 'manual';
-                setBalanceTab(defaultTab);
-                setShowBalanceModal(true);
-                if (defaultTab === 'sync') fetchSyncBalances();
-              }}
-              className="text-[12px] px-3 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg border-none cursor-pointer font-medium btn-secondary"
-            >
-              Update Balances
-            </button>
+            <PermissionGate permission="balances.update" fallback="disabled">
+              <button
+                onClick={() => {
+                  const inputs: Record<number, string> = {};
+                  data.accounts.forEach((a) => { inputs[a.accountId] = String(a.balance); });
+                  setBalanceInputs(inputs);
+                  const defaultTab = hasSimplefinConnections ? 'sync' : 'manual';
+                  setBalanceTab(defaultTab);
+                  setShowBalanceModal(true);
+                  if (defaultTab === 'sync') fetchSyncBalances();
+                }}
+                className="text-[12px] px-3 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg border-none cursor-pointer font-medium btn-secondary"
+              >
+                Update Balances
+              </button>
+            </PermissionGate>
           </div>
           <div className="flex-1 min-h-0 mt-3">
             <ScrollableList maxHeight="100%">
@@ -410,13 +415,15 @@ export default function NetWorthPage() {
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <div className="flex justify-between items-center flex-shrink-0">
             <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Depreciable Assets</h3>
-            <button
-              onClick={startAddAsset}
-              className="flex items-center gap-1 text-[12px] px-3 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg border-none cursor-pointer font-medium btn-secondary"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add
-            </button>
+            <PermissionGate permission="assets.create" fallback="disabled">
+              <button
+                onClick={startAddAsset}
+                className="flex items-center gap-1 text-[12px] px-3 py-1.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg border-none cursor-pointer font-medium btn-secondary"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add
+              </button>
+            </PermissionGate>
           </div>
           <div className="flex-1 min-h-0 mt-3">
             <ScrollableList maxHeight="100%">
@@ -451,14 +458,16 @@ export default function NetWorthPage() {
                     </Tooltip>
                   </td>
                   <td className="px-2.5 py-2 text-center">
-                    <button
-                      onClick={() => startEditAsset(a)}
-                      className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-1 rounded hover:bg-[var(--bg-hover)]"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
-                      </svg>
-                    </button>
+                    {hasPermission('assets.edit') && (
+                      <button
+                        onClick={() => startEditAsset(a)}
+                        className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-1 rounded hover:bg-[var(--bg-hover)]"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
+                        </svg>
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -559,7 +568,7 @@ export default function NetWorthPage() {
                 </div>
               </div>
               <div className="flex gap-2 mt-3 justify-end">
-                {editingAssetId !== 'new' && (
+                {editingAssetId !== 'new' && hasPermission('assets.delete') && (
                   <div className="mr-auto">
                     <ConfirmDeleteButton onConfirm={() => deleteAsset(editingAssetId as number)} />
                   </div>

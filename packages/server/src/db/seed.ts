@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema.js';
-import bcrypt from 'bcrypt';
 import path from 'path';
 import fs from 'fs';
 
@@ -33,7 +32,23 @@ async function seed() {
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       display_name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS user_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      permission TEXT NOT NULL,
+      granted INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(user_id, permission)
+    );
+
+    CREATE TABLE IF NOT EXISTS app_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL UNIQUE,
+      value TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS accounts (
@@ -103,16 +118,6 @@ async function seed() {
     );
   `);
 
-  // --- Users ---
-  console.log('Seeding users...');
-  const robertHash = await bcrypt.hash('changeme', 10);
-  const kathleenHash = await bcrypt.hash('changeme', 10);
-
-  db.insert(schema.users).values([
-    { username: 'robert', password_hash: robertHash, display_name: 'Robert' },
-    { username: 'kathleen', password_hash: kathleenHash, display_name: 'Kathleen' },
-  ]).run();
-
   // --- Categories ---
   console.log('Seeding categories...');
 
@@ -172,38 +177,15 @@ async function seed() {
   }
 
   // Count results
-  const userCount = sqlite.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
   const catCount = sqlite.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number };
   const incCount = sqlite.prepare("SELECT COUNT(*) as count FROM categories WHERE type = 'income'").get() as { count: number };
   const expCount = sqlite.prepare("SELECT COUNT(*) as count FROM categories WHERE type = 'expense'").get() as { count: number };
   const dedCount = sqlite.prepare('SELECT COUNT(*) as count FROM categories WHERE is_deductible = 1').get() as { count: number };
 
-  // --- Sample Assets ---
-  console.log('Seeding sample assets...');
-  db.insert(schema.assets).values([
-    {
-      name: 'Living Room Sofa',
-      purchase_date: '2024-03-15',
-      cost: 1200,
-      lifespan_years: 10,
-      salvage_value: 100,
-      depreciation_method: 'straight_line',
-    },
-    {
-      name: 'MacBook Pro',
-      purchase_date: '2025-06-01',
-      cost: 2400,
-      lifespan_years: 5,
-      salvage_value: 200,
-      depreciation_method: 'declining_balance',
-      declining_rate: 30,
-    },
-  ]).run();
-
   console.log(`\nSeed complete!`);
-  console.log(`  Users: ${userCount.count}`);
   console.log(`  Categories: ${catCount.count} (${incCount.count} income, ${expCount.count} expense)`);
   console.log(`  Deductible categories: ${dedCount.count}`);
+  console.log(`\nDatabase seeded. Visit the app to create your admin account.`);
 
   sqlite.close();
 }

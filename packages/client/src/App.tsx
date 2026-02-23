@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { useToast } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
+import SetupPage from './pages/SetupPage';
 import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import BudgetPage from './pages/BudgetPage';
@@ -8,7 +10,8 @@ import ReportsPage from './pages/ReportsPage';
 import NetWorthPage from './pages/NetWorthPage';
 import ImportPage from './pages/ImportPage';
 import SettingsPage from './pages/SettingsPage';
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { apiFetch } from './lib/api';
 
 function getInitialTheme(): 'light' | 'dark' {
   const stored = localStorage.getItem('ledger-theme');
@@ -86,6 +89,17 @@ function AppShell() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const { theme, toggle: toggleTheme } = useTheme();
+  const { addToast } = useToast();
+
+  const handlePermissionDenied = useCallback((e: Event) => {
+    const msg = (e as CustomEvent).detail || 'Permission denied';
+    addToast(msg, 'error');
+  }, [addToast]);
+
+  useEffect(() => {
+    window.addEventListener('permission-denied', handlePermissionDenied);
+    return () => window.removeEventListener('permission-denied', handlePermissionDenied);
+  }, [handlePermissionDenied]);
 
   return (
     <div className="flex h-screen bg-[var(--bg-main)] font-sans">
@@ -146,7 +160,20 @@ function AppShell() {
             </button>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-[var(--text-muted)]">v1.0 · {user?.displayName}</span>
+            <span className="text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
+              v1.0 · {user?.displayName}
+              {user?.role && (
+                <span
+                  className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                  style={{
+                    backgroundColor: `var(--badge-${user.role === 'owner' ? 'owner' : user.role === 'admin' ? 'admin' : 'member'}-bg)`,
+                    color: `var(--badge-${user.role === 'owner' ? 'owner' : user.role === 'admin' ? 'admin' : 'member'}-text)`,
+                  }}
+                >
+                  {user.role}
+                </span>
+              )}
+            </span>
             <button
               onClick={logout}
               className="text-[11px] text-[var(--text-muted)] hover:text-[var(--nav-inactive-text)] transition-colors bg-transparent border-none cursor-pointer"
@@ -174,19 +201,41 @@ function AppShell() {
 }
 
 export default function App() {
+  const [setupRequired, setSetupRequired] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    apiFetch<{ data: { setupRequired: boolean } }>('/setup/status', { skipAuth: true })
+      .then(res => setSetupRequired(res.data.setupRequired))
+      .catch(() => setSetupRequired(false));
+  }, []);
+
+  if (setupRequired === null) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center">
+        <div className="text-[var(--text-secondary)] text-sm">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute>
-                <AppShell />
-              </ProtectedRoute>
-            }
-          />
+          {setupRequired ? (
+            <Route path="*" element={<SetupPage />} />
+          ) : (
+            <>
+              <Route path="/login" element={<LoginPage />} />
+              <Route
+                path="/*"
+                element={
+                  <ProtectedRoute>
+                    <AppShell />
+                  </ProtectedRoute>
+                }
+              />
+            </>
+          )}
         </Routes>
       </AuthProvider>
     </BrowserRouter>

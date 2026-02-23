@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { balanceSnapshots, accounts } from '../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
@@ -42,7 +43,7 @@ router.get('/latest', (_req: Request, res: Response) => {
 });
 
 // POST /api/balances — create new snapshot
-router.post('/', (req: Request, res: Response) => {
+router.post('/', requirePermission('balances.update'), (req: Request, res: Response) => {
   try {
     const { accountId, date, balance, note } = req.body;
     if (!accountId || !date || balance == null) {

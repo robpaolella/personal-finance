@@ -35,6 +35,13 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
     throw new Error('Authentication required');
   }
 
+  if (response.status === 403) {
+    const data = await response.json();
+    const msg = data.message || data.error || 'You do not have permission to perform this action';
+    window.dispatchEvent(new CustomEvent('permission-denied', { detail: msg }));
+    throw new Error(msg);
+  }
+
   const data = await response.json();
 
   if (!response.ok) {
