@@ -279,3 +279,14 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
   --hero-gradient-from: #060a13;
   --hero-gradient-to: #0f172a;
 }
+
+/* ── Responsive Utilities ── */
+@media (max-width: 767px) {
+  .desktop-only { display: none !important; }
+  .mobile-main-content {
+    padding: 16px 16px 80px !important;
+  }
+}
+@media (min-width: 768px) {
+  .mobile-only { display: none !important; }
+}
