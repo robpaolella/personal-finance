@@ -1185,7 +1185,7 @@ function StickyAddButton({ permission, label, onClick }: { permission: string; l
       <div
         className="fixed left-0 right-0 px-5 z-10 transition-all duration-200"
         style={{
-          bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+          bottom: 'calc(68px + env(safe-area-inset-bottom, 0px))',
           opacity: visible ? 1 : 0,
           pointerEvents: visible ? 'auto' : 'none',
           transform: visible ? 'translateY(0)' : 'translateY(8px)',
