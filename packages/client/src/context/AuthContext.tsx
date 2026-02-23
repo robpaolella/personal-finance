@@ -5,7 +5,7 @@ interface User {
   id: number;
   username: string;
   displayName: string;
-  role: 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member';
   permissions: Record<string, boolean>;
 }
 
@@ -16,6 +16,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   isAdmin: () => boolean;
+  isOwner: () => boolean;
   hasPermission: (permission: string) => boolean;
   refreshUser: () => Promise<void>;
 }
@@ -71,11 +72,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const isAdmin = useCallback(() => user?.role === 'admin', [user]);
+  const isAdmin = useCallback(() => user?.role === 'admin' || user?.role === 'owner', [user]);
+
+  const isOwner = useCallback(() => user?.role === 'owner', [user]);
 
   const hasPermission = useCallback((permission: string) => {
     if (!user) return false;
-    if (user.role === 'admin') return true;
+    if (user.role === 'admin' || user.role === 'owner') return true;
     return user.permissions[permission] === true;
   }, [user]);
 
@@ -84,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token, fetchMe]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin, hasPermission, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin, isOwner, hasPermission, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

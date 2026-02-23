@@ -361,7 +361,7 @@ interface ManagedUser {
   id: number;
   username: string;
   displayName: string;
-  role: 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member';
   isActive: boolean;
   createdAt: string;
   permissions: Record<string, boolean> | null;
@@ -457,7 +457,9 @@ function PreferencesTab() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-[var(--text-secondary)]">Role:</span>
-          {user?.role === 'admin' ? (
+          {user?.role === 'owner' ? (
+            <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--badge-owner-bg)', color: 'var(--badge-owner-text)' }}>Owner</span>
+          ) : user?.role === 'admin' ? (
             <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-admin-bg)] text-[var(--badge-admin-text)]">Admin</span>
           ) : (
             <>
@@ -484,7 +486,7 @@ function PreferencesTab() {
 }
 
 // --- Add User Modal ---
-function AddUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function AddUserModal({ onClose, onCreated, callerRole }: { onClose: () => void; onCreated: () => void; callerRole: string }) {
   const { addToast } = useToast();
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -493,6 +495,8 @@ function AddUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [role, setRole] = useState<'admin' | 'member'>('member');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const canCreateAdmin = callerRole === 'owner';
 
   const handleSubmit = async () => {
     setError('');
@@ -548,14 +552,16 @@ function AddUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Role</label>
           <div className="flex gap-2">
             {(['member', 'admin'] as const).map((r) => (
-              <button key={r} onClick={() => setRole(r)}
+              <button key={r} onClick={() => (r === 'admin' && !canCreateAdmin) ? null : setRole(r)}
+                disabled={r === 'admin' && !canCreateAdmin}
                 className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
                   role === r ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] btn-primary' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] btn-secondary'
-                }`}>
+                } disabled:opacity-40 disabled:cursor-not-allowed`}>
                 {r}
               </button>
             ))}
           </div>
+          {!canCreateAdmin && <p className="text-[10px] text-[var(--text-muted)] mt-1">Only the owner can create admin accounts</p>}
         </div>
       </div>
       <div className="flex gap-2 mt-5 justify-end">
@@ -573,24 +579,24 @@ function AddUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
 }
 
 // --- Edit User Modal ---
-function EditUserModal({ managedUser, currentUserId, adminCount, onClose, onUpdated }: {
+function EditUserModal({ managedUser, currentUserId, callerRole, onClose, onUpdated }: {
   managedUser: ManagedUser;
   currentUserId: number;
-  adminCount: number;
+  callerRole: string;
   onClose: () => void;
   onUpdated: () => void;
 }) {
   const { addToast } = useToast();
   const [displayName, setDisplayName] = useState(managedUser.displayName);
-  const [role, setRole] = useState<'admin' | 'member'>(managedUser.role);
+  const [role, setRole] = useState<'admin' | 'member'>(managedUser.role === 'owner' ? 'admin' : managedUser.role as 'admin' | 'member');
   const [isActive, setIsActive] = useState(managedUser.isActive);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isLastAdmin = managedUser.role === 'admin' && adminCount <= 1;
   const isSelf = managedUser.id === currentUserId;
+  const canChangeRole = callerRole === 'owner' && managedUser.role !== 'owner';
 
   const handleSave = async () => {
     setError('');
@@ -645,31 +651,34 @@ function EditUserModal({ managedUser, currentUserId, adminCount, onClose, onUpda
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Role</label>
-          <div className="flex gap-2">
-            {(['member', 'admin'] as const).map((r) => (
-              <button key={r} onClick={() => !isLastAdmin || r === 'admin' ? setRole(r) : null}
-                disabled={isLastAdmin && r === 'member'}
-                className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
-                  role === r ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] btn-primary' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] btn-secondary'
-                } disabled:opacity-40 disabled:cursor-not-allowed`}>
-                {r}
-              </button>
-            ))}
-          </div>
-          {isLastAdmin && <p className="text-[10px] text-[var(--text-muted)] mt-1">Cannot remove the last admin</p>}
-          {role === 'admin' && managedUser.role === 'member' && (
-            <p className="text-[10px] text-[var(--color-negative)] mt-1">This will grant full access to all features.</p>
-          )}
-          {role === 'member' && managedUser.role === 'admin' && (
-            <p className="text-[10px] text-[var(--color-negative)] mt-1">This will restrict the user to member permissions.</p>
+          {canChangeRole ? (
+            <>
+              <div className="flex gap-2">
+                {(['member', 'admin'] as const).map((r) => (
+                  <button key={r} onClick={() => setRole(r)}
+                    className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
+                      role === r ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] btn-primary' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] btn-secondary'
+                    }`}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+              {role === 'admin' && managedUser.role === 'member' && (
+                <p className="text-[10px] text-[var(--color-negative)] mt-1">This will grant full access to all features.</p>
+              )}
+              {role === 'member' && managedUser.role === 'admin' && (
+                <p className="text-[10px] text-[var(--color-negative)] mt-1">This will restrict the user to member permissions.</p>
+              )}
+            </>
+          ) : (
+            <div className="text-[13px] text-[var(--text-secondary)] py-2 capitalize">{managedUser.role}</div>
           )}
         </div>
         {!isSelf && (
           <div className="flex items-center gap-2">
             <label className="text-[11px] font-medium text-[var(--text-secondary)]">Active</label>
-            <button onClick={() => !(isLastAdmin && isActive) ? setIsActive(!isActive) : null}
-              disabled={isLastAdmin && isActive}
-              className="relative w-9 h-5 rounded-full border-none cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            <button onClick={() => setIsActive(!isActive)}
+              className="relative w-9 h-5 rounded-full border-none cursor-pointer transition-colors"
               style={{ background: isActive ? 'var(--color-positive)' : 'var(--bg-hover)' }}>
               <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: isActive ? 17 : 2 }} />
             </button>
@@ -727,7 +736,7 @@ function UsersPermissionsSection() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
-  const adminCount = managedUsers.filter(u => u.role === 'admin' && u.isActive).length;
+  const callerRole = user?.role || 'member';
 
   const toggleUserExpanded = (userId: number) => {
     setExpandedUsers(prev => {
@@ -794,12 +803,15 @@ function UsersPermissionsSection() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {mu.role === 'admin' ? (
+                {mu.role === 'owner' ? (
+                  <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--badge-owner-bg)', color: 'var(--badge-owner-text)' }}>Owner</span>
+                ) : mu.role === 'admin' ? (
                   <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-admin-bg)] text-[var(--badge-admin-text)]">Admin</span>
                 ) : (
                   <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
                 )}
-                {mu.role === 'member' && (
+                {/* Edit button: owner can edit anyone except self-role; admin can edit members only */}
+                {mu.role !== 'owner' && (callerRole === 'owner' || (callerRole === 'admin' && mu.role === 'member')) && (
                   <button onClick={() => setEditingUser(mu)}
                     className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer text-[13px]">
                     ✎
@@ -808,9 +820,11 @@ function UsersPermissionsSection() {
               </div>
             </div>
 
-            {/* Admin info or member permissions */}
-            {mu.role === 'admin' ? (
-              <div className="text-[11px] text-[var(--text-muted)] italic py-1">Admins have all permissions. Cannot be restricted.</div>
+            {/* Owner/Admin info or member permissions */}
+            {mu.role === 'owner' ? (
+              <div className="text-[11px] text-[var(--text-muted)] italic py-1">App owner. Cannot be restricted or removed.</div>
+            ) : mu.role === 'admin' ? (
+              <div className="text-[11px] text-[var(--text-muted)] italic py-1">Admins have all permissions.{callerRole !== 'owner' && ' Cannot be restricted.'}</div>
             ) : mu.permissions && (
               <>
                 <button
@@ -867,12 +881,12 @@ function UsersPermissionsSection() {
         </button>
       </div>
 
-      {showAddModal && <AddUserModal onClose={() => setShowAddModal(false)} onCreated={loadUsers} />}
+      {showAddModal && <AddUserModal onClose={() => setShowAddModal(false)} onCreated={loadUsers} callerRole={callerRole} />}
       {editingUser && (
         <EditUserModal
           managedUser={editingUser}
           currentUserId={user!.id}
-          adminCount={adminCount}
+          callerRole={callerRole}
           onClose={() => setEditingUser(null)}
           onUpdated={loadUsers}
         />
