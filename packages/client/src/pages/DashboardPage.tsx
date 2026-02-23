@@ -210,32 +210,32 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Transactions */}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Recent Transactions</h3>
-          <button onClick={() => navigate('/transactions')}
-            className="text-[12px] text-[#3b82f6] font-medium bg-transparent border-none cursor-pointer px-2 py-1 rounded-md btn-ghost">
-            View All →
-          </button>
-        </div>
-        {isMobile ? (
-          /* Mobile: Card list */
-          <div className="flex flex-col gap-2">
+      {isMobile ? (
+        /* Mobile: Standalone cards */
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Recent Transactions</h3>
+            <button onClick={() => navigate('/transactions')}
+              className="text-[12px] text-[#3b82f6] font-medium bg-transparent border-none cursor-pointer px-2 py-1 rounded-md btn-ghost">
+              View All →
+            </button>
+          </div>
+          <div className="flex flex-col gap-1.5">
             {(recentTxns.length > 5 ? recentTxns.slice(0, 5) : recentTxns).map((t) => {
               const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
               return (
-                <div key={t.id} className="flex justify-between items-center py-2.5 border-b border-[var(--table-row-border)] last:border-b-0">
+                <div key={t.id} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5 flex justify-between items-center">
                   <div className="flex-1 min-w-0 mr-3">
                     <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</div>
                     <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[var(--text-muted)]">
-                      <span className="font-mono">{t.date}</span>
+                      <span className="font-mono text-[10px]">{t.date}</span>
                       <span>·</span>
                       <CategoryBadge name={t.category.subName} />
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className={`text-[13px] font-mono font-semibold ${amtClass}`}>{amtText}</div>
-                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{accountLabel(t.account)}</div>
+                    <div className={`text-[14px] font-mono font-semibold ${amtClass}`}>{amtText}</div>
+                    <div className="text-[9px] text-[var(--text-muted)] mt-0.5">{accountLabel(t.account)}</div>
                   </div>
                 </div>
               );
@@ -244,8 +244,16 @@ export default function DashboardPage() {
               <p className="text-center py-8 text-[var(--text-muted)] text-[13px]">No transactions yet</p>
             )}
           </div>
-        ) : (
-          /* Desktop: Table */
+        </div>
+      ) : (
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Recent Transactions</h3>
+          <button onClick={() => navigate('/transactions')}
+            className="text-[12px] text-[#3b82f6] font-medium bg-transparent border-none cursor-pointer px-2 py-1 rounded-md btn-ghost">
+            View All →
+          </button>
+        </div>
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
@@ -291,8 +299,8 @@ export default function DashboardPage() {
               )}
             </tbody>
           </table>
-        )}
       </div>
+      )}
     </div>
   );
 }
