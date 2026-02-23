@@ -8,6 +8,7 @@ import PermissionGate from './PermissionGate';
 import Tooltip from './Tooltip';
 import { ConnectedBadge } from './badges';
 import InlineNotification from './InlineNotification';
+import ResponsiveModal from './ResponsiveModal';
 
 interface Connection {
   id: number;
@@ -74,17 +75,6 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-// --- Modal wrapper (matches SettingsPage pattern) ---
-function Modal({ children, onClose, wide }: { children: React.ReactNode; onClose: () => void; wide?: boolean }) {
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className={`bg-[var(--bg-card)] rounded-xl p-6 shadow-xl ${wide ? 'w-full max-w-lg' : 'w-full max-w-md'}`} onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 // --- New Account Form (simplified, for creating from SF linking) ---
 function NewAccountForm({
   defaults,
@@ -114,7 +104,7 @@ function NewAccountForm({
   }, [error]);
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">Create & Link Account</h3>
       {error && (
         <InlineNotification type="error" message={error} className="mb-3" />
@@ -188,7 +178,7 @@ function NewAccountForm({
           {saving ? 'Creating...' : 'Create & Link'}
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -736,7 +726,7 @@ function ConnectionFormModal({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
         {connection ? 'Edit Connection' : 'Add Bank Connection'}
       </h3>
@@ -805,6 +795,6 @@ function ConnectionFormModal({
           {saving ? 'Connecting...' : connection ? 'Save' : 'Connect'}
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }

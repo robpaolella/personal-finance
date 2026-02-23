@@ -7,6 +7,7 @@ import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import PermissionGate from '../components/PermissionGate';
 import SortableHeader from '../components/SortableHeader';
 import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge } from '../components/badges';
+import ResponsiveModal from '../components/ResponsiveModal';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 interface DuplicateMatch {
@@ -61,16 +62,6 @@ interface Category {
   sub_name: string;
   display_name: string;
   type: string;
-}
-
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[var(--bg-card)] rounded-xl p-6 w-full max-w-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  );
 }
 
 // Field wrapper with validation error display
@@ -251,7 +242,7 @@ function TransactionForm({
     }`;
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose} maxWidth="32rem">
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
         {transaction ? 'Edit Transaction' : 'Add Transaction'}
       </h3>
@@ -383,7 +374,7 @@ function TransactionForm({
           {duplicateMatch ? 'Save Anyway' : 'Save'}
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 

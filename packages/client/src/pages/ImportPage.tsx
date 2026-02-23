@@ -10,6 +10,7 @@ import TransferBadge from '../components/TransferBadge';
 import BankSyncPanel from '../components/BankSyncPanel';
 import SortableHeader from '../components/SortableHeader';
 import InlineNotification from '../components/InlineNotification';
+import ResponsiveModal from '../components/ResponsiveModal';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 interface Account {
@@ -815,9 +816,7 @@ export default function ImportPage() {
       )}
 
       {/* Account selection modal */}
-      {showAccountModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] p-6 shadow-lg w-[420px]">
+      <ResponsiveModal isOpen={showAccountModal} onClose={handleAccountModalCancel} maxWidth="420px">
             <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0 mb-1">Select Account</h2>
             <p className="text-[13px] text-[var(--text-secondary)] m-0 mb-4">Which account is this import for?</p>
             <select
@@ -844,9 +843,7 @@ export default function ImportPage() {
                 Continue
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </ResponsiveModal>
       </>
       )}
     </div>
