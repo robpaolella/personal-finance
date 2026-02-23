@@ -109,12 +109,43 @@ export default function ReportsPage() {
   return (
     <div>
       {/* Header */}
-      <div className={`flex justify-between items-center mb-6 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
+      {isMobile ? (
+        <div className="mb-4">
+          {/* Centered year nav */}
+          <div className="flex justify-center items-center gap-4 mb-3">
+            <button onClick={() => setYear(year - 1)}
+              className="text-[20px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
+              ←
+            </button>
+            <span className="text-[15px] font-bold text-[var(--text-primary)]">{year}</span>
+            <button onClick={() => setYear(year + 1)}
+              className="text-[20px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
+              →
+            </button>
+          </div>
+          {/* Scrollable owner chip row */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+            {[{ name: 'All', id: 0 }, ...users.map(u => ({ name: u.displayName, id: u.id }))].map((o) => (
+              <button key={o.id} onClick={() => setOwner(o.name === 'All' ? 'All' : o.name)}
+                className="flex-shrink-0 border-none cursor-pointer rounded-2xl text-[11px] px-3.5 py-1.5"
+                style={{
+                  background: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 'var(--color-accent)' : 'var(--bg-card)',
+                  color: (o.name === 'All' ? owner === 'All' : owner === o.name) ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 600 : 400,
+                  boxShadow: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 'none' : 'inset 0 0 0 1px var(--bg-card-border)',
+                }}>
+                {o.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+      <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Annual Report</h1>
           <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{year} {isYTD ? 'Year-to-Date' : 'Full Year'}</p>
         </div>
-        <div className={`flex gap-3 items-center ${isMobile ? 'justify-between' : ''}`}>
+        <div className="flex gap-3 items-center">
           <OwnerFilter value={owner} onChange={setOwner} users={users} />
           <select
             value={year}
@@ -125,6 +156,7 @@ export default function ReportsPage() {
           </select>
         </div>
       </div>
+      )}
 
       {/* Owner info bar */}
       {owner !== 'All' && (
