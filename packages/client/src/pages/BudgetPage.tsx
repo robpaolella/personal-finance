@@ -419,7 +419,7 @@ export default function BudgetPage() {
                             background: sub.budgeted > 0 && sub.actual > sub.budgeted ? '#ef4444' : color,
                           }} />
                         </div>
-                        <span className="w-[60px] text-right text-[11px] font-mono text-[var(--text-secondary)]">
+                        <span className="w-[80px] text-right text-[11px] font-mono text-[var(--text-secondary)]">
                           {sub.actual !== 0 ? fmt(sub.actual) : '—'}
                         </span>
                         {isEditing ? (
@@ -429,7 +429,7 @@ export default function BudgetPage() {
                             step="1"
                             autoFocus
                             inputMode="decimal"
-                            className="w-[60px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                            className="w-[80px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                             value={editingCell.value}
                             onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
                             onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
@@ -438,7 +438,7 @@ export default function BudgetPage() {
                         ) : (
                           <span
                             onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                            className={`w-[60px] text-right text-[11px] font-mono ${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
+                            className={`w-[80px] text-right text-[11px] font-mono ${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
                           >
                             {sub.budgeted > 0 ? fmt(sub.budgeted) : ''}
                           </span>
