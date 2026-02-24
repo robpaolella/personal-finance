@@ -28,6 +28,13 @@ export const appConfig = sqliteTable('app_config', {
   value: text('value').notNull(),
 });
 
+// === Dev Storage (QA checklists, dev tool state) ===
+export const devStorage = sqliteTable('dev_storage', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updated_at: text('updated_at').notNull(),
+});
+
 // === Accounts ===
 export const accounts = sqliteTable('accounts', {
   id: integer('id').primaryKey({ autoIncrement: true }),
