@@ -1,146 +1,71 @@
-# Ledger — Personal Finance
+# Ledger
 
-A locally-hosted personal finance tracking web application for a two-person household. Track income, expenses, budgets, net worth, and asset depreciation — all from a clean, modern UI.
+**Your Money. Your Data.**
 
-## Tech Stack
-
-- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS
-- **Backend:** Express, TypeScript, Drizzle ORM
-- **Database:** SQLite (via better-sqlite3)
-- **Auth:** JWT (Bearer tokens)
-- **Fonts:** DM Sans (UI), DM Mono (numbers/dates)
-
-## Project Structure
-
-```
-packages/
-  client/          # React SPA (Vite)
-    src/
-      pages/       # Page components (Dashboard, Transactions, Budget, etc.)
-      components/  # Reusable UI (KPICard, DataTable, Spinner, etc.)
-      context/     # Auth and Toast contexts
-      lib/         # API helpers, formatters
-  server/          # Express API
-    src/
-      routes/      # REST endpoints (/api/*)
-      middleware/   # Auth, error handling
-      db/          # Drizzle schema, seed, migrations
-      services/    # Business logic (Venmo parser, etc.)
-      utils/       # Sanitization, helpers
-  shared/          # Shared TypeScript types
-```
-
-## Setup
-
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
-
-### Install
-
-```bash
-npm install
-```
-
-### Seed the Database
-
-```bash
-npm run seed
-```
-
-This creates the SQLite database with default users, accounts, and categories.
-
-### Development
-
-```bash
-npm run dev
-```
-
-Starts both the Express server (port 3001) and Vite dev server (port 5173) concurrently. The Vite dev server proxies `/api` requests to the Express server.
-
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-### Production Build
-
-```bash
-npm run build
-npm start
-```
-
-Builds all packages and starts the production server on port 3001, serving the React app as static files.
-
-## Default Credentials
-
-| Username   | Password   |
-|------------|------------|
-| robert     | changeme   |
-| kathleen   | changeme   |
-
-> Change these after first login via the Settings page.
+A self-hosted personal finance app for households. Track income, expenses, budgets, net worth, and investments — with role-based access, bank sync, and a mobile-friendly UI. All data stays on your server in a single SQLite file.
 
 ## Features
 
-- **Dashboard** — KPI cards, spending breakdown chart, recent transactions
-- **Transactions** — Full CRUD, filters, search, bulk edit, pagination
-- **Budget** — Monthly budget vs. actual by category with progress bars
-- **Reports** — Annual breakdown with expandable income/expense categories
-- **Net Worth** — Account balances, depreciable assets, classification breakdown
-- **Import** — CSV import with auto-categorization, format detection (Chase, Venmo, generic)
-- **Settings** — Manage accounts, categories, and users
-- **Dark Mode** — Full dark theme with toggle, persisted to localStorage
+- **Dashboard** — KPI cards, spending breakdown, recent transactions
+- **Transactions** — Full CRUD with filters, search, bulk edit, and pagination
+- **Budget** — Monthly budget vs. actual by category, filterable by household member
+- **Reports** — Annual income/expense breakdown with expandable categories
+- **Net Worth** — Account balances, investment holdings, and depreciable assets (straight-line & declining balance)
+- **Bank Sync** — Automated transaction and balance import via [SimpleFIN Bridge](https://beta-bridge.simplefin.org/)
+- **CSV Import** — Auto-categorization, duplicate detection, transfer detection, multi-format support
+- **Multi-User** — Owner / Admin / Member roles with 18 granular permissions
+- **Joint Accounts** — Multi-owner support for shared accounts
+- **Mobile Responsive** — Bottom sheets, tab navigation, and card layouts on small screens
+- **Dark Mode** — System-aware with manual toggle
 
-## Development Workflow
+## Tech Stack
 
-### Database Management
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| Backend | Express, TypeScript, Drizzle ORM |
+| Database | SQLite (better-sqlite3) |
+| Auth | JWT, bcrypt |
+| Bank Sync | SimpleFIN Bridge API |
+| Deploy | Docker, Docker Compose |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+ and npm 9+, **or** Docker
+
+### Local Development
 
 ```bash
-# Backup the database
-npm run db:backup
-
-# Reset and re-seed (deletes all data)
-npm run db:reset
-
-# Restore from a backup
-npm run db:restore backups/ledger-XXXXXXXX-XXXXXX.db
+npm install
+npm run dev
 ```
 
-### Building & Deploying
+This starts the Express API (port 3001) and Vite dev server (port 5173). Open [http://localhost:5173](http://localhost:5173).
+
+On first launch, the app walks you through creating an owner account — no default credentials or seed users.
+
+### Production (Docker)
 
 ```bash
-# Build the Docker image
-npm run docker:build
-
-# Deploy to production (one command)
-npm run deploy
-
-# Seed the production database (first deploy only)
-npm run docker:seed
-```
-
-### Docker Commands
-
-```bash
-# Start the container
 docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Restart
-docker compose restart
-
-# Stop
-docker compose down
-
-# Shell into the container
-docker compose exec ledger sh
 ```
 
-## Design System
+The SQLite database is volume-mounted at `./data/` and persists across container rebuilds. Set `JWT_SECRET` in your environment or `.env` file.
 
-The interactive design guide is at `.github/design-system.jsx`. Open it in any React-compatible viewer to see all UI elements in both light and dark mode. This is the single source of truth for all visual decisions — colors, component patterns, badges, buttons, tooltips, notifications, and category palettes.
+## Database Management
 
-## Screenshots
+```bash
+npm run db:backup                              # backup
+npm run db:restore backups/ledger-XXXXXX.db    # restore
+npm run db:reset                               # reset and re-seed (dev only)
+```
 
-_Coming soon._
+## Deploy
+
+```bash
+npm run deploy
+```
+
+Pushes to GitHub, builds the Docker image on the server, backs up the database, restarts the container, and runs a health check.
