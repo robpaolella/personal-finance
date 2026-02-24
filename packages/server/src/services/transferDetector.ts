@@ -45,9 +45,7 @@ export function detectTransfer(
 
   for (const acct of activeAccounts) {
     const acctName = acct.name.toLowerCase();
-    // Check if payee contains account name or vice versa (minimum 4 chars to avoid false matches)
     if (acctName.length >= 4 && text.includes(acctName)) return true;
-    if (payee.length >= 4 && acctName.includes(payee.toLowerCase())) return true;
   }
 
   return false;
@@ -78,10 +76,8 @@ export function detectTransfers(
       if (pattern.test(text)) return true;
     }
 
-    // Dynamic account name matching
     for (const acctName of accountNames) {
       if (acctName.length >= 4 && text.includes(acctName)) return true;
-      if (txn.payee.length >= 4 && acctName.includes(txn.payee.toLowerCase())) return true;
     }
 
     return false;
