@@ -411,15 +411,15 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                         }}
                         className="cursor-pointer" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-[13px] text-[var(--text-primary)]">
-                            {acct.simplefin_account_name}
-                          </span>
+                        <span className="font-medium text-[13px] text-[var(--text-primary)]">
+                          {acct.simplefin_account_name}
+                        </span>
+                        <div className={`flex items-center gap-1.5 mt-0.5 ${isMobile ? '' : 'mt-0'}`}>
                           <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)] font-mono">
                             {acct.ledger_account_name}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                        <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)] mt-0.5">
                           {acct.simplefin_org_name && <span>{acct.simplefin_org_name}</span>}
                           <span>·</span>
                           <span>Last synced: {formatDate(acct.last_synced_at)}</span>
