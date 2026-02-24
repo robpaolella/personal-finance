@@ -583,16 +583,13 @@ export default function ImportPage() {
       {/* Step 2: Map Columns */}
       {step === 1 && parseResult && (
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-          <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setStep(0)}
-                className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline"
-              >
-                ← Back
-              </button>
-              <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
-            </div>
+          <div className={`flex justify-between items-center mb-2 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
+            <button
+              onClick={() => setStep(0)}
+              className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline"
+            >
+              ← Back
+            </button>
             <button
               onClick={handleAutoCategorize}
               className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-primary"
@@ -600,9 +597,12 @@ export default function ImportPage() {
               Next →
             </button>
           </div>
-          <p className="text-[12px] text-[var(--text-secondary)] mt-0 mb-4 m-0">
-            Account: {accounts.find((a) => a.id === selectedAccountId)?.name} · {parseResult.totalRows} transactions · Format: {parseResult.detectedFormat}
-          </p>
+          <div className="mb-4">
+            <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
+            <p className="text-[12px] text-[var(--text-secondary)] mt-1 m-0">
+              Account: {accounts.find((a) => a.id === selectedAccountId)?.name} · {parseResult.totalRows} transactions · Format: {parseResult.detectedFormat}
+            </p>
+          </div>
 
           {/* Column mapping */}
           <div className="bg-[var(--bg-input)] rounded-lg p-4 mb-4">
