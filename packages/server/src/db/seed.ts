@@ -131,8 +131,7 @@ async function seed() {
 
   // Income categories (all under group_name "Income")
   const incomeCategories = [
-    'Take Home Pay', '401(k)', 'Gifts Received', 'Tax Refunds',
-    'Interest Income', 'Refunds/Reimbursements', 'Other Income',
+    'Take Home Pay', 'Interest Income', 'Other Income',
   ];
 
   for (const name of incomeCategories) {
@@ -149,24 +148,16 @@ async function seed() {
   // Expense categories
   const expenseGroups: Array<{ group: string; subs: string[]; deductible?: boolean }> = [
     { group: 'Auto/Transportation', subs: ['Fuel', 'Service', 'Transportation', 'Other Auto/Transportation'] },
-    { group: 'Business', subs: ['Unreimbursed', 'Office At Home', 'Meeting Expenses', 'Other Business Expenses'], deductible: true },
-    { group: 'Charitable Contributions', subs: ['Religious', 'Other Non-Profit'], deductible: true },
     { group: 'Clothing', subs: ['Clothes/Shoes', 'Laundry/Dry Cleaning', 'Other Clothing'] },
     { group: 'Daily Living', subs: ['Dining/Eating Out', 'Groceries', 'Personal Supplies', 'Pets', 'Other Daily Living'] },
-    { group: 'Discretionary', subs: ['Robert', 'Kathleen'] },
-    { group: 'Dues/Subscriptions', subs: ['Digital Services', 'Gym', 'Newspaper'] },
     { group: 'Education', subs: ['Tuition', 'Other Education'] },
-    { group: 'Entertainment', subs: ['Books/Magazine', 'Dates', 'Film/Photos', 'Hobby', 'Other Entertainment'] },
-    { group: 'Health', subs: ['Medical Insurance', 'Medicine/Drug', 'Doctor/Dentist/Optometrist', 'Hospital', 'Other Health'], deductible: true },
-    { group: 'Household', subs: ['Rent', 'Farm and Garden', 'Tools', 'Furnishings', 'Appliances', 'Improvements', 'Maintenance', 'Other Household'] },
+    { group: 'Entertainment', subs: ['Books/Magazine', 'Hobby', 'Other Entertainment'] },
+    { group: 'Health', subs: ['Medicine/Drug', 'Doctor/Dentist/Optometrist', 'Hospital', 'Other Health'], deductible: true },
+    { group: 'Household', subs: ['Rent', 'Furnishings', 'Appliances', 'Improvements', 'Maintenance', 'Other Household'] },
     { group: 'Insurance', subs: ['Auto', 'Health', 'Other'] },
     { group: 'Loan', subs: ['Auto', 'Personal Note', 'Other'] },
-    { group: 'Miscellaneous', subs: ['Short-term Personal Loan (Outbound)', 'Other'] },
-    { group: 'Non-deductible Expense', subs: ['Other'] },
-    { group: 'Other', subs: ['Gifts Given', 'Venmo Transaction', 'Vacation/Travel'] },
-    { group: 'Savings', subs: ['Emergency Fund', 'Investments', 'Other'] },
     { group: 'Tax Not Withheld', subs: ['Fed', 'Other'] },
-    { group: 'Utilities', subs: ['Internet', 'Cellphone', 'Power', 'Water', 'Other'] },
+    { group: 'Utilities', subs: ['Internet', 'Phone', 'Power', 'Water', 'Other'] },
   ];
 
   for (const { group, subs, deductible } of expenseGroups) {
