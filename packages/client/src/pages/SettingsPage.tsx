@@ -587,7 +587,7 @@ function PreferencesTab() {
               {showSecret ? 'Hide secret key' : "Can't scan? Enter manually"}
             </button>
             {showSecret && (
-              <div className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg p-2 mb-3">
+              <div className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg p-2 mb-3 text-center">
                 <code className="text-[11px] font-mono text-[var(--text-primary)] break-all select-all">{setupData.secret}</code>
               </div>
             )}
