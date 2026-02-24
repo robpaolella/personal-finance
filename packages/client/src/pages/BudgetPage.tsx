@@ -225,11 +225,11 @@ export default function BudgetPage() {
             {income.map((r, i) => {
               const isEditing = editingCell?.categoryId === r.categoryId;
               return (
-                <div key={r.categoryId} className="flex justify-between items-center py-1.5"
+                <div key={r.categoryId} className="flex items-center py-1.5"
                   style={{ borderBottom: i < income.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
-                  <span className="text-[12px] text-[var(--text-body)]">{r.subName}</span>
-                  <div className="flex gap-4">
-                    <span className="w-[50px] text-right text-[12px] font-mono text-[var(--text-muted)]">
+                  <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{r.subName}</span>
+                  <div className="flex gap-3 flex-shrink-0 ml-2">
+                    <span className="w-[70px] text-right text-[12px] font-mono text-[var(--text-muted)]">
                       {isEditing ? (
                         <input type="number" min="0" step="1" inputMode="decimal" autoFocus
                           className="w-full text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
@@ -246,7 +246,7 @@ export default function BudgetPage() {
                         </span>
                       )}
                     </span>
-                    <span className="w-[50px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)]">
+                    <span className="w-[70px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)]">
                       {r.actual > 0 ? fmt(r.actual) : '—'}
                     </span>
                   </div>
@@ -272,9 +272,9 @@ export default function BudgetPage() {
                   const hasData = sub.budgeted > 0 || sub.actual > 0;
                   return (
                     <div key={sub.categoryId} style={{ marginBottom: si < g.subs.length - 1 ? 10 : 0 }}>
-                      <div className="flex justify-between items-center mb-0.5">
-                        <span className="text-[12px] text-[var(--text-body)]">{sub.subName}</span>
-                        <div className="flex items-center">
+                      <div className="flex items-center mb-0.5">
+                        <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{sub.subName}</span>
+                        <div className="flex items-center flex-shrink-0 ml-2">
                           {isEditing ? (
                             <span className="text-[11px] font-mono text-[var(--text-muted)]">
                               {sub.actual > 0 ? fmt(sub.actual) : '—'} /
