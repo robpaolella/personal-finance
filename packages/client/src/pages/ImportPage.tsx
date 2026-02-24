@@ -590,15 +590,20 @@ export default function ImportPage() {
                 Account: {accounts.find((a) => a.id === selectedAccountId)?.name} · {parseResult.totalRows} transactions · Format: {parseResult.detectedFormat}
               </p>
             </div>
-            <button
-              onClick={handleAutoCategorize}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-primary"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
-              </svg>
-              Auto-Categorize
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setStep(0)}
+                className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleAutoCategorize}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-primary"
+              >
+                Next →
+              </button>
+            </div>
           </div>
 
           {/* Column mapping */}
@@ -716,6 +721,12 @@ export default function ImportPage() {
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setStep(1)}
+                className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline"
+              >
+                ← Back
+              </button>
               <span className="flex items-center gap-1 px-2.5 py-1 bg-[var(--badge-category-bg)] rounded-lg text-[11px] text-[var(--badge-category-text)] font-semibold">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
