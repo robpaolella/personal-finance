@@ -521,7 +521,7 @@ function PreferencesTab() {
         </div>
 
         {/* Idle state */}
-        {twofaStep === 'idle' && !twofaEnabled && (
+        {!twofaEnabled && (
           <button
             onClick={async () => {
               setTwofaError('');
@@ -543,7 +543,7 @@ function PreferencesTab() {
           </button>
         )}
 
-        {twofaStep === 'idle' && twofaEnabled && (
+        {twofaEnabled && (
           <div className={`flex ${isMobile ? 'flex-col' : ''} gap-2 mt-2`}>
             <button
               onClick={() => { setTwofaStep('regenerate'); setTwofaPassword(''); setTwofaError(''); }}
