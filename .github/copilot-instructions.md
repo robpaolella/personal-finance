@@ -727,6 +727,30 @@ Form Input → Storage → Display:
 **Resolution:** On mobile: hero card → Update Balances button → accounts grouped by classification as individual cards (with expandable holdings for investment accounts) → depreciable assets as individual cards with method badges → + Add Asset button.
 **Rule going forward:** Investment accounts with holdings should show an expandable section within their card. Depreciable assets show name, date, cost, method badge (SL/DB X%), and current value — no table columns.
 
+### Transaction Type Filter Must Use Category Type (2026-02-24)
+**Context:** Filtering transactions by "Income" or "Expense" on the Transactions page
+**Problem:** Filter checked `amount < 0` for income and `amount >= 0` for expense. This incorrectly classified refunds (negative expenses like -$29.99) as income, inflating the income transaction count.
+**Resolution:** Changed filter to use `eq(categories.type, 'income')` and `eq(categories.type, 'expense')` instead of amount sign checks.
+**Rule going forward:** Never use amount sign to determine transaction type. Always use the `categories.type` field. A negative expense is still an expense (it's a refund), not income.
+
+### Budget Display Must Handle Negative Actuals (2026-02-24)
+**Context:** Budget page showing actual spending per category
+**Problem:** Display logic used `sub.actual > 0` checks, which hid negative actuals (refunds). An Amazon refund of -$29.99 in "Other Daily Living" showed "—" instead of the amount.
+**Resolution:** Changed all `sub.actual > 0` and `gActual > 0` display checks to `!== 0` across both mobile and desktop views (6 locations in BudgetPage.tsx).
+**Rule going forward:** When displaying monetary values, use `!== 0` checks, never `> 0`, unless you explicitly intend to hide negative values. Refunds produce negative category totals that must be visible.
+
+### Dashboard Net Worth Must Match Net Worth Page (2026-02-24)
+**Context:** Dashboard KPI showed net worth ~$7K higher than the Net Worth page
+**Problem:** Two bugs: (1) Dashboard summed ALL balances including credit card liabilities (adding them instead of subtracting). (2) Dashboard used inline straight-line depreciation, ignoring the declining balance method for assets like vehicles.
+**Resolution:** Separated liabilities in the balance loop and subtracted them. Replaced inline depreciation math with `calculateCurrentValue()` from `utils/depreciation.ts` which handles both depreciation methods.
+**Rule going forward:** Dashboard and Net Worth page must use the same calculation logic. Always use the shared `calculateCurrentValue()` utility — never inline depreciation math. Always separate liability balances and subtract them from net worth.
+
+### CSV Import Must Include Transfer Detection (2026-02-24)
+**Context:** Credit card payment "PAYMENT THANK YOU" not flagged during CSV import
+**Problem:** Transfer detection (`detectTransfers()`) was only wired for SimpleFIN sync. CSV import hardcoded `isLikelyTransfer: false` with no server call.
+**Resolution:** Added `/api/import/check-transfers` endpoint in import.ts. Wired ImportPage to call it after categorization, setting `isLikelyTransfer` on matching rows.
+**Rule going forward:** Any detection logic available for SimpleFIN sync must also be available for CSV import. The two import paths should have feature parity for duplicate detection, transfer detection, and categorization.
+
 ## Development Workflow
 
 ### Environments
