@@ -1,6 +1,7 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
 
 const qaModules = import.meta.glob('../../../../.github/qa/*.json', { eager: true });
 
@@ -45,7 +46,7 @@ function parseChecklists(): Record<string, QAChecklist> {
   return result;
 }
 
-function loadState(storageKey: string): SavedState {
+function loadStateLocal(storageKey: string): SavedState {
   try {
     const raw = localStorage.getItem(storageKey);
     if (raw) {
@@ -56,8 +57,34 @@ function loadState(storageKey: string): SavedState {
   return { checks: {}, notes: {} };
 }
 
-function saveState(storageKey: string, state: SavedState) {
+function saveStateLocal(storageKey: string, state: SavedState) {
   localStorage.setItem(storageKey, JSON.stringify(state));
+}
+
+async function loadStateFromServer(storageKey: string): Promise<SavedState | null> {
+  try {
+    const res = await apiFetch<{ data: { value: string } | null }>(`/dev/storage/${encodeURIComponent(storageKey)}`);
+    if (res.data?.value) {
+      const parsed = JSON.parse(res.data.value);
+      return { checks: parsed.checks || {}, notes: parsed.notes || {} };
+    }
+  } catch {}
+  return null;
+}
+
+async function saveStateToServer(storageKey: string, state: SavedState): Promise<void> {
+  try {
+    await apiFetch(`/dev/storage/${encodeURIComponent(storageKey)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value: JSON.stringify(state) }),
+    });
+  } catch {}
+}
+
+async function deleteStateFromServer(storageKey: string): Promise<void> {
+  try {
+    await apiFetch(`/dev/storage/${encodeURIComponent(storageKey)}`, { method: 'DELETE' });
+  } catch {}
 }
 
 function countItems(checklist: QAChecklist): number {
@@ -80,6 +107,17 @@ function countByStatus(state: SavedState) {
 
 function ChecklistIndex({ checklists }: { checklists: Record<string, QAChecklist> }) {
   const entries = Object.entries(checklists);
+  const [progressMap, setProgressMap] = useState<Record<string, SavedState>>({});
+
+  useEffect(() => {
+    // Load progress from server for all checklists
+    entries.forEach(([name, cl]) => {
+      loadStateFromServer(cl.storageKey).then(serverState => {
+        const state = serverState || loadStateLocal(cl.storageKey);
+        setProgressMap(prev => ({ ...prev, [name]: state }));
+      });
+    });
+  }, []);
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
@@ -95,7 +133,7 @@ function ChecklistIndex({ checklists }: { checklists: Record<string, QAChecklist
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {entries.map(([name, cl]) => {
             const total = countItems(cl);
-            const state = loadState(cl.storageKey);
+            const state = progressMap[name] || { checks: {}, notes: {} };
             const { pass, fail, skip } = countByStatus(state);
             const tested = pass + fail + skip;
             const pct = total > 0 ? Math.round((tested / total) * 100) : 0;
@@ -163,14 +201,34 @@ function nextStatus(current: ItemStatus | undefined): ItemStatus | null {
 }
 
 function ChecklistViewer({ checklist }: { checklist: QAChecklist }) {
-  const [state, setState] = useState<SavedState>(() => loadState(checklist.storageKey));
+  const [state, setState] = useState<SavedState>(() => loadStateLocal(checklist.storageKey));
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const [copied, setCopied] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialLoadDone = useRef(false);
 
+  // Load from server on mount (override localStorage if server has data)
   useEffect(() => {
-    saveState(checklist.storageKey, state);
+    loadStateFromServer(checklist.storageKey).then(serverState => {
+      if (serverState && (Object.keys(serverState.checks).length > 0 || Object.keys(serverState.notes).length > 0)) {
+        setState(serverState);
+        saveStateLocal(checklist.storageKey, serverState);
+      }
+      initialLoadDone.current = true;
+    });
+  }, [checklist.storageKey]);
+
+  // Save to localStorage immediately + debounce server save
+  useEffect(() => {
+    saveStateLocal(checklist.storageKey, state);
+    if (!initialLoadDone.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveStateToServer(checklist.storageKey, state);
+    }, 500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [state, checklist.storageKey]);
 
   const total = useMemo(() => countItems(checklist), [checklist]);
@@ -211,6 +269,7 @@ function ChecklistViewer({ checklist }: { checklist: QAChecklist }) {
     if (window.confirm('Reset all checks and notes? This cannot be undone.')) {
       setState({ checks: {}, notes: {} });
       localStorage.removeItem(checklist.storageKey);
+      deleteStateFromServer(checklist.storageKey);
     }
   }, [checklist.storageKey]);
 
