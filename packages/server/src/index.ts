@@ -10,6 +10,7 @@ import { migrateSimplefin } from './db/migrate-simplefin.js';
 import { migrateAssetsDepreciation } from './db/migrate-assets-depreciation.js';
 import { migrateRolesPermissions } from './db/migrate-roles-permissions.js';
 import { migrateDevStorage } from './db/migrate-dev-storage.js';
+import { migrate2FA } from './db/migrate-2fa.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -25,6 +26,7 @@ import networthRoutes from './routes/networth.js';
 import importRoutes from './routes/import.js';
 import simplefinRoutes from './routes/simplefin.js';
 import setupRoutes from './routes/setup.js';
+import twofaRoutes from './routes/twofa.js';
 import devRoutes from './routes/dev.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -43,6 +45,7 @@ migrateSimplefin(sqlite);
 migrateAssetsDepreciation(sqlite);
 migrateRolesPermissions(sqlite);
 migrateDevStorage(sqlite);
+migrate2FA(sqlite);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
@@ -62,6 +65,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/auth/2fa', twofaRoutes);
 app.use('/api/setup', setupRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/categories', categoryRoutes);

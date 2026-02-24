@@ -8,6 +8,10 @@ export const users = sqliteTable('users', {
   display_name: text('display_name').notNull(),
   role: text('role').notNull().default('member'),
   is_active: integer('is_active').notNull().default(1),
+  twofa_enabled: integer('twofa_enabled').notNull().default(0),
+  twofa_secret: text('twofa_secret'),
+  twofa_backup_codes: text('twofa_backup_codes'),
+  twofa_enabled_at: text('twofa_enabled_at'),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
 
