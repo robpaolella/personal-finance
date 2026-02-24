@@ -96,11 +96,18 @@ Examples:
 - **At the start of every task**, check the current branch with `git branch --show-current`.
   - If there's an in-progress feature branch with uncommitted or unpushed work, **ask the developer** whether to continue on it or start fresh.
   - If starting a new task, pull the latest main (`git checkout main && git pull`) and create a new feature branch.
+- **Mid-session branch switching:** If the current task is complete (or reaches a logical stopping point) and the next piece of work is unrelated, do the following automatically:
+  1. Commit all remaining changes on the current branch.
+  2. Push the current branch (`git push -u origin <branch-name>`).
+  3. Notify the developer that the branch is ready for a PR.
+  4. Switch to main and pull latest (`git checkout main && git pull`).
+  5. Create a new branch for the next task.
+  - If the new work **depends on** uncommitted/unmerged changes from the previous branch, warn the developer and ask how to proceed rather than switching silently.
 - Never reuse a branch that has already been merged.
 - Branch prefixes: `feature/`, `fix/`, `chore/`, or `refactor/` as appropriate.
   - Examples: `feature/bank-sync`, `fix/expired-jwt-redirect`, `chore/ci-pipeline`, `refactor/category-service`
 - Commit incrementally as you work — don't wait until the end.
-- When finished, notify the developer that the branch is ready so they can open a PR on GitHub.
+- When finished with a branch, notify the developer that it's ready for a PR.
 
 ## Code Style & Conventions
 
