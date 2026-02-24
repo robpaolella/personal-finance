@@ -242,7 +242,6 @@ function ChecklistViewer({ checklist }: { checklist: QAChecklist }) {
 
     collect('fail', 'Failed Items', '[ ]');
     collect('skip', 'Skipped Items', '[ ]');
-    collect('pass', 'Passed Items', '[x]');
 
     const text = lines.join('\n');
     const fallbackCopy = () => {
