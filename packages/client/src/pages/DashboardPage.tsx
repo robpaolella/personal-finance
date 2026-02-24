@@ -103,10 +103,6 @@ export default function DashboardPage() {
           <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{monthName} {now.getFullYear()} Overview</p>
         </div>
         <div className="flex gap-2 desktop-only">
-          <button className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
-            AI Summary
-          </button>
           <PermissionGate permission="transactions.create" fallback="disabled">
             <button onClick={() => navigate('/transactions')}
               className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
