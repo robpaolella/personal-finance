@@ -1,0 +1,5 @@
+echo "🔍 Running pre-push validation..."
+echo ""
+npm run validate
+echo ""
+echo "✅ Validation passed — pushing to remote"
