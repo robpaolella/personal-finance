@@ -97,7 +97,7 @@ export default function TotpCodeInput({ value, onChange, autoFocus = false, disa
           onPaste={handlePaste}
           onFocus={(e) => e.target.select()}
           disabled={disabled}
-          className="w-11 h-13 text-center text-xl font-mono font-semibold border border-[var(--bg-input-border)] rounded-lg bg-[var(--bg-input)] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--color-accent)] focus:shadow-[0_0_0_3px_rgba(59,130,246,0.2)] disabled:opacity-50"
+          className="w-11 h-[52px] text-center text-xl font-mono font-semibold border border-[var(--bg-input-border)] rounded-lg bg-[var(--bg-input)] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--color-accent)] focus:shadow-[0_0_0_3px_rgba(59,130,246,0.2)] disabled:opacity-50"
           style={{ caretColor: 'transparent' }}
         />
       ))}
