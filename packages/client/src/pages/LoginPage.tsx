@@ -20,12 +20,6 @@ export default function LoginPage() {
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
   const totpInputRef = useRef<HTMLInputElement>(null);
 
-  // Already logged in — redirect to dashboard
-  if (user) {
-    navigate('/', { replace: true });
-    return null;
-  }
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -89,11 +83,18 @@ export default function LoginPage() {
 
   // Auto-submit when 6 digits entered
   useEffect(() => {
-    if (totpCode.length === 6 && !useBackupCode && needs2FA) {
+    if (totpCode.length === 6 && !useBackupCode && needs2FA && !loading) {
       const fakeEvent = { preventDefault: () => {} } as FormEvent;
       handle2FAVerify(fakeEvent);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totpCode]);
+
+  // Already logged in — redirect to dashboard
+  if (user) {
+    navigate('/', { replace: true });
+    return null;
+  }
 
   if (needs2FA) {
     return (
