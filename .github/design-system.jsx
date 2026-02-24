@@ -844,6 +844,25 @@ export default function DesignGuide() {
 
         {/* Net Worth Hero */}
         <Section title="Net Worth Hero Card" t={t}>
+
+        {/* ──────────── Two-Factor Authentication ──────────── */}
+        </Section>
+        <Section title="TOTP Code Input" t={t}>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
+            {[3, 1, 4, 1, 5, 9].map((d, i) => (
+              <div key={i} style={{
+                width: 44, height: 52, display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 20, ...mono, fontWeight: 600,
+                border: `1px solid ${i === 3 ? t.accent : t.bgInputBorder}`,
+                borderRadius: 8, background: t.bgInput, color: t.textPrimary,
+                boxShadow: i === 3 ? "0 0 0 3px rgba(59,130,246,0.2)" : "none",
+              }}>{d}</div>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: t.textMuted, textAlign: "center" }}>
+            44×52px · 8px gap · Focus: accent border + 3px blue glow · Caret hidden
+          </p>
+        </Section>
           <div style={{
             background: dark ? "linear-gradient(135deg, #060a13 0%, #0f172a 100%)" : "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
             borderRadius: 12, padding: "24px 32px", textAlign: "center", color: "#fff", width: "100%",
