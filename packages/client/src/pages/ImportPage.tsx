@@ -567,7 +567,7 @@ export default function ImportPage() {
       {/* Step 2: Map Columns */}
       {step === 1 && parseResult && (
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-          <div className="flex justify-between items-center mb-4">
+          <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
             <div>
               <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
               <p className="text-[12px] text-[var(--text-secondary)] mt-1 m-0">
@@ -610,7 +610,7 @@ export default function ImportPage() {
           {(parseResult.detectedFormat === 'venmo' || accounts.find(a => a.id === selectedAccountId)?.type === 'venmo') && (
             <div className="bg-[var(--bg-input)] rounded-lg p-4 mb-4">
               <p className="text-[12px] font-medium text-[var(--text-body)] m-0 mb-2">Venmo Column Mapping</p>
-              <div className="flex gap-4">
+              <div className={isMobile ? 'flex flex-col gap-3' : 'flex gap-4'}>
                 {(['from', 'to', 'note'] as const).map((field) => (
                   <div key={field} className="flex-1">
                     <label className="text-[11px] text-[var(--text-secondary)] block mb-1 capitalize">{field === 'from' ? 'From' : field === 'to' ? 'To' : 'Note'}</label>
@@ -633,7 +633,7 @@ export default function ImportPage() {
           {/* Sign convention */}
           <div className="bg-[var(--bg-input)] rounded-lg p-4 mb-4">
             <p className="text-[12px] font-medium text-[var(--text-body)] m-0 mb-2">Amount Sign Convention</p>
-            <div className="flex gap-2">
+            <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
               <button
                 onClick={() => setSignConvention('bank')}
                 className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border cursor-pointer transition-colors ${signConvention === 'bank' ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-[var(--btn-primary-bg)] btn-primary' : 'bg-[var(--bg-card)] text-[var(--text-body)] border-[var(--table-border)] btn-secondary'}`}
@@ -653,7 +653,26 @@ export default function ImportPage() {
           </div>
 
           {/* Sample preview */}
-          <p className="text-[11px] text-[var(--text-muted)] m-0 mb-2">Preview (first 5 rows)</p>
+          <p className="text-[11px] text-[var(--text-muted)] m-0 mb-2">
+            {isMobile ? 'Preview (first 5 rows — mapped columns only)' : 'Preview (first 5 rows)'}
+          </p>
+          {isMobile ? (
+            <div className="flex flex-col gap-1.5">
+              {parseResult.sampleRows.map((row, i) => (
+                <div key={i} className="flex items-center gap-2 py-1.5" style={{ borderBottom: i < parseResult.sampleRows.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                  <span className="text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 w-[72px]">
+                    {row[mapping.date]}
+                  </span>
+                  <span className="text-[11px] text-[var(--text-body)] flex-1 min-w-0 truncate">
+                    {row[mapping.description]}
+                  </span>
+                  <span className="text-[11px] font-mono font-semibold flex-shrink-0 text-[var(--text-primary)]">
+                    {row[mapping.amount]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr>
@@ -672,6 +691,7 @@ export default function ImportPage() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
       )}
 
@@ -697,97 +717,76 @@ export default function ImportPage() {
             </button>
           </div>
 
-          <div className={isMobile ? 'overflow-x-auto -mx-5 px-5' : ''}>
-
-          <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: '40px' }} />
-              <col style={{ width: '100px' }} />
-              <col />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '140px' }} />
-              <col style={{ width: '200px' }} />
-              <col style={{ width: '55px' }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th className="px-2 py-2 border-b-2 border-[var(--table-border)]">
-                  <input type="checkbox"
-                    checked={selectedImportRows.size === categorizedRows.length && categorizedRows.length > 0}
-                    onChange={() => {
-                      if (selectedImportRows.size === categorizedRows.length) setSelectedImportRows(new Set());
-                      else setSelectedImportRows(new Set(categorizedRows.map((_, i) => i)));
-                    }}
-                    className="cursor-pointer" />
-                </th>
-                <SortableHeader label="Date" sortKey="date" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
-                <SortableHeader label="Description" sortKey="description" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
-                <SortableHeader label="Amount" sortKey="amount" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} align="right" />
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
-                <SortableHeader label="Category" sortKey="category" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
-                <SortableHeader label="Conf." sortKey="confidence" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} align="center" />
-              </tr>
-            </thead>
-            <tbody>
+          {isMobile ? (
+            /* Mobile: card-based layout */
+            <div className="flex flex-col gap-2">
               {sortedCsvIndices.map((i) => {
                 const r = categorizedRows[i];
                 return (
-                <React.Fragment key={i}>
-                  <tr className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${!r.categoryId && selectedImportRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
-                    <td className="px-2 py-2 text-center">
-                      <input type="checkbox" checked={selectedImportRows.has(i)}
-                        onChange={() => {
-                          setSelectedImportRows(prev => {
-                            const next = new Set(prev);
-                            if (next.has(i)) next.delete(i); else next.add(i);
-                            return next;
-                          });
-                        }}
-                        className="cursor-pointer" />
-                    </td>
-                    <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)] truncate">{r.date}</td>
-                    <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate">{r.description}</td>
-                    <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
-                      {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <div className="flex flex-wrap gap-1">
-                        <DuplicateBadge status={r.duplicateStatus}
-                          onClick={() => setExpandedDupeRow(expandedDupeRow === i ? null : i)} />
-                        <TransferBadge isLikelyTransfer={r.isLikelyTransfer} tooltipText={r.transferTooltip} />
+                  <React.Fragment key={i}>
+                    <div className={`rounded-xl border px-3 py-2.5 transition-opacity ${
+                      !selectedImportRows.has(i) ? 'opacity-50 border-[var(--bg-card-border)]' :
+                      !r.categoryId ? 'border-[var(--bg-card-border)] bg-[var(--bg-needs-attention)]' :
+                      'border-[var(--bg-card-border)] bg-[var(--bg-card)]'
+                    }`}>
+                      <div className="flex items-start gap-2.5">
+                        <input type="checkbox" checked={selectedImportRows.has(i)}
+                          onChange={() => {
+                            setSelectedImportRows(prev => {
+                              const next = new Set(prev);
+                              if (next.has(i)) next.delete(i); else next.add(i);
+                              return next;
+                            });
+                          }}
+                          className="cursor-pointer mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          {/* Description + Amount */}
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                              {r.description}
+                            </span>
+                            <span className={`text-[13px] font-mono font-semibold flex-shrink-0 ${r.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
+                              {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
+                            </span>
+                          </div>
+                          {/* Date + Badges + Confidence */}
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className="text-[11px] font-mono text-[var(--text-muted)]">{r.date}</span>
+                            <DuplicateBadge status={r.duplicateStatus}
+                              onClick={() => setExpandedDupeRow(expandedDupeRow === i ? null : i)} />
+                            <TransferBadge isLikelyTransfer={r.isLikelyTransfer} tooltipText={r.transferTooltip} />
+                            <span className={`text-[10px] font-semibold font-mono ml-auto ${
+                              r.confidence > 0.9 ? 'text-[#10b981]' : r.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+                            }`}>
+                              {Math.round(r.confidence * 100)}%
+                            </span>
+                          </div>
+                          {/* Category dropdown */}
+                          <div className="mt-2">
+                            {r.groupName && r.categoryId && (
+                              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                            )}
+                            <select
+                              className="w-full text-[12px] border border-[var(--table-border)] rounded-md px-2 py-1.5 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                              value={r.categoryId || ''}
+                              onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
+                            >
+                              <option value="">Select category...</option>
+                              {Array.from(catGroups.entries()).map(([group, cats]) => (
+                                <optgroup key={group} label={group}>
+                                  {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                </optgroup>
+                              ))}
+                              <optgroup label="Income">
+                                {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                              </optgroup>
+                            </select>
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      {r.groupName && r.categoryId && (
-                        <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
-                      )}
-                      <select
-                        className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
-                        value={r.categoryId || ''}
-                        onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
-                      >
-                        <option value="">Select...</option>
-                        {Array.from(catGroups.entries()).map(([group, cats]) => (
-                          <optgroup key={group} label={group}>
-                            {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                          </optgroup>
-                        ))}
-                        <optgroup label="Income">
-                          {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                        </optgroup>
-                      </select>
-                    </td>
-                    <td className="px-2.5 py-2 text-center">
-                      <span className={`text-[11px] font-semibold font-mono ${
-                        r.confidence > 0.9 ? 'text-[#10b981]' : r.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
-                      }`}>
-                        {Math.round(r.confidence * 100)}%
-                      </span>
-                    </td>
-                  </tr>
-                  {expandedDupeRow === i && r.duplicateMatch && (
-                    <tr>
-                      <td colSpan={7} className="px-2.5 py-1">
+                    </div>
+                    {expandedDupeRow === i && r.duplicateMatch && (
+                      <div className="px-2 -mt-1 mb-1">
                         <DuplicateComparison
                           incoming={{ date: r.date, description: r.description, amount: r.amount,
                             accountName: accounts.find(a => a.id === selectedAccountId)?.name || null }}
@@ -803,15 +802,127 @@ export default function ImportPage() {
                             setExpandedDupeRow(null);
                           }}
                         />
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
+                      </div>
+                    )}
+                  </React.Fragment>
                 );
               })}
-            </tbody>
-          </table>
-          </div>
+            </div>
+          ) : (
+            /* Desktop: table layout */
+            <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '40px' }} />
+                <col style={{ width: '100px' }} />
+                <col />
+                <col style={{ width: '100px' }} />
+                <col style={{ width: '140px' }} />
+                <col style={{ width: '200px' }} />
+                <col style={{ width: '55px' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th className="px-2 py-2 border-b-2 border-[var(--table-border)]">
+                    <input type="checkbox"
+                      checked={selectedImportRows.size === categorizedRows.length && categorizedRows.length > 0}
+                      onChange={() => {
+                        if (selectedImportRows.size === categorizedRows.length) setSelectedImportRows(new Set());
+                        else setSelectedImportRows(new Set(categorizedRows.map((_, i) => i)));
+                      }}
+                      className="cursor-pointer" />
+                  </th>
+                  <SortableHeader label="Date" sortKey="date" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                  <SortableHeader label="Description" sortKey="description" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                  <SortableHeader label="Amount" sortKey="amount" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} align="right" />
+                  <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
+                  <SortableHeader label="Category" sortKey="category" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} />
+                  <SortableHeader label="Conf." sortKey="confidence" activeSortKey={csvSortBy} sortDir={csvSortDir} onSort={handleCsvSort} align="center" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortedCsvIndices.map((i) => {
+                  const r = categorizedRows[i];
+                  return (
+                  <React.Fragment key={i}>
+                    <tr className={`border-b border-[var(--table-row-border)] ${!selectedImportRows.has(i) ? 'opacity-50' : ''} ${!r.categoryId && selectedImportRows.has(i) ? 'bg-[var(--bg-needs-attention)]' : ''}`}>
+                      <td className="px-2 py-2 text-center">
+                        <input type="checkbox" checked={selectedImportRows.has(i)}
+                          onChange={() => {
+                            setSelectedImportRows(prev => {
+                              const next = new Set(prev);
+                              if (next.has(i)) next.delete(i); else next.add(i);
+                              return next;
+                            });
+                          }}
+                          className="cursor-pointer" />
+                      </td>
+                      <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)] truncate">{r.date}</td>
+                      <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate">{r.description}</td>
+                      <td className={`px-2.5 py-2 text-right font-mono font-semibold ${r.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
+                        {r.amount < 0 ? '+' : ''}{fmt(Math.abs(r.amount))}
+                      </td>
+                      <td className="px-2.5 py-1.5">
+                        <div className="flex flex-wrap gap-1">
+                          <DuplicateBadge status={r.duplicateStatus}
+                            onClick={() => setExpandedDupeRow(expandedDupeRow === i ? null : i)} />
+                          <TransferBadge isLikelyTransfer={r.isLikelyTransfer} tooltipText={r.transferTooltip} />
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-1.5">
+                        {r.groupName && r.categoryId && (
+                          <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                        )}
+                        <select
+                          className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                          value={r.categoryId || ''}
+                          onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
+                        >
+                          <option value="">Select...</option>
+                          {Array.from(catGroups.entries()).map(([group, cats]) => (
+                            <optgroup key={group} label={group}>
+                              {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                            </optgroup>
+                          ))}
+                          <optgroup label="Income">
+                            {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                          </optgroup>
+                        </select>
+                      </td>
+                      <td className="px-2.5 py-2 text-center">
+                        <span className={`text-[11px] font-semibold font-mono ${
+                          r.confidence > 0.9 ? 'text-[#10b981]' : r.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+                        }`}>
+                          {Math.round(r.confidence * 100)}%
+                        </span>
+                      </td>
+                    </tr>
+                    {expandedDupeRow === i && r.duplicateMatch && (
+                      <tr>
+                        <td colSpan={7} className="px-2.5 py-1">
+                          <DuplicateComparison
+                            incoming={{ date: r.date, description: r.description, amount: r.amount,
+                              accountName: accounts.find(a => a.id === selectedAccountId)?.name || null }}
+                            existing={{ date: r.duplicateMatch.date, description: r.duplicateMatch.description,
+                              amount: r.duplicateMatch.amount, accountName: r.duplicateMatch.accountName,
+                              category: r.duplicateMatch.category }}
+                            onImportAnyway={() => {
+                              setSelectedImportRows(prev => { const next = new Set(prev); next.add(i); return next; });
+                              setExpandedDupeRow(null);
+                            }}
+                            onSkip={() => {
+                              setSelectedImportRows(prev => { const next = new Set(prev); next.delete(i); return next; });
+                              setExpandedDupeRow(null);
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
