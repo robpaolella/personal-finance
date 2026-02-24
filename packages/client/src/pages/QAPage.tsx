@@ -244,10 +244,27 @@ function ChecklistViewer({ checklist }: { checklist: QAChecklist }) {
     collect('skip', 'Skipped Items', '[ ]');
     collect('pass', 'Passed Items', '[x]');
 
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const text = lines.join('\n');
+    const fallbackCopy = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
   }, [checklist, state, pass, fail, skip, remaining, pct]);
 
   const toggleCollapse = (si: number) => {
