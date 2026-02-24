@@ -93,11 +93,14 @@ Examples:
 ### Branch Strategy
 
 - The `main` branch is **protected**. Never commit directly to `main`.
-- For every task, create a branch from `main` and do all work there, committing incrementally.
-- When finished, notify the developer that the branch is ready so they can open a PR on GitHub.
+- **At the start of every task**, check the current branch with `git branch --show-current`.
+  - If there's an in-progress feature branch with uncommitted or unpushed work, **ask the developer** whether to continue on it or start fresh.
+  - If starting a new task, pull the latest main (`git checkout main && git pull`) and create a new feature branch.
+- Never reuse a branch that has already been merged.
 - Branch prefixes: `feature/`, `fix/`, `chore/`, or `refactor/` as appropriate.
   - Examples: `feature/bank-sync`, `fix/expired-jwt-redirect`, `chore/ci-pipeline`, `refactor/category-service`
-- If experimenting with something risky, create a branch first.
+- Commit incrementally as you work — don't wait until the end.
+- When finished, notify the developer that the branch is ready so they can open a PR on GitHub.
 
 ## Code Style & Conventions
 
