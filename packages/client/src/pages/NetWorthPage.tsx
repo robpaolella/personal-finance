@@ -9,7 +9,9 @@ import PermissionGate from '../components/PermissionGate';
 import Spinner from '../components/Spinner';
 import Tooltip from '../components/Tooltip';
 import ScrollableList from '../components/ScrollableList';
+import ResponsiveModal from '../components/ResponsiveModal';
 import { OwnerBadge, SharedBadge } from '../components/badges';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface Account {
   accountId: number;
@@ -164,6 +166,7 @@ function AccountRow({ a, neg, holdings, expanded, onToggle }: { a: Account; neg?
 export default function NetWorthPage() {
   const { addToast } = useToast();
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<NetWorthData | null>(null);
   const [editingAssetId, setEditingAssetId] = useState<number | 'new' | null>(null);
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
@@ -359,18 +362,18 @@ export default function NetWorthPage() {
   };
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className={isMobile ? '' : 'flex flex-col'} style={isMobile ? undefined : { height: 'calc(100vh - 56px)' }}>
       {/* Header */}
       <div className="mb-6 flex-shrink-0">
-        <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Net Worth</h1>
-        <p className="text-[var(--text-secondary)] text-[13px] mt-1">As of {today}</p>
+        <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Net Worth</h1>
+        <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">As of {today}</p>
       </div>
 
       {/* Hero Card */}
-      <div className="rounded-xl border border-[var(--bg-card-border)] text-center p-8 mb-6 shadow-[var(--bg-card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)] flex-shrink-0">
+      <div className={`rounded-xl border border-[var(--bg-card-border)] text-center mb-6 shadow-[var(--bg-card-shadow)] bg-gradient-to-br from-[var(--hero-gradient-from)] to-[var(--hero-gradient-to)] flex-shrink-0 ${isMobile ? 'p-5' : 'p-8'}`}>
         <p className="text-[13px] text-[var(--text-muted)] m-0 tracking-[0.05em] uppercase">Total Net Worth</p>
-        <p className="text-[40px] font-extrabold font-mono text-white my-2 tracking-[-0.02em]">{fmt(data.netWorth)}</p>
-        <div className="flex justify-center gap-6 mt-3 flex-wrap">
+        <p className={`font-extrabold font-mono text-white my-2 tracking-[-0.02em] ${isMobile ? 'text-[28px]' : 'text-[40px]'}`}>{fmt(data.netWorth)}</p>
+        <div className={`flex justify-center mt-3 flex-wrap ${isMobile ? 'gap-4' : 'gap-6'}`}>
           {[
             { l: 'Liquid Assets', v: data.liquidTotal, c: '#38bdf8' },
             { l: 'Investments', v: data.investmentTotal, c: '#a78bfa' },
@@ -387,8 +390,255 @@ export default function NetWorthPage() {
         </div>
       </div>
 
-      {/* Two-Column Layout */}
-      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
+      {isMobile ? (
+        /* Mobile: Stacked card layout */
+        <div>
+          {/* Update Balances button */}
+          <PermissionGate permission="balances.update" fallback="disabled">
+            <button
+              onClick={() => {
+                const inputs: Record<number, string> = {};
+                data.accounts.forEach((a) => { inputs[a.accountId] = String(a.balance); });
+                setBalanceInputs(inputs);
+                const defaultTab = hasSimplefinConnections ? 'sync' : 'manual';
+                setBalanceTab(defaultTab);
+                setShowBalanceModal(true);
+                if (defaultTab === 'sync') fetchSyncBalances();
+              }}
+              className="w-full py-3 rounded-lg border-none cursor-pointer text-[13px] font-semibold bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] mb-4 btn-secondary"
+            >
+              Update Balances
+            </button>
+          </PermissionGate>
+
+          {/* Liquid Assets */}
+          {liquid.length > 0 && (
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em]">Liquid Assets</span>
+                <span className="text-[13px] font-bold font-mono" style={{ color: '#38bdf8' }}>{fmt(data.liquidTotal)}</span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {liquid.map((a) => (
+                  <div key={a.accountId} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="text-[13px] font-medium text-[var(--text-primary)]">
+                          {a.name} {a.lastFour && <span className="font-mono text-[10px] text-[var(--text-muted)]">({a.lastFour})</span>}
+                        </div>
+                        <div className="flex gap-1 mt-1">
+                          {(a.owners || []).map((o) => <OwnerBadge key={o.id} user={o} />)}
+                          {a.isShared && <SharedBadge />}
+                        </div>
+                      </div>
+                      <span className="text-[15px] font-bold font-mono text-[var(--text-primary)]">{fmt(a.balance)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Investments */}
+          {investment.length > 0 && (
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em]">Investments & Retirement</span>
+                <span className="text-[13px] font-bold font-mono" style={{ color: '#a78bfa' }}>{fmt(data.investmentTotal)}</span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {investment.map((a) => {
+                  const holdings = holdingsMap.get(a.accountId);
+                  const hasHoldings = holdings && holdings.holdings.length > 0;
+                  const isExpanded = expandedAccounts.has(a.accountId);
+                  return (
+                    <div key={a.accountId} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5">
+                      <div className="flex justify-between items-center" onClick={hasHoldings ? () => toggleAccount(a.accountId) : undefined}
+                        style={hasHoldings ? { cursor: 'pointer' } : undefined}>
+                        <div>
+                          <div className="text-[13px] font-medium text-[var(--text-primary)]">
+                            {a.name} {a.lastFour && <span className="font-mono text-[10px] text-[var(--text-muted)]">({a.lastFour})</span>}
+                          </div>
+                          <div className="flex gap-1 mt-1">
+                            {(a.owners || []).map((o) => <OwnerBadge key={o.id} user={o} />)}
+                            {a.isShared && <SharedBadge />}
+                          </div>
+                        </div>
+                        <span className="text-[15px] font-bold font-mono text-[var(--text-primary)]">{fmt(a.balance)}</span>
+                      </div>
+                      {isExpanded && hasHoldings && (
+                        <div className="mt-2 pt-2 border-t border-[var(--bg-card-border)]">
+                          <div className="text-[10px] text-[var(--text-muted)] mb-1.5">Holdings</div>
+                          {holdings!.holdings.map((h, i) => (
+                            <div key={h.symbol} className="flex justify-between py-1"
+                              style={{ borderBottom: i < holdings!.holdings.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                              <div>
+                                <span className="text-[11px] font-semibold font-mono text-[var(--text-primary)]">{h.symbol}</span>
+                                <div className="text-[10px] text-[var(--text-muted)]">
+                                  {h.shares.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} shares
+                                </div>
+                              </div>
+                              <span className="text-[12px] font-semibold font-mono text-[var(--text-primary)]">{fmt(h.marketValue)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Liabilities */}
+          {liability.length > 0 && (
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em]">Liabilities</span>
+                <span className="text-[13px] font-bold font-mono text-[#ef4444]">({fmt(Math.abs(data.liabilityTotal))})</span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {liability.map((a) => (
+                  <div key={a.accountId} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="text-[13px] font-medium text-[var(--text-primary)]">
+                          {a.name} {a.lastFour && <span className="font-mono text-[10px] text-[var(--text-muted)]">({a.lastFour})</span>}
+                        </div>
+                        <div className="flex gap-1 mt-1">
+                          {(a.owners || []).map((o) => <OwnerBadge key={o.id} user={o} />)}
+                          {a.isShared && <SharedBadge />}
+                        </div>
+                      </div>
+                      <span className={`text-[15px] font-bold font-mono ${a.balance < 0 ? 'text-[#ef4444]' : 'text-[var(--text-primary)]'}`}>
+                        {a.balance < 0 ? `(${fmt(Math.abs(a.balance))})` : fmt(a.balance)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Depreciable Assets */}
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em]">Depreciable Assets</span>
+              <span className="text-[13px] font-bold font-mono" style={{ color: '#fbbf24' }}>{fmt(data.physicalAssetTotal)}</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {data.assets.map((a) => (
+                <div key={a.id} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5">
+                  <div className="flex justify-between items-start">
+                    <div className="min-w-0 flex-1 mr-3">
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">{a.name}</div>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono">{a.purchaseDate}</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">·</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">Cost: <span className="font-mono">{fmt(a.cost)}</span></span>
+                        <span className="text-[10px] text-[var(--text-muted)]">·</span>
+                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)]">
+                          {a.depreciationMethod === 'declining_balance' ? `DB ${a.decliningRate}%` : 'SL'}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[15px] font-bold font-mono text-[var(--text-primary)] flex-shrink-0">{fmt(a.currentValue)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <PermissionGate permission="assets.create" fallback="disabled">
+              <button onClick={startAddAsset}
+                className="w-full py-2.5 mt-2 rounded-lg text-[12px] font-semibold cursor-pointer bg-transparent text-[var(--text-secondary)]"
+                style={{ border: '1px dashed var(--bg-card-border)' }}>
+                + Add Asset
+              </button>
+            </PermissionGate>
+
+            {/* Asset Edit/Add Modal (mobile) */}
+            {editingAssetId != null && (
+              <div className="fixed inset-0 bg-black/30 z-50 flex items-end justify-center" onClick={() => setEditingAssetId(null)}>
+                <div className="bg-[var(--bg-card)] w-full rounded-t-2xl max-h-[90vh] overflow-y-auto px-5 pt-4 pb-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="w-10 h-1 rounded-full bg-[var(--text-muted)] mx-auto mb-4 opacity-40" />
+                  <p className="font-bold text-[16px] text-[var(--text-primary)] m-0 mb-4">
+                    {editingAssetId === 'new' ? 'Add Asset' : `Edit: ${assetForm.name}`}
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Asset Name</label>
+                      <input type="text" value={assetForm.name} onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
+                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Purchase Date</label>
+                      <input type="date" value={assetForm.purchaseDate} onChange={(e) => setAssetForm({ ...assetForm, purchaseDate: e.target.value })}
+                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
+                        <input type="number" inputMode="decimal" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
+                        <input type="number" inputMode="numeric" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Depreciation Method</label>
+                      <select value={assetForm.depreciationMethod}
+                        onChange={(e) => setAssetForm({ ...assetForm, depreciationMethod: e.target.value as 'straight_line' | 'declining_balance' })}
+                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]">
+                        <option value="straight_line">Straight Line</option>
+                        <option value="declining_balance">Declining Balance</option>
+                      </select>
+                    </div>
+                    {assetForm.depreciationMethod === 'declining_balance' && (
+                      <div>
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Annual Rate %</label>
+                        <input type="number" inputMode="decimal" min="1" max="99" placeholder="e.g., 30" value={assetForm.decliningRate}
+                          onChange={(e) => setAssetForm({ ...assetForm, decliningRate: e.target.value })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <span className="text-[10px] text-[var(--text-muted)]">Common:</span>
+                          {[20, 25, 30, 40].map((r) => (
+                            <button key={r} onClick={() => setAssetForm({ ...assetForm, decliningRate: String(r) })}
+                              className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer font-medium ${
+                                assetForm.decliningRate === String(r)
+                                  ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-transparent'
+                                  : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-[var(--table-border)] hover:bg-[var(--bg-hover)]'
+                              }`}>{r}%</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
+                      <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
+                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4 justify-end">
+                    {editingAssetId !== 'new' && hasPermission('assets.delete') && (
+                      <div className="mr-auto">
+                        <ConfirmDeleteButton onConfirm={() => deleteAsset(editingAssetId as number)} />
+                      </div>
+                    )}
+                    <button onClick={() => setEditingAssetId(null)}
+                      className="px-3.5 py-2 bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-secondary">Cancel</button>
+                    <button onClick={saveAsset}
+                      className="px-3.5 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg border-none cursor-pointer text-[13px] font-medium btn-primary">Save</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+      /* Desktop: Two-Column Layout */
+      <div className="grid gap-5 grid-cols-2 flex-1 min-h-[300px]">
         {/* Accounts */}
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <div className="flex justify-between items-center flex-shrink-0">
@@ -516,13 +766,13 @@ export default function NetWorthPage() {
                 {/* Original Cost */}
                 <div>
                   <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
-                  <input type="number" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
+                  <input type="number" inputMode="decimal" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
                     className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                 </div>
                 {/* Lifespan */}
                 <div>
                   <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
-                  <input type="number" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                  <input type="number" inputMode="numeric" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
                     className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                 </div>
                 {/* Depreciation Method */}
@@ -552,7 +802,7 @@ export default function NetWorthPage() {
                       </Tooltip>
                     </label>
                     <input
-                      type="number" min="1" max="99" placeholder="e.g., 30"
+                      type="number" inputMode="decimal" min="1" max="99" placeholder="e.g., 30"
                       value={assetForm.decliningRate}
                       onChange={(e) => setAssetForm({ ...assetForm, decliningRate: e.target.value })}
                       className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]"
@@ -574,7 +824,7 @@ export default function NetWorthPage() {
                 {/* Salvage Value */}
                 <div>
                   <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
-                  <input type="number" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
+                  <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
                     className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                 </div>
               </div>
@@ -595,11 +845,10 @@ export default function NetWorthPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Update Balances Modal */}
-      {showBalanceModal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowBalanceModal(false)}>
-          <div className="bg-[var(--bg-card)] rounded-xl shadow-lg w-[560px] max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+      <ResponsiveModal isOpen={showBalanceModal} onClose={() => setShowBalanceModal(false)} maxWidth="560px">
             <h3 className="text-[16px] font-bold text-[var(--text-primary)] m-0 mb-4">Update Account Balances</h3>
 
             {/* Tab Switcher — only if SimpleFIN connections exist */}
@@ -632,6 +881,7 @@ export default function NetWorthPage() {
                       </span>
                       <input
                         type="number"
+                        inputMode="decimal"
                         step="0.01"
                         value={balanceInputs[a.accountId] ?? ''}
                         onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
@@ -766,9 +1016,7 @@ export default function NetWorthPage() {
                 )}
               </>
             )}
-          </div>
-        </div>
-      )}
+      </ResponsiveModal>
     </div>
   );
 }

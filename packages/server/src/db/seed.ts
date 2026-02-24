@@ -51,6 +51,12 @@ async function seed() {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS dev_storage (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,

@@ -8,6 +8,7 @@ import InlineNotification from '../components/InlineNotification';
 import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
 import { useAuth } from '../context/AuthContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface IncomeRow {
   categoryId: number;
@@ -65,6 +66,7 @@ function nextMonth(d: Date): Date {
 
 export default function BudgetPage() {
   const { hasPermission } = useAuth();
+  const isMobile = useIsMobile();
   const canEditBudgets = hasPermission('budgets.edit');
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [owner, setOwner] = useState('All');
@@ -125,12 +127,45 @@ export default function BudgetPage() {
   const expRemaining = totals.budgetedExpenses - totals.actualExpenses;
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 56px)' }}>
+    <div className={isMobile ? '' : 'flex flex-col'} style={isMobile ? undefined : { height: 'calc(100vh - 56px)' }}>
       {/* Header */}
+      {isMobile ? (
+        <div className="mb-4 flex-shrink-0">
+          {/* Centered month nav */}
+          <div className="flex justify-center items-center gap-4 mb-3">
+            <button onClick={() => setMonth(prevMonth(month))}
+              className="text-[20px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
+              ←
+            </button>
+            <span className="text-[15px] font-bold text-[var(--text-primary)]">
+              {monthLabel(month)}
+            </span>
+            <button onClick={() => setMonth(nextMonth(month))}
+              className="text-[20px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
+              →
+            </button>
+          </div>
+          {/* Scrollable owner chip row */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+            {[{ name: 'All', id: 0 }, ...users.map(u => ({ name: u.displayName, id: u.id }))].map((o) => (
+              <button key={o.id} onClick={() => setOwner(o.name === 'All' ? 'All' : o.name)}
+                className="flex-shrink-0 border-none cursor-pointer rounded-2xl text-[11px] px-3.5 py-1.5"
+                style={{
+                  background: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 'var(--color-accent)' : 'var(--bg-card)',
+                  color: (o.name === 'All' ? owner === 'All' : owner === o.name) ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 600 : 400,
+                  boxShadow: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 'none' : 'inset 0 0 0 1px var(--bg-card-border)',
+                }}>
+                {o.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
       <div className="flex justify-between items-center mb-6 flex-shrink-0">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Monthly Budget</h1>
-          <p className="text-[var(--text-secondary)] text-[13px] mt-1">{monthLabel(month)}</p>
+          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Monthly Budget</h1>
+          <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{monthLabel(month)}</p>
         </div>
         <div className="flex gap-3 items-center">
           <OwnerFilter value={owner} onChange={setOwner} users={users} />
@@ -153,6 +188,7 @@ export default function BudgetPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Owner Info Bar */}
       {owner !== 'All' && (
@@ -160,7 +196,7 @@ export default function BudgetPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6 flex-shrink-0">
+      <div className="kpi-grid grid grid-cols-4 gap-4 mb-6 flex-shrink-0">
         <KPICard label="Budgeted Income" value={fmtWhole(totals.budgetedIncome)} />
         <KPICard
           label="Actual Income"
@@ -179,8 +215,104 @@ export default function BudgetPage() {
         />
       </div>
 
-      {/* Two Column: Income + Expenses */}
-      <div className="grid grid-cols-2 gap-5 flex-1 min-h-[300px]">
+      {/* Income + Expenses */}
+      {isMobile ? (
+        /* Mobile: Card-based layout */
+        <div className="flex flex-col gap-3">
+          {/* Income Card */}
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
+            <div className="text-[13px] font-bold text-[var(--text-primary)] mb-2.5">Income</div>
+            {income.map((r, i) => {
+              const isEditing = editingCell?.categoryId === r.categoryId;
+              return (
+                <div key={r.categoryId} className="flex items-center py-1.5"
+                  style={{ borderBottom: i < income.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                  <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{r.subName}</span>
+                  <div className="flex gap-3 flex-shrink-0 ml-2">
+                    <span className="w-[70px] text-right text-[12px] font-mono text-[var(--text-muted)]">
+                      {isEditing ? (
+                        <input type="number" min="0" step="1" inputMode="decimal" autoFocus
+                          className="w-full text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                          value={editingCell.value}
+                          onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
+                          onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
+                          onBlur={() => handleBudgetBlur(r.categoryId)}
+                        />
+                      ) : (
+                        <span
+                          onClick={() => canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
+                          className={canEditBudgets ? 'cursor-pointer' : ''}>
+                          {r.budgeted > 0 ? fmt(r.budgeted) : '—'}
+                        </span>
+                      )}
+                    </span>
+                    <span className="w-[70px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)]">
+                      {r.actual > 0 ? fmt(r.actual) : '—'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Expense Group Cards */}
+          {expenseGroups.map((g) => {
+            const allGroups = expenseGroups.map((x) => x.groupName);
+            const color = getCategoryColor(g.groupName, allGroups);
+            return (
+              <div key={g.groupName} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
+                  <span className="text-[13px] font-bold text-[var(--text-primary)]">{g.groupName}</span>
+                </div>
+                {g.subs.map((sub, si) => {
+                  const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : 0;
+                  const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
+                  const isEditing = editingCell?.categoryId === sub.categoryId;
+                  const hasData = sub.budgeted > 0 || sub.actual > 0;
+                  return (
+                    <div key={sub.categoryId} style={{ marginBottom: si < g.subs.length - 1 ? 10 : 0 }}>
+                      <div className="flex items-center mb-0.5">
+                        <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{sub.subName}</span>
+                        <div className="flex items-center flex-shrink-0 ml-2">
+                          {isEditing ? (
+                            <span className="text-[11px] font-mono text-[var(--text-muted)]">
+                              {sub.actual > 0 ? fmt(sub.actual) : '—'} /
+                              <input type="number" min="0" step="1" inputMode="decimal" autoFocus
+                                className="w-[50px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 ml-1 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                                value={editingCell.value}
+                                onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
+                                onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
+                                onBlur={() => handleBudgetBlur(sub.categoryId)}
+                              />
+                            </span>
+                          ) : (
+                            <span
+                              onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
+                              className={`text-[11px] font-mono ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-body)]'} ${canEditBudgets ? 'cursor-pointer' : ''}`}>
+                              {hasData ? `${sub.actual > 0 ? fmt(sub.actual) : '—'} / ${sub.budgeted > 0 ? fmt(sub.budgeted) : '—'}` : '—'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {sub.budgeted > 0 && (
+                        <div className="h-[5px] rounded-sm overflow-hidden" style={{ background: 'var(--progress-track)' }}>
+                          <div className="h-full rounded-sm" style={{
+                            width: `${pct}%`,
+                            background: overBudget ? '#ef4444' : color,
+                          }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+      /* Desktop: Two Column Income + Expenses */
+      <div className="grid gap-5 grid-cols-2 flex-1 min-h-[300px]">
         {/* Income */}
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
@@ -209,6 +341,7 @@ export default function BudgetPage() {
                           min="0"
                           step="1"
                           autoFocus
+                          inputMode="decimal"
                           className="w-20 text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1.5 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                           value={editingCell.value}
                           onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
@@ -295,6 +428,7 @@ export default function BudgetPage() {
                             min="0"
                             step="1"
                             autoFocus
+                            inputMode="decimal"
                             className="w-[60px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                             value={editingCell.value}
                             onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
@@ -319,6 +453,7 @@ export default function BudgetPage() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

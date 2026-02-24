@@ -7,6 +7,7 @@ import Spinner from '../components/Spinner';
 import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge } from '../components/badges';
 import { getCategoryColor } from '../lib/categoryColors';
 import PermissionGate from '../components/PermissionGate';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -44,6 +45,7 @@ interface Transaction {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const currentYear = String(now.getFullYear());
@@ -97,10 +99,10 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-7">
         <div>
-          <h1 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Dashboard</h1>
-          <p className="text-[var(--text-secondary)] text-[13px] mt-1">{monthName} {now.getFullYear()} Overview</p>
+          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Dashboard</h1>
+          <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{monthName} {now.getFullYear()} Overview</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 desktop-only">
           <button className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg>
             AI Summary
@@ -116,7 +118,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-7">
+      <div className="kpi-grid grid grid-cols-4 gap-4 mb-7">
         <KPICard label="Net Worth" value={fmtWhole(summary.netWorth)} />
         <KPICard label="Liquid Assets" value={fmtWhole(summary.liquidAssets)} />
         <KPICard
@@ -134,7 +136,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Two-Column: Spending + Chart */}
-      <div className="grid grid-cols-2 gap-5 mb-7">
+      <div className={`grid gap-5 mb-7 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {/* Spending by Category */}
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Spending by Category</h3>
@@ -208,6 +210,42 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Transactions */}
+      {isMobile ? (
+        /* Mobile: Standalone cards */
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Recent Transactions</h3>
+            <button onClick={() => navigate('/transactions')}
+              className="text-[12px] text-[#3b82f6] font-medium bg-transparent border-none cursor-pointer px-2 py-1 rounded-md btn-ghost">
+              View All →
+            </button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {(recentTxns.length > 5 ? recentTxns.slice(0, 5) : recentTxns).map((t) => {
+              const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
+              return (
+                <div key={t.id} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5 flex justify-between items-center">
+                  <div className="flex-1 min-w-0 mr-3">
+                    <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</div>
+                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[var(--text-muted)]">
+                      <span className="font-mono text-[10px]">{t.date}</span>
+                      <span>·</span>
+                      <CategoryBadge name={t.category.subName} />
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className={`text-[14px] font-mono font-semibold ${amtClass}`}>{amtText}</div>
+                    <div className="text-[9px] text-[var(--text-muted)] mt-0.5">{accountLabel(t.account)}</div>
+                  </div>
+                </div>
+              );
+            })}
+            {recentTxns.length === 0 && (
+              <p className="text-center py-8 text-[var(--text-muted)] text-[13px]">No transactions yet</p>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Recent Transactions</h3>
@@ -216,52 +254,53 @@ export default function DashboardPage() {
             View All →
           </button>
         </div>
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
-            <tr>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
-              <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentTxns.map((t) => {
-              const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
-              return (
-                <tr key={t.id} className="border-b border-[var(--table-row-border)]">
-                  <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)]">{t.date}</td>
-                  <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
-                  <td className="px-2.5 py-2">
-                    <span className="inline-flex items-center gap-1.5 flex-wrap">
-                      <AccountBadge name={accountLabel(t.account)} />
-                      {t.account.isShared ? (
-                        <SharedBadge />
-                      ) : t.account.owners?.length === 1 ? (
-                        <OwnerBadge user={t.account.owners[0]} />
-                      ) : null}
-                    </span>
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <span className="text-[11px] text-[var(--text-secondary)]">{t.category.groupName}</span>
-                  </td>
-                  <td className="px-2.5 py-2">
-                    <CategoryBadge name={t.category.subName} />
-                  </td>
-                  <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>{amtText}</td>
-                </tr>
-              );
-            })}
-            {recentTxns.length === 0 && (
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
               <tr>
-                <td colSpan={6} className="text-center py-8 text-[var(--text-muted)] text-[13px]">No transactions yet</td>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Amount</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {recentTxns.map((t) => {
+                const { text: amtText, className: amtClass } = fmtTransaction(t.amount, t.category.type);
+                return (
+                  <tr key={t.id} className="border-b border-[var(--table-row-border)]">
+                    <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)]">{t.date}</td>
+                    <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
+                    <td className="px-2.5 py-2">
+                      <span className="inline-flex items-center gap-1.5 flex-wrap">
+                        <AccountBadge name={accountLabel(t.account)} />
+                        {t.account.isShared ? (
+                          <SharedBadge />
+                        ) : t.account.owners?.length === 1 ? (
+                          <OwnerBadge user={t.account.owners[0]} />
+                        ) : null}
+                      </span>
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <span className="text-[11px] text-[var(--text-secondary)]">{t.category.groupName}</span>
+                    </td>
+                    <td className="px-2.5 py-2">
+                      <CategoryBadge name={t.category.subName} />
+                    </td>
+                    <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>{amtText}</td>
+                  </tr>
+                );
+              })}
+              {recentTxns.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-[var(--text-muted)] text-[13px]">No transactions yet</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
       </div>
+      )}
     </div>
   );
 }
