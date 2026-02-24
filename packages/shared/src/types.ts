@@ -13,6 +13,10 @@ export interface User {
   display_name: string;
   role: 'owner' | 'admin' | 'member';
   is_active: number;
+  twofa_enabled: number;
+  twofa_secret: string | null;
+  twofa_backup_codes: string | null;
+  twofa_enabled_at: string | null;
   created_at: string;
 }
 
@@ -107,6 +111,46 @@ export interface AuthPayload {
   username: string;
   displayName: string;
   role: 'owner' | 'admin' | 'member';
+  purpose?: '2fa';
+}
+
+// === 2FA Types ===
+
+export interface TwoFASetupResponse {
+  qrCodeUrl: string;
+  secret: string;
+  otpauthUri: string;
+}
+
+export interface TwoFAConfirmRequest {
+  token: string;
+  secret: string;
+}
+
+export interface TwoFAConfirmResponse {
+  backupCodes: string[];
+}
+
+export interface TwoFAVerifyRequest {
+  tempToken: string;
+  token?: string;
+  backupCode?: string;
+}
+
+export interface TwoFARequirements {
+  requireAdmin: boolean;
+  requireMember: boolean;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: { id: number; username: string; displayName: string; role: string; twofaEnabled: boolean };
+  twofaSetupRequired?: boolean;
+}
+
+export interface LoginResponse2FA {
+  status: '2fa_required';
+  tempToken: string;
 }
 
 // === SimpleFIN Types ===

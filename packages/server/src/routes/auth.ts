@@ -2,11 +2,13 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import { TOTP, Secret } from 'otpauth';
 import { db, sqlite } from '../db/index.js';
-import { users, userPermissions } from '../db/schema.js';
+import { users, userPermissions, appConfig } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
 import { ALL_PERMISSIONS } from '../middleware/permissions.js';
+import type { AuthPayload } from '@ledger/shared/src/types.js';
 
 const router = Router();
 
@@ -46,16 +48,38 @@ router.post('/login', loginLimiter, async (req: Request, res: Response): Promise
   }
 
   const secret = process.env.JWT_SECRET || 'fallback-secret';
+
+  // If 2FA is enabled, return a temp token instead of full JWT
+  if (user.twofa_enabled) {
+    const tempToken = jwt.sign(
+      { userId: user.id, username: user.username, displayName: user.display_name, role: user.role, purpose: '2fa' } as AuthPayload,
+      secret,
+      { expiresIn: '5m' }
+    );
+
+    res.json({
+      data: {
+        status: '2fa_required',
+        tempToken,
+      },
+    });
+    return;
+  }
+
   const token = jwt.sign(
     { userId: user.id, username: user.username, displayName: user.display_name, role: user.role },
     secret,
     { expiresIn: '7d' }
   );
 
+  // Check if 2FA setup is required for this user's role
+  const twofaSetupRequired = check2FARequired(user.role, !!user.twofa_enabled);
+
   res.json({
     data: {
       token,
-      user: { id: user.id, username: user.username, displayName: user.display_name, role: user.role },
+      user: { id: user.id, username: user.username, displayName: user.display_name, role: user.role, twofaEnabled: false },
+      ...(twofaSetupRequired && { twofaSetupRequired: true }),
     },
   });
 });
@@ -134,8 +158,8 @@ router.get('/me', (req: Request, res: Response): void => {
     return;
   }
 
-  // Fetch fresh display name and role from DB (JWT may be stale after profile/role update)
-  const freshUser = sqlite.prepare('SELECT display_name, role FROM users WHERE id = ?').get(req.user.userId) as { display_name: string; role: string } | undefined;
+  // Fetch fresh display name, role, and 2FA status from DB
+  const freshUser = sqlite.prepare('SELECT display_name, role, twofa_enabled FROM users WHERE id = ?').get(req.user.userId) as { display_name: string; role: string; twofa_enabled: number } | undefined;
   if (!freshUser) {
     res.status(401).json({ error: 'User not found' });
     return;
@@ -164,6 +188,9 @@ router.get('/me', (req: Request, res: Response): void => {
     }
   }
 
+  // Check if 2FA setup is required for this role
+  const twofaSetupRequired = check2FARequired(freshUser.role, !!freshUser.twofa_enabled);
+
   res.json({
     data: {
       id: req.user.userId,
@@ -171,8 +198,145 @@ router.get('/me', (req: Request, res: Response): void => {
       displayName: freshUser.display_name,
       role: freshUser.role,
       permissions,
+      twofaEnabled: !!freshUser.twofa_enabled,
+      ...(twofaSetupRequired && { twofaSetupRequired: true }),
     },
   });
+});
+
+/** Check if 2FA setup is required based on role-level requirements */
+function check2FARequired(role: string, twofaEnabled: boolean): boolean {
+  if (twofaEnabled) return false;
+  if (role === 'owner') return false; // Owner is never forced
+
+  if (role === 'admin') {
+    const row = db.select().from(appConfig).where(eq(appConfig.key, 'require_2fa_admin')).get();
+    return row?.value === 'true';
+  }
+
+  if (role === 'member') {
+    const row = db.select().from(appConfig).where(eq(appConfig.key, 'require_2fa_member')).get();
+    return row?.value === 'true';
+  }
+
+  return false;
+}
+
+// Track 2FA verify attempts per temp token
+const twofaAttempts = new Map<string, number>();
+
+// POST /api/auth/2fa/verify — verify TOTP code during login (uses temp token)
+router.post('/2fa/verify', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { tempToken, token: totpCode, backupCode } = sanitize(req.body) as {
+      tempToken: string;
+      token?: string;
+      backupCode?: string;
+    };
+
+    if (!tempToken) {
+      res.status(400).json({ error: 'Temporary token is required' });
+      return;
+    }
+
+    if (!totpCode && !backupCode) {
+      res.status(400).json({ error: 'Verification code or backup code is required' });
+      return;
+    }
+
+    // Check rate limit per temp token
+    const attempts = twofaAttempts.get(tempToken) || 0;
+    if (attempts >= 5) {
+      res.status(429).json({ error: 'Too many attempts. Please log in again.' });
+      return;
+    }
+
+    // Verify the temp token
+    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
+    let payload: AuthPayload;
+    try {
+      payload = jwt.verify(tempToken, jwtSecret) as AuthPayload;
+    } catch {
+      res.status(401).json({ error: 'Temporary token is invalid or expired. Please log in again.' });
+      return;
+    }
+
+    if (payload.purpose !== '2fa') {
+      res.status(401).json({ error: 'Invalid token type' });
+      return;
+    }
+
+    const user = db.select().from(users).where(eq(users.id, payload.userId)).get();
+    if (!user || !user.twofa_enabled || !user.twofa_secret) {
+      res.status(400).json({ error: '2FA is not configured for this account' });
+      return;
+    }
+
+    let verified = false;
+
+    if (totpCode) {
+      // Verify TOTP code
+      const totp = new TOTP({
+        issuer: 'Ledger',
+        label: user.username,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: Secret.fromBase32(user.twofa_secret),
+      });
+
+      const delta = totp.validate({ token: totpCode, window: 1 });
+      verified = delta !== null;
+    } else if (backupCode) {
+      // Verify backup code
+      const storedHashes: string[] = user.twofa_backup_codes ? JSON.parse(user.twofa_backup_codes) : [];
+      for (let i = 0; i < storedHashes.length; i++) {
+        const match = await bcrypt.compare(backupCode.toUpperCase(), storedHashes[i]);
+        if (match) {
+          // Remove used backup code
+          storedHashes.splice(i, 1);
+          sqlite.prepare('UPDATE users SET twofa_backup_codes = ? WHERE id = ?')
+            .run(JSON.stringify(storedHashes), user.id);
+          verified = true;
+          break;
+        }
+      }
+    }
+
+    if (!verified) {
+      twofaAttempts.set(tempToken, attempts + 1);
+      const remaining = 4 - attempts;
+      res.status(400).json({
+        error: 'Invalid verification code',
+        attemptsRemaining: remaining > 0 ? remaining : 0,
+      });
+      return;
+    }
+
+    // Clean up attempt tracking
+    twofaAttempts.delete(tempToken);
+
+    // Issue full JWT
+    const fullToken = jwt.sign(
+      { userId: user.id, username: user.username, displayName: user.display_name, role: user.role },
+      jwtSecret,
+      { expiresIn: '7d' }
+    );
+
+    // Check if 2FA setup is required (shouldn't be if they just used 2FA, but for completeness)
+    const twofaSetupRequired = check2FARequired(user.role, !!user.twofa_enabled);
+
+    res.json({
+      data: {
+        token: fullToken,
+        user: { id: user.id, username: user.username, displayName: user.display_name, role: user.role, twofaEnabled: true },
+        ...(twofaSetupRequired && { twofaSetupRequired: true }),
+      },
+    });
+  } catch (err) {
+    console.error('POST /auth/2fa/verify error:', err);
+    res.status(500).json({ error: 'Failed to verify 2FA code' });
+  }
 });
 
 export default router;

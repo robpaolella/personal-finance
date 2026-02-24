@@ -10,7 +10,7 @@ declare global {
   }
 }
 
-const PUBLIC_PATHS = ['/api/auth/login', '/api/health', '/api/setup'];
+const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/2fa/verify', '/api/health', '/api/setup'];
 
 export function authenticate(req: Request, res: Response, next: NextFunction): void {
   // Use originalUrl for full path matching since middleware may be mounted at a sub-path
@@ -29,6 +29,13 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   try {
     const secret = process.env.JWT_SECRET || 'fallback-secret';
     const payload = jwt.verify(token, secret) as AuthPayload;
+
+    // Reject temp 2FA tokens from being used as full auth tokens
+    if (payload.purpose === '2fa') {
+      res.status(401).json({ error: 'Invalid token — 2FA verification required' });
+      return;
+    }
+
     req.user = payload;
     next();
   } catch {
