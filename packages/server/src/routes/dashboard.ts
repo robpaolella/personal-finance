@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
 import { transactions, accounts, categories, budgets, balanceSnapshots, assets } from '../db/schema.js';
 import { eq, and, gte, lte, sql, desc } from 'drizzle-orm';
+import { calculateCurrentValue } from '../utils/depreciation.js';
 
 const router = Router();
 
@@ -64,23 +65,31 @@ router.get('/summary', (req: Request, res: Response) => {
 
     let totalBalances = 0;
     let liquidAssets = 0;
+    let liabilityTotal = 0;
     for (const { balance, classification } of latestByAccount.values()) {
-      totalBalances += balance;
+      if (classification === 'liability') {
+        liabilityTotal += Math.abs(balance);
+      } else {
+        totalBalances += balance;
+      }
       if (classification === 'liquid') liquidAssets += balance;
     }
 
     // Asset depreciation values
     const allAssets = db.select().from(assets).all();
-    const now = new Date();
     let totalAssetValue = 0;
     for (const a of allAssets) {
-      const purchaseDate = new Date(a.purchase_date);
-      const ageYears = (now.getTime() - purchaseDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-      const depreciation = ((a.cost - a.salvage_value) / a.lifespan_years) * Math.min(ageYears, a.lifespan_years);
-      totalAssetValue += Math.max(a.cost - depreciation, a.salvage_value);
+      totalAssetValue += calculateCurrentValue({
+        cost: a.cost,
+        salvageValue: a.salvage_value,
+        lifespanYears: a.lifespan_years,
+        purchaseDate: a.purchase_date,
+        depreciationMethod: a.depreciation_method as 'straight_line' | 'declining_balance',
+        decliningRate: a.declining_rate,
+      });
     }
 
-    const netWorth = totalBalances + totalAssetValue;
+    const netWorth = totalBalances + totalAssetValue - liabilityTotal;
 
     // Month income/expenses
     const [monthTotals] = db.select({
