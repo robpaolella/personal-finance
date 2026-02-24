@@ -95,6 +95,8 @@ export default function SetupPage() {
               className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none"
               placeholder="Choose a username"
               required
+              autoCapitalize="off"
+              autoComplete="username"
             />
             <p className="text-[11px] text-[var(--text-muted)] mt-1">Lowercase letters and numbers only</p>
           </div>
@@ -110,6 +112,7 @@ export default function SetupPage() {
               className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none"
               placeholder="Create a password"
               required
+              autoComplete="new-password"
             />
             <p className="text-[11px] text-[var(--text-muted)] mt-1">Minimum 8 characters</p>
           </div>
@@ -125,6 +128,7 @@ export default function SetupPage() {
               className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-sm bg-[var(--bg-input)] text-[var(--text-primary)] outline-none"
               placeholder="Confirm your password"
               required
+              autoComplete="new-password"
             />
           </div>
 

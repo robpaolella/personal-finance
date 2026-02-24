@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import DuplicateBadge from '../components/DuplicateBadge';
 import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
@@ -97,6 +98,7 @@ const STEPS = ['Select & Fetch', 'Review & Import'];
 export default function BankSyncPanel({ categories }: { categories: Category[] }) {
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [step, setStep] = useState(0);
 
   // Step 1 state
@@ -330,7 +332,45 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
       {/* Step 1: Select & Fetch */}
       {step === 0 && (
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-          <div className="grid grid-cols-[1fr_300px] gap-6">
+          <div className={isMobile ? 'flex flex-col gap-4' : 'grid grid-cols-[1fr_300px] gap-6'}>
+            {/* Date Range — shown first on mobile */}
+            {isMobile && (
+              <div>
+                <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-3">Date Range</h3>
+                <select
+                  value={datePreset}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    setDatePreset(v);
+                    if (v > 0) {
+                      setCustomStart(daysAgo(v));
+                      setCustomEnd(new Date().toISOString().slice(0, 10));
+                    }
+                  }}
+                  className="w-full border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-3 py-2 text-[13px] outline-none mb-3 text-[var(--text-body)]">
+                  {DATE_PRESETS.map((p) => (
+                    <option key={p.days} value={p.days}>{p.label}</option>
+                  ))}
+                </select>
+                {datePreset === 0 && (
+                  <div className="flex gap-2 mb-2">
+                    <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                      className="flex-1 border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] outline-none text-[var(--text-body)]" />
+                    <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                      className="flex-1 border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] px-2.5 py-1.5 text-[12px] outline-none text-[var(--text-body)]" />
+                  </div>
+                )}
+                {datePreset === 0 && customStart && customEnd && (() => {
+                  const diffDays = Math.round((new Date(customEnd).getTime() - new Date(customStart).getTime()) / (1000 * 60 * 60 * 24));
+                  return diffDays > 60 ? (
+                    <InlineNotification type="warning" message="SimpleFIN limits data to 60 days per request. Only the most recent 60 days of your range will be fetched." className="mb-2" />
+                  ) : null;
+                })()}
+                <p className="text-[11px] text-[var(--text-muted)] leading-relaxed m-0">
+                  SimpleFIN updates data once per day. Maximum range: 60 days per request.
+                </p>
+              </div>
+            )}
             {/* Account Selection */}
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -371,15 +411,15 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                         }}
                         className="cursor-pointer" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-[13px] text-[var(--text-primary)]">
-                            {acct.simplefin_account_name}
-                          </span>
+                        <span className="font-medium text-[13px] text-[var(--text-primary)]">
+                          {acct.simplefin_account_name}
+                        </span>
+                        <div className={`flex items-center gap-1.5 mt-0.5 ${isMobile ? '' : 'mt-0'}`}>
                           <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)] font-mono">
                             {acct.ledger_account_name}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                        <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)] mt-0.5">
                           {acct.simplefin_org_name && <span>{acct.simplefin_org_name}</span>}
                           <span>·</span>
                           <span>Last synced: {formatDate(acct.last_synced_at)}</span>
@@ -391,7 +431,8 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
               ))}
             </div>
 
-            {/* Date Range */}
+            {/* Date Range — desktop only (mobile renders above) */}
+            {!isMobile && (
             <div>
               <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-3">Date Range</h3>
               <select
@@ -427,6 +468,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                 SimpleFIN updates data once per day. Maximum range: 60 days per request.
               </p>
             </div>
+            )}
           </div>
 
           {/* Fetch Button */}
@@ -467,12 +509,93 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
             </div>
           ) : (
             <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] mb-4">
-              <div className="flex justify-between items-center mb-3">
+              <div className={`flex justify-between items-center mb-3 ${isMobile ? 'flex-col gap-2 items-stretch' : ''}`}>
                 <span className="text-[13px] text-[var(--text-secondary)]">
                   {validTxnCount} of {syncTxns.length} transactions selected for import
                 </span>
               </div>
 
+              {isMobile ? (
+                /* Mobile: Card-based transaction review */
+                <div className="flex flex-col gap-2">
+                  {sortedTxnIndices.map((i) => {
+                    const t = syncTxns[i];
+                    return (
+                      <div key={i} className={`rounded-lg border px-3 py-2.5 ${!selectedTxnRows.has(i) ? 'opacity-50 border-[var(--bg-card-border)]' : !t.categoryId ? 'border-[var(--bg-card-border)] bg-[var(--bg-needs-attention)]' : 'border-[var(--bg-card-border)]'}`}>
+                        <div className="flex items-start gap-2.5">
+                          <input type="checkbox" checked={selectedTxnRows.has(i)}
+                            onChange={() => {
+                              setSelectedTxnRows((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(i)) next.delete(i); else next.add(i);
+                                return next;
+                              });
+                            }}
+                            className="cursor-pointer mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start gap-2">
+                              <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</span>
+                              <span className={`text-[13px] font-mono font-semibold flex-shrink-0 ${t.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
+                                {t.amount < 0 ? '+' : ''}{fmt(Math.abs(t.amount))}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="text-[11px] font-mono text-[var(--text-muted)]">{t.date}</span>
+                              <span className="text-[var(--text-muted)]">·</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)] font-mono truncate max-w-[120px]">
+                                {t.accountName}
+                              </span>
+                              <DuplicateBadge status={t.duplicateStatus}
+                                onClick={() => setExpandedDupeRow(expandedDupeRow === i ? null : i)} />
+                              <TransferBadge isLikelyTransfer={t.isLikelyTransfer} />
+                              <span className={`text-[10px] font-semibold font-mono ${
+                                t.confidence > 0.9 ? 'text-[#10b981]' : t.confidence > 0.6 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+                              }`}>
+                                {Math.round(t.confidence * 100)}%
+                              </span>
+                            </div>
+                            <div className="mt-2">
+                              {t.groupName && t.categoryId && (
+                                <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{t.groupName}</div>
+                              )}
+                              <select
+                                className="w-full text-[12px] border border-[var(--table-border)] rounded-md px-2 py-1.5 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                                value={t.categoryId || ''}
+                                onChange={(e) => updateTxnCategory(i, parseInt(e.target.value))}>
+                                <option value="">Select category...</option>
+                                {Array.from(catGroups.entries()).map(([group, cats]) => (
+                                  <optgroup key={group} label={group}>
+                                    {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                  </optgroup>
+                                ))}
+                                <optgroup label="Income">
+                                  {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                </optgroup>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        {expandedDupeRow === i && t.duplicateMatchId && (
+                          <div className="mt-2 -mx-1">
+                            <DuplicateComparison
+                              incoming={{ date: t.date, description: t.description, amount: t.amount, accountName: t.accountName }}
+                              existing={{ date: t.duplicateMatchDate || t.date, description: t.duplicateMatchDescription || '', amount: t.duplicateMatchAmount ?? t.amount, accountName: t.duplicateMatchAccountName || null }}
+                              onImportAnyway={() => {
+                                setSelectedTxnRows((prev) => { const next = new Set(prev); next.add(i); return next; });
+                                setExpandedDupeRow(null);
+                              }}
+                              onSkip={() => {
+                                setSelectedTxnRows((prev) => { const next = new Set(prev); next.delete(i); return next; });
+                                setExpandedDupeRow(null);
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
                   <col style={{ width: '40px' }} />
@@ -590,6 +713,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                   })}
                 </tbody>
               </table>
+              )}
             </div>
           )}
 
@@ -598,6 +722,46 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
             <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] mb-4">
               <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Balance Updates</h3>
               <p className="text-[13px] text-[var(--text-secondary)] mb-3">Approving updates will create new balance snapshots on the Net Worth page</p>
+              {isMobile ? (
+                /* Mobile: Card layout for balance updates */
+                <div className="flex flex-col gap-2">
+                  {balanceUpdates.map((b, i) => {
+                    const change = b.previousBalance !== null ? b.currentBalance - b.previousBalance : null;
+                    const noChange = change !== null && Math.abs(change) < 0.005;
+                    const pct = b.previousBalance && b.previousBalance !== 0 && change !== null
+                      ? ((change / Math.abs(b.previousBalance)) * 100) : null;
+                    return (
+                      <div key={i} className={`rounded-lg border border-[var(--bg-card-border)] px-3 py-2.5 ${noChange ? 'opacity-60' : ''}`}>
+                        <div className="flex items-center gap-2.5">
+                          <input type="checkbox" checked={b.selected}
+                            onChange={() => setBalanceUpdates((prev) => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}
+                            className="cursor-pointer flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-medium text-[var(--text-primary)]">{b.accountName}</div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[11px] font-mono text-[var(--text-muted)]">
+                                {b.previousBalance !== null ? fmt(b.previousBalance) : '—'}
+                              </span>
+                              <span className="text-[var(--text-muted)]">→</span>
+                              <span className="text-[12px] font-mono font-semibold text-[var(--text-primary)]">
+                                {fmt(b.currentBalance)}
+                              </span>
+                              {noChange ? (
+                                <span className="text-[10px] text-[var(--text-muted)]">No change</span>
+                              ) : change !== null && (
+                                <span className={`text-[11px] font-mono ${change >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                                  {change >= 0 ? '+' : ''}{fmt(change)}
+                                  {pct !== null && ` (${change >= 0 ? '+' : ''}${pct.toFixed(1)}%)`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               <table className="w-full border-collapse text-[13px]">
                 <thead>
                   <tr>
@@ -645,6 +809,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                   })}
                 </tbody>
               </table>
+              )}
             </div>
           )}
 
@@ -660,6 +825,20 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                       className="cursor-pointer" />
                     <span className="font-semibold text-[13px] text-[var(--text-primary)]">{hu.accountName}</span>
                   </label>
+                  {isMobile ? (
+                    /* Mobile: Compact card layout for holdings */
+                    <div className="flex flex-col gap-1.5 pl-6">
+                      {hu.holdings.map((h, j) => (
+                        <div key={j} className="flex items-center justify-between py-1" style={{ borderBottom: j < hu.holdings.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
+                          <div className="min-w-0">
+                            <span className="text-[11px] font-mono font-semibold text-[var(--text-primary)]">{h.symbol}</span>
+                            <span className="text-[10px] text-[var(--text-muted)] ml-1.5 truncate">{h.shares.toFixed(2)} shares</span>
+                          </div>
+                          <span className="text-[12px] font-mono font-semibold text-[var(--text-primary)] flex-shrink-0 ml-2">{fmt(h.marketValue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                   <table className="w-full border-collapse text-[12px] ml-6" style={{ width: 'calc(100% - 24px)' }}>
                     <thead>
                       <tr>
@@ -682,6 +861,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                       ))}
                     </tbody>
                   </table>
+                  )}
                 </div>
               ))}
             </div>

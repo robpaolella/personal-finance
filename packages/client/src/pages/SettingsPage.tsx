@@ -11,6 +11,8 @@ import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type Acco
 import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
 import PermissionGate from '../components/PermissionGate';
+import ResponsiveModal from '../components/ResponsiveModal';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment', 'retirement', 'venmo', 'cash'];
 const CLASSIFICATIONS = ['liquid', 'investment', 'liability'];
@@ -53,17 +55,6 @@ interface GroupedCategory {
   group: string;
   type: string;
   subs: Category[];
-}
-
-// --- Modal wrapper ---
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[var(--bg-card)] rounded-xl p-6 w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  );
 }
 
 // --- Account Form ---
@@ -124,7 +115,7 @@ function AccountForm({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
         {account ? 'Edit Account' : 'Add Account'}
       </h3>
@@ -139,7 +130,7 @@ function AccountForm({
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Last Four (optional)</label>
-          <input value={lastFour} onChange={(e) => setLastFour(e.target.value)}
+          <input value={lastFour} onChange={(e) => setLastFour(e.target.value)} inputMode="numeric"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" maxLength={5} />
         </div>
         <div>
@@ -223,7 +214,7 @@ function AccountForm({
           Save
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -259,7 +250,7 @@ function CategoryForm({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
         {category ? 'Edit Category' : 'Add Category'}
       </h3>
@@ -315,7 +306,7 @@ function CategoryForm({
           Save
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -371,6 +362,7 @@ interface ManagedUser {
 function PreferencesTab() {
   const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
+  const isMobile = useIsMobile();
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -378,6 +370,16 @@ function PreferencesTab() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  });
+
+  const toggleTheme = () => {
+    const next = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    document.documentElement.classList.toggle('dark', next === 'dark');
+    localStorage.setItem('ledger-theme', next);
+  };
 
   const handleSaveProfile = async () => {
     setProfileLoading(true);
@@ -417,13 +419,27 @@ function PreferencesTab() {
     }
   };
 
+  const hasPwInput = currentPassword || newPassword || confirmPassword;
+
   return (
     <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
       <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">My Preferences</h3>
       <p className="text-[13px] text-[var(--text-secondary)] mb-4">Manage your profile and display settings.</p>
 
+      {/* Appearance */}
+      <div className="mb-5">
+        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Appearance</label>
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-2.5 px-3 py-2 border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] text-[13px] cursor-pointer text-[var(--text-body)]"
+        >
+          <span className="text-[16px]">{theme === 'dark' ? '☀️' : '🌙'}</span>
+          {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        </button>
+      </div>
+
       {/* Profile section */}
-      <div className="grid grid-cols-2 gap-4 mb-5">
+      <div className={`${isMobile ? 'flex flex-col gap-3' : 'grid grid-cols-2 gap-4'} mb-5`}>
         <div>
           <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Display Name</label>
           <input value={displayName} onChange={(e) => setDisplayName(e.target.value)}
@@ -436,50 +452,47 @@ function PreferencesTab() {
         </div>
       </div>
 
+      <button onClick={handleSaveProfile} disabled={profileLoading}
+        className={`px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60 mb-5 ${isMobile ? 'w-full' : ''}`}>
+        Save Profile
+      </button>
+
       {/* Password section */}
       <div className="mb-5">
         <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Change Password</label>
         {pwError && <InlineNotification type="error" message={pwError} dismissible onDismiss={() => setPwError('')} className="mb-2" />}
-        <div className="grid grid-cols-3 gap-3">
-          <input type="password" placeholder="Current password" value={currentPassword}
+        <div className={isMobile ? 'flex flex-col gap-3' : 'grid grid-cols-3 gap-3'}>
+          <input type="password" placeholder="Current password" value={currentPassword} autoComplete="current-password"
             onChange={(e) => setCurrentPassword(e.target.value)}
-            className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-          <input type="password" placeholder="New password" value={newPassword}
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+          <input type="password" placeholder="New password" value={newPassword} autoComplete="new-password"
             onChange={(e) => setNewPassword(e.target.value)}
-            className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-          <input type="password" placeholder="Confirm new" value={confirmPassword}
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+          <input type="password" placeholder="Confirm new" value={confirmPassword} autoComplete="new-password"
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
         </div>
+        {hasPwInput && (
+          <button onClick={handleChangePassword} disabled={pwLoading}
+            className={`mt-3 px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] border-none cursor-pointer btn-secondary disabled:opacity-60 ${isMobile ? 'w-full' : ''}`}>
+            Change Password
+          </button>
+        )}
       </div>
 
-      {/* Role + actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-[var(--text-secondary)]">Role:</span>
-          {user?.role === 'owner' ? (
-            <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--badge-owner-bg)', color: 'var(--badge-owner-text)' }}>Owner</span>
-          ) : user?.role === 'admin' ? (
-            <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-admin-bg)] text-[var(--badge-admin-text)]">Admin</span>
-          ) : (
-            <>
-              <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
-              <span className="text-[11px] text-[var(--text-muted)]">Permissions managed by admin</span>
-            </>
-          )}
-        </div>
-        <div className="flex gap-2">
-          {currentPassword && (
-            <button onClick={handleChangePassword} disabled={pwLoading}
-              className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] border-none cursor-pointer btn-secondary disabled:opacity-60">
-              Change Password
-            </button>
-          )}
-          <button onClick={handleSaveProfile} disabled={profileLoading}
-            className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60">
-            Save Changes
-          </button>
-        </div>
+      {/* Role */}
+      <div className="flex items-center gap-2">
+        <span className="text-[12px] text-[var(--text-secondary)]">Role:</span>
+        {user?.role === 'owner' ? (
+          <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--badge-owner-bg)', color: 'var(--badge-owner-text)' }}>Owner</span>
+        ) : user?.role === 'admin' ? (
+          <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-admin-bg)] text-[var(--badge-admin-text)]">Admin</span>
+        ) : (
+          <>
+            <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
+            <span className="text-[11px] text-[var(--text-muted)]">Permissions managed by admin</span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -522,7 +535,7 @@ function AddUserModal({ onClose, onCreated, callerRole }: { onClose: () => void;
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">Add User</h3>
       {error && <InlineNotification type="error" message={error} dismissible onDismiss={() => setError('')} className="mb-3" />}
       <div className="flex flex-col gap-3">
@@ -533,19 +546,19 @@ function AddUserModal({ onClose, onCreated, callerRole }: { onClose: () => void;
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Username</label>
-          <input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())}
+          <input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} autoCapitalize="off"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           <p className="text-[10px] text-[var(--text-muted)] mt-1">Lowercase letters and numbers only</p>
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           <p className="text-[10px] text-[var(--text-muted)] mt-1">Minimum 8 characters</p>
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Confirm Password</label>
-          <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+          <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password"
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
         </div>
         <div>
@@ -574,7 +587,7 @@ function AddUserModal({ onClose, onCreated, callerRole }: { onClose: () => void;
           Create User
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -640,7 +653,7 @@ function EditUserModal({ managedUser, currentUserId, callerRole, onClose, onUpda
   };
 
   return (
-    <Modal onClose={onClose}>
+    <ResponsiveModal isOpen={true} onClose={onClose}>
       <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">Edit User</h3>
       {error && <InlineNotification type="error" message={error} dismissible onDismiss={() => setError('')} className="mb-3" />}
       <div className="flex flex-col gap-3">
@@ -688,10 +701,10 @@ function EditUserModal({ managedUser, currentUserId, callerRole, onClose, onUpda
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Reset Password (optional)</label>
           <div className="grid grid-cols-2 gap-2">
-            <input type="password" placeholder="New password" value={newPassword}
+            <input type="password" placeholder="New password" value={newPassword} autoComplete="new-password"
               onChange={(e) => setNewPassword(e.target.value)}
               className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-            <input type="password" placeholder="Confirm" value={confirmPassword}
+            <input type="password" placeholder="Confirm" value={confirmPassword} autoComplete="new-password"
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           </div>
@@ -712,7 +725,7 @@ function EditUserModal({ managedUser, currentUserId, callerRole, onClose, onUpda
           Save Changes
         </button>
       </div>
-    </Modal>
+    </ResponsiveModal>
   );
 }
 
@@ -757,11 +770,9 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
 
   if (loading || !preview) {
     return (
-      <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-        <div className="bg-[var(--bg-card)] rounded-xl p-6 shadow-xl">
-          <div className="text-[13px] text-[var(--text-secondary)]">Loading...</div>
-        </div>
-      </div>
+      <ResponsiveModal isOpen={true} onClose={onClose} maxWidth="520px">
+        <div className="text-[13px] text-[var(--text-secondary)]">Loading...</div>
+      </ResponsiveModal>
     );
   }
 
@@ -817,9 +828,8 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
     : { bg: 'var(--badge-member-bg)', text: 'var(--badge-member-text)', label: 'Member' };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-xl w-full max-w-[520px] max-h-[90vh] overflow-y-auto"
-        style={{ padding: '24px 28px' }} onClick={e => e.stopPropagation()}>
+    <ResponsiveModal isOpen={true} onClose={onClose} maxWidth="520px">
+      <div style={{ padding: '0' }}>
 
         {step === 'preview' && (
           <>
@@ -959,6 +969,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
                 value={confirmText}
                 onChange={e => setConfirmText(e.target.value)}
                 placeholder="Type username here..."
+                autoCapitalize="off"
                 className="w-full px-3 py-2.5 rounded-lg text-[14px] bg-[var(--bg-input)] text-[var(--text-primary)] outline-none font-mono"
                 style={{ border: `1px solid ${confirmReady ? 'var(--color-negative)' : 'var(--table-border)'}` }}
               />
@@ -982,7 +993,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
           </>
         )}
       </div>
-    </div>
+    </ResponsiveModal>
   );
 }
 
@@ -1180,11 +1191,41 @@ function UsersPermissionsSection() {
   );
 }
 
+function StickyAddButton({ permission, label, onClick }: { permission: string; label: string; onClick: () => void }) {
+  return (
+    <PermissionGate permission={permission} fallback="disabled">
+      <div className="fixed z-10" style={{
+        left: '50%',
+        transform: 'translateX(-50%)',
+        bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+      }}>
+        <button onClick={onClick}
+          className="flex items-center gap-1 cursor-pointer border-none"
+          style={{
+            background: 'var(--btn-primary-bg)',
+            color: 'var(--btn-primary-text)',
+            padding: '10px 24px',
+            borderRadius: 20,
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: "'DM Sans', sans-serif",
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            whiteSpace: 'nowrap',
+          }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> {label}
+        </button>
+      </div>
+    </PermissionGate>
+  );
+}
+
 export default function SettingsPage() {
   const { addToast } = useToast();
-  const { isAdmin, hasPermission } = useAuth();
+  const { isAdmin, hasPermission, user, logout } = useAuth();
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'settings';
+  const [mobileSubPage, setMobileSubPage] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [userList, setUserList] = useState<{ id: number; displayName: string }[]>([]);
@@ -1293,25 +1334,172 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-[22px] font-bold text-[var(--text-primary)]">Settings</h1>
+        {isMobile && mobileSubPage ? (
+          <button onClick={() => setMobileSubPage(null)}
+            className="flex items-center gap-1 text-[13px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer font-medium">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Settings
+          </button>
+        ) : (
+          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)]">Settings</h1>
+        )}
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex bg-[var(--bg-hover)] rounded-lg p-0.5 w-fit">
-        {[{ id: 'settings', label: 'Settings' }, { id: 'preferences', label: 'Preferences' }].map((tab) => (
-          <button key={tab.id} onClick={() => switchTab(tab.id)}
-            className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${
-              activeTab === tab.id
-                ? 'bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-sm'
-                : 'bg-transparent text-[var(--text-secondary)] font-normal'
-            }`}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Tab Navigation — desktop only when no sub-page */}
+      {!(isMobile && mobileSubPage) && (
+        <div className={`flex bg-[var(--bg-hover)] rounded-lg p-0.5 ${isMobile ? 'w-full' : 'w-fit'}`}>
+          {[{ id: 'settings', label: 'Settings' }, { id: 'preferences', label: 'Preferences' }].map((tab) => (
+            <button key={tab.id} onClick={() => switchTab(tab.id)}
+              className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${isMobile ? 'flex-1' : ''} ${
+                activeTab === tab.id
+                  ? 'bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-sm'
+                  : 'bg-transparent text-[var(--text-secondary)] font-normal'
+              }`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {activeTab === 'preferences' ? (
         <PreferencesTab />
+      ) : isMobile ? (
+        /* Mobile: drill-through navigation */
+        mobileSubPage === 'accounts' ? (
+          <>
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Accounts</h2>
+            <div className="flex flex-col gap-2">
+              {accounts.map((a) => (
+                <div key={a.id}
+                  onClick={() => hasPermission('accounts.edit') ? setEditingAccount(a) : null}
+                  className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)] ${hasPermission('accounts.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">
+                        {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {(a.owners || []).map((o) => <OwnerBadge key={o.id} user={o} />)}
+                        {a.isShared && <SharedBadge />}
+                        <span className="text-[11px] text-[var(--text-muted)] capitalize">{a.type}</span>
+                      </div>
+                    </div>
+                    <ClassificationBadge classification={a.classification as AccountClassification} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <PermissionGate permission="accounts.create" fallback="disabled">
+              <button onClick={() => setEditingAccount('new')}
+                className="w-full py-2.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Account
+              </button>
+            </PermissionGate>
+          </>
+        ) : mobileSubPage === 'categories' ? (
+          <>
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Categories</h2>
+            <div className="flex flex-col gap-3 pb-16">
+              {allGroups.map((g) => {
+                const allGroupNames = allGroups.map((x) => x.group);
+                const color = getCategoryColor(g.group, allGroupNames);
+                return (
+                  <div key={`${g.type}:${g.group}`} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-sm" style={{ background: color }} />{g.group}
+                      </span>
+                      <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
+                    </div>
+                    {g.subs.map((s) => (
+                      <div key={s.id} onClick={() => hasPermission('categories.edit') ? setEditingCategory(s) : null}
+                        className={`py-1.5 pl-4 text-[12px] text-[var(--text-secondary)] border-b border-[var(--table-row-border)] last:border-b-0 ${hasPermission('categories.edit') ? 'cursor-pointer active:text-[var(--btn-secondary-text)]' : ''}`}>
+                        {s.sub_name}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+            <StickyAddButton permission="categories.create" label="Add Category" onClick={() => setEditingCategory('new')} />
+          </>
+        ) : mobileSubPage === 'users' ? (
+          <>
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Users & Permissions</h2>
+            {isAdmin() && <UsersPermissionsSection />}
+          </>
+        ) : mobileSubPage === 'banksync' ? (
+          <>
+            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Bank Sync</h2>
+            <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
+          </>
+        ) : (
+          /* Mobile navigation list */
+          <>
+          <div className="flex flex-col gap-3">
+            {[
+              { id: 'accounts', icon: '🏦', label: 'Accounts', desc: `${accounts.length} accounts configured`, show: true },
+              { id: 'categories', icon: '📂', label: 'Categories', desc: `${categories.length} categories`, show: true },
+              { id: 'users', icon: '👥', label: 'Users & Permissions', desc: 'Manage users and roles', show: isAdmin() },
+              { id: 'banksync', icon: '🔗', label: 'Bank Sync', desc: 'SimpleFIN connections', show: true },
+            ].filter(item => item.show).map((item) => (
+              <button key={item.id} onClick={() => setMobileSubPage(item.id)}
+                className="w-full bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3.5 shadow-[var(--bg-card-shadow)] flex items-center gap-3 text-left cursor-pointer active:bg-[var(--bg-hover)]">
+                <span className="text-[20px]">{item.icon}</span>
+                <div className="flex-1">
+                  <div className="text-[14px] font-semibold text-[var(--text-primary)]">{item.label}</div>
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">{item.desc}</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            ))}
+          </div>
+
+          {/* My Profile Card */}
+          {user && (
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-4 mt-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-[16px] font-bold text-white flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #3b82f6, #10b981)' }}>
+                  {user.displayName.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-bold text-[var(--text-primary)]">{user.displayName}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[11px] text-[var(--text-secondary)]">@{user.username}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded capitalize ${
+                      user.role === 'owner' ? 'bg-[var(--badge-owner-bg)] text-[var(--badge-owner-text)]' :
+                      user.role === 'admin' ? 'bg-[var(--badge-investment-bg)] text-[var(--badge-investment-text)]' :
+                      'bg-[var(--badge-account-bg)] text-[var(--badge-account-text)]'
+                    }`}>{user.role}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => switchTab('preferences')}
+                className="w-full mt-3 py-2 rounded-lg border-none cursor-pointer text-[12px] font-semibold bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] btn-secondary"
+              >
+                Edit Profile & Password
+              </button>
+            </div>
+          )}
+
+          {/* App Info Card */}
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-4 mt-3 mb-20">
+            <div className="flex justify-between items-center text-[12px] text-[var(--text-secondary)]">
+              <span>Ledger</span>
+              <span className="font-mono text-[11px] text-[var(--text-muted)]">v1.0.0</span>
+            </div>
+            <button
+              onClick={logout}
+              className="w-full mt-3 py-2 bg-transparent border-none cursor-pointer text-[13px] font-semibold text-[#ef4444] text-center"
+            >
+              Sign Out
+            </button>
+          </div>
+          </>
+        )
       ) : (
         <>
           {/* Bank Sync Section */}
