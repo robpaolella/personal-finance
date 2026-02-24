@@ -37,6 +37,7 @@ router.get('/', (req: Request, res: Response): void => {
         displayName: u.display_name,
         role: u.role,
         isActive: u.is_active === 1,
+        twofaEnabled: u.twofa_enabled === 1,
         createdAt: u.created_at,
         permissions,
       };

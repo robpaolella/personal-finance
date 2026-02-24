@@ -354,6 +354,7 @@ interface ManagedUser {
   displayName: string;
   role: 'owner' | 'admin' | 'member';
   isActive: boolean;
+  twofaEnabled: boolean;
   createdAt: string;
   permissions: Record<string, boolean> | null;
 }
@@ -373,6 +374,18 @@ function PreferencesTab() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
   });
+
+  // 2FA state
+  const [twofaEnabled, setTwofaEnabled] = useState(!!user?.twofaEnabled);
+  const [twofaStep, setTwofaStep] = useState<'idle' | 'scan' | 'backup' | 'disable' | 'regenerate'>('idle');
+  const [setupData, setSetupData] = useState<{ qrCodeUrl: string; secret: string } | null>(null);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [twofaPassword, setTwofaPassword] = useState('');
+  const [twofaError, setTwofaError] = useState('');
+  const [twofaLoading, setTwofaLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -481,7 +494,7 @@ function PreferencesTab() {
       </div>
 
       {/* Role */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mb-5">
         <span className="text-[12px] text-[var(--text-secondary)]">Role:</span>
         {user?.role === 'owner' ? (
           <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--badge-owner-bg)', color: 'var(--badge-owner-text)' }}>Owner</span>
@@ -492,6 +505,260 @@ function PreferencesTab() {
             <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
             <span className="text-[11px] text-[var(--text-muted)]">Permissions managed by admin</span>
           </>
+        )}
+      </div>
+
+      {/* Two-Factor Authentication */}
+      <div className="pt-4 border-t border-[var(--table-border)]">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-0.5">Two-Factor Authentication</label>
+            <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${twofaEnabled ? 'bg-[#10b98122] text-[var(--color-positive)]' : 'bg-[var(--badge-member-bg)] text-[var(--text-muted)]'}`}>
+              {twofaEnabled ? '✓ Enabled' : 'Disabled'}
+            </span>
+          </div>
+        </div>
+
+        {twofaError && <InlineNotification type="error" message={twofaError} dismissible onDismiss={() => setTwofaError('')} className="mb-3" />}
+
+        {/* Idle state */}
+        {twofaStep === 'idle' && !twofaEnabled && (
+          <button
+            onClick={async () => {
+              setTwofaError('');
+              setTwofaLoading(true);
+              try {
+                const res = await apiFetch<{ data: { qrCodeUrl: string; secret: string } }>('/auth/2fa/setup', { method: 'POST' });
+                setSetupData(res.data);
+                setTwofaStep('scan');
+              } catch (err) {
+                setTwofaError(err instanceof Error ? err.message : 'Failed to start setup');
+              } finally {
+                setTwofaLoading(false);
+              }
+            }}
+            disabled={twofaLoading}
+            className={`mt-2 px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60 ${isMobile ? 'w-full' : ''}`}
+          >
+            {twofaLoading ? 'Setting up...' : 'Enable 2FA'}
+          </button>
+        )}
+
+        {twofaStep === 'idle' && twofaEnabled && (
+          <div className={`flex ${isMobile ? 'flex-col' : ''} gap-2 mt-2`}>
+            <button
+              onClick={() => { setTwofaStep('regenerate'); setTwofaPassword(''); setTwofaError(''); }}
+              className={`px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] border-none cursor-pointer btn-secondary ${isMobile ? 'w-full' : ''}`}
+            >
+              Regenerate Backup Codes
+            </button>
+            <button
+              onClick={() => { setTwofaStep('disable'); setTwofaPassword(''); setTwofaError(''); }}
+              className={`px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--color-negative)] text-white border-none cursor-pointer hover:brightness-110 transition-all ${isMobile ? 'w-full' : ''}`}
+            >
+              Disable 2FA
+            </button>
+          </div>
+        )}
+
+        {/* QR Scan step */}
+        {twofaStep === 'scan' && setupData && (
+          <div className="mt-3">
+            <p className="text-[13px] text-[var(--text-secondary)] mb-3">
+              Scan this QR code with your authenticator app, then enter the code below.
+            </p>
+            <div className="flex justify-center mb-3">
+              <div className="bg-white p-2 rounded-lg">
+                <img src={setupData.qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSecret(!showSecret)}
+              className="text-[11px] text-[var(--color-accent)] hover:underline bg-transparent border-none cursor-pointer mb-2"
+            >
+              {showSecret ? 'Hide secret key' : "Can't scan? Enter manually"}
+            </button>
+            {showSecret && (
+              <div className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg p-2 mb-3">
+                <code className="text-[11px] font-mono text-[var(--text-primary)] break-all select-all">{setupData.secret}</code>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={verifyCode}
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[14px] bg-[var(--bg-input)] outline-none text-[var(--text-body)] font-mono text-center tracking-[0.2em]"
+                placeholder="000000"
+                autoComplete="one-time-code"
+              />
+              <button
+                onClick={async () => {
+                  setTwofaError('');
+                  setTwofaLoading(true);
+                  try {
+                    const res = await apiFetch<{ data: { backupCodes: string[] } }>('/auth/2fa/confirm', {
+                      method: 'POST',
+                      body: JSON.stringify({ token: verifyCode, secret: setupData.secret }),
+                    });
+                    setBackupCodes(res.data.backupCodes);
+                    setTwofaEnabled(true);
+                    setTwofaStep('backup');
+                    setVerifyCode('');
+                    await refreshUser();
+                    addToast('2FA enabled');
+                  } catch (err) {
+                    setTwofaError(err instanceof Error ? err.message : 'Verification failed');
+                  } finally {
+                    setTwofaLoading(false);
+                  }
+                }}
+                disabled={twofaLoading || verifyCode.length !== 6}
+                className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60"
+              >
+                {twofaLoading ? 'Verifying...' : 'Verify'}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setTwofaStep('idle'); setSetupData(null); setVerifyCode(''); setShowSecret(false); }}
+              className="mt-2 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Backup codes display */}
+        {twofaStep === 'backup' && (
+          <div className="mt-3">
+            <p className="text-[13px] text-[var(--text-secondary)] mb-1">Save these backup codes — each can only be used once.</p>
+            <p className="text-[11px] text-[var(--color-negative)] font-medium mb-3">⚠ These codes won't be shown again.</p>
+            <div className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg p-3 mb-3">
+              <div className="grid grid-cols-2 gap-1">
+                {backupCodes.map((code, i) => (
+                  <code key={i} className="text-[12px] font-mono text-[var(--text-primary)] text-center py-0.5">{code}</code>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(backupCodes.join('\n'));
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className={`flex-1 py-2 rounded-lg text-[11px] font-semibold border border-[var(--bg-card-border)] bg-[var(--btn-secondary-bg)] text-[var(--text-primary)] cursor-pointer`}
+              >
+                {copied ? '✓ Copied!' : 'Copy All'}
+              </button>
+              <button
+                onClick={() => setTwofaStep('idle')}
+                className="flex-1 py-2 rounded-lg text-[11px] font-semibold bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Disable 2FA */}
+        {twofaStep === 'disable' && (
+          <div className="mt-3">
+            <p className="text-[13px] text-[var(--text-secondary)] mb-3">Enter your password to disable two-factor authentication.</p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={twofaPassword}
+                onChange={(e) => setTwofaPassword(e.target.value)}
+                className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]"
+                placeholder="Current password"
+                autoComplete="current-password"
+              />
+              <button
+                onClick={async () => {
+                  setTwofaError('');
+                  setTwofaLoading(true);
+                  try {
+                    await apiFetch('/auth/2fa/disable', {
+                      method: 'POST',
+                      body: JSON.stringify({ password: twofaPassword }),
+                    });
+                    setTwofaEnabled(false);
+                    setTwofaStep('idle');
+                    setTwofaPassword('');
+                    await refreshUser();
+                    addToast('2FA disabled');
+                  } catch (err) {
+                    setTwofaError(err instanceof Error ? err.message : 'Failed to disable 2FA');
+                  } finally {
+                    setTwofaLoading(false);
+                  }
+                }}
+                disabled={twofaLoading || !twofaPassword}
+                className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--color-negative)] text-white border-none cursor-pointer hover:brightness-110 disabled:opacity-60"
+              >
+                {twofaLoading ? 'Disabling...' : 'Disable'}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setTwofaStep('idle'); setTwofaPassword(''); }}
+              className="mt-2 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Regenerate backup codes */}
+        {twofaStep === 'regenerate' && (
+          <div className="mt-3">
+            <p className="text-[13px] text-[var(--text-secondary)] mb-3">Enter your password to regenerate backup codes. This will invalidate all previous codes.</p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={twofaPassword}
+                onChange={(e) => setTwofaPassword(e.target.value)}
+                className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]"
+                placeholder="Current password"
+                autoComplete="current-password"
+              />
+              <button
+                onClick={async () => {
+                  setTwofaError('');
+                  setTwofaLoading(true);
+                  try {
+                    const res = await apiFetch<{ data: { backupCodes: string[] } }>('/auth/2fa/regenerate-backup-codes', {
+                      method: 'POST',
+                      body: JSON.stringify({ password: twofaPassword }),
+                    });
+                    setBackupCodes(res.data.backupCodes);
+                    setTwofaStep('backup');
+                    setTwofaPassword('');
+                    addToast('Backup codes regenerated');
+                  } catch (err) {
+                    setTwofaError(err instanceof Error ? err.message : 'Failed to regenerate codes');
+                  } finally {
+                    setTwofaLoading(false);
+                  }
+                }}
+                disabled={twofaLoading || !twofaPassword}
+                className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60"
+              >
+                {twofaLoading ? 'Regenerating...' : 'Regenerate'}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setTwofaStep('idle'); setTwofaPassword(''); }}
+              className="mt-2 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -1006,6 +1273,8 @@ function UsersPermissionsSection() {
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<ManagedUser | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<Set<number>>(new Set());
+  const [requireAdmin2FA, setRequireAdmin2FA] = useState(false);
+  const [requireMember2FA, setRequireMember2FA] = useState(false);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -1016,7 +1285,17 @@ function UsersPermissionsSection() {
     }
   }, [addToast]);
 
-  useEffect(() => { loadUsers(); }, [loadUsers]);
+  const load2FARequirements = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ data: { requireAdmin: boolean; requireMember: boolean } }>('/auth/2fa/requirements');
+      setRequireAdmin2FA(res.data.requireAdmin);
+      setRequireMember2FA(res.data.requireMember);
+    } catch {
+      // Silent fail — requirements are owner-only
+    }
+  }, []);
+
+  useEffect(() => { loadUsers(); load2FARequirements(); }, [loadUsers, load2FARequirements]);
 
   const callerRole = user?.role || 'member';
 
@@ -1092,12 +1371,31 @@ function UsersPermissionsSection() {
                 ) : (
                   <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
                 )}
+                {mu.twofaEnabled && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium bg-[#10b98122] text-[var(--color-positive)]">2FA</span>
+                )}
                 {/* Edit button: owner can edit anyone except self-role; admin can edit members only */}
                 {mu.role !== 'owner' && (callerRole === 'owner' || (callerRole === 'admin' && mu.role === 'member')) && (
                   <button onClick={() => setEditingUser(mu)}
                     className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer text-[13px]">
                     ✎
                   </button>
+                )}
+                {/* Reset 2FA: visible if target has 2FA and caller can manage them */}
+                {mu.twofaEnabled && mu.id !== user?.id && mu.role !== 'owner' && (callerRole === 'owner' || (callerRole === 'admin' && mu.role === 'member')) && (
+                  <ConfirmDeleteButton
+                    onConfirm={async () => {
+                      try {
+                        await apiFetch(`/auth/2fa/reset/${mu.id}`, { method: 'POST' });
+                        addToast(`2FA reset for ${mu.displayName}`);
+                        loadUsers();
+                      } catch (err) {
+                        addToast(err instanceof Error ? err.message : 'Failed to reset 2FA', 'error');
+                      }
+                    }}
+                    label="Reset 2FA"
+                    confirmLabel="Confirm Reset"
+                  />
                 )}
                 {/* Delete button: same visibility as edit, but not on self */}
                 {mu.id !== user?.id && mu.role !== 'owner' && (callerRole === 'owner' || (callerRole === 'admin' && mu.role === 'member')) && (
@@ -1169,6 +1467,61 @@ function UsersPermissionsSection() {
           Add User
         </button>
       </div>
+
+      {/* 2FA Requirements — Owner only */}
+      {user?.role === 'owner' && (
+        <div className="mt-4 pt-4 border-t border-[var(--bg-card-border)]">
+          <h4 className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] mb-3">Two-Factor Authentication Requirements</h4>
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-between items-center py-1.5">
+              <span className="text-[12px] text-[var(--text-secondary)]">Require 2FA for Admins</span>
+              <button
+                onClick={async () => {
+                  const newVal = !requireAdmin2FA;
+                  setRequireAdmin2FA(newVal);
+                  try {
+                    await apiFetch('/auth/2fa/requirements', {
+                      method: 'PUT',
+                      body: JSON.stringify({ requireAdmin: newVal }),
+                    });
+                    addToast(newVal ? '2FA now required for admins' : '2FA no longer required for admins');
+                  } catch {
+                    setRequireAdmin2FA(!newVal);
+                    addToast('Failed to update requirement', 'error');
+                  }
+                }}
+                className="relative w-9 h-5 rounded-full border-none cursor-pointer transition-colors"
+                style={{ background: requireAdmin2FA ? 'var(--color-positive)' : 'var(--bg-card-border)' }}
+              >
+                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: requireAdmin2FA ? 17 : 2 }} />
+              </button>
+            </div>
+            <div className="flex justify-between items-center py-1.5">
+              <span className="text-[12px] text-[var(--text-secondary)]">Require 2FA for Members</span>
+              <button
+                onClick={async () => {
+                  const newVal = !requireMember2FA;
+                  setRequireMember2FA(newVal);
+                  try {
+                    await apiFetch('/auth/2fa/requirements', {
+                      method: 'PUT',
+                      body: JSON.stringify({ requireMember: newVal }),
+                    });
+                    addToast(newVal ? '2FA now required for members' : '2FA no longer required for members');
+                  } catch {
+                    setRequireMember2FA(!newVal);
+                    addToast('Failed to update requirement', 'error');
+                  }
+                }}
+                className="relative w-9 h-5 rounded-full border-none cursor-pointer transition-colors"
+                style={{ background: requireMember2FA ? 'var(--color-positive)' : 'var(--bg-card-border)' }}
+              >
+                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: requireMember2FA ? 17 : 2 }} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAddModal && <AddUserModal onClose={() => setShowAddModal(false)} onCreated={loadUsers} callerRole={callerRole} />}
       {editingUser && (
