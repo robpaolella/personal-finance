@@ -10,14 +10,20 @@
           "name": "Enable 2FA",
           "items": [
             "Settings > Preferences shows 'Two-Factor Authentication' section with 'Disabled' badge",
-            "Click 'Enable 2FA' → shows QR code and verification code input",
+            "Click 'Enable 2FA' → modal opens with QR code and 6-digit split input",
+            "'Enable 2FA' button remains visible behind the modal overlay",
             "QR code is scannable with Google Authenticator / Authy",
             "'Can't scan? Enter manually' link shows base32 secret key",
+            "Secret key field is centered, narrower than full width (fits text)",
+            "Secret key text is centered inside the field",
             "Manual entry secret works when typed into authenticator app",
-            "Enter wrong 6-digit code → shows 'Invalid verification code' error",
-            "Enter correct 6-digit code → shows backup codes grid",
+            "6-digit TOTP input: each box is separate, typing advances to next box",
+            "Backspace in an empty box moves focus to previous box",
+            "Pasting a 6-digit code fills all boxes and auto-submits",
+            "Enter wrong 6-digit code → shows error notification inside modal",
+            "Enter correct 6-digit code → modal shows backup codes grid",
             "'Copy All' button copies all 10 backup codes to clipboard",
-            "2FA status changes to '✓ Enabled' badge after setup",
+            "Closing modal after setup → 2FA status changes to '✓ Enabled' badge",
             "Backup codes are in XXXX-XXXX format (uppercase hex)"
           ]
         },
@@ -25,18 +31,18 @@
           "name": "Disable 2FA",
           "items": [
             "When 2FA is enabled, 'Disable 2FA' button is visible (red)",
-            "Click 'Disable 2FA' → prompts for current password",
-            "Enter wrong password → shows 'Password is incorrect' error",
-            "Enter correct password → 2FA disabled, status changes to 'Disabled'",
-            "Cancel button returns to idle state without changes"
+            "Click 'Disable 2FA' → modal opens prompting for current password",
+            "Enter wrong password → shows error inside modal",
+            "Enter correct password → 2FA disabled, modal closes, status changes to 'Disabled'",
+            "Cancel button inside modal closes it without changes"
           ]
         },
         {
           "name": "Regenerate Backup Codes",
           "items": [
             "When 2FA is enabled, 'Regenerate Backup Codes' button is visible",
-            "Click → prompts for current password",
-            "Enter correct password → shows new set of 10 backup codes",
+            "Click → modal opens prompting for current password",
+            "Enter correct password → modal shows new set of 10 backup codes",
             "Old backup codes no longer work after regeneration",
             "Toast notification: 'Backup codes regenerated'"
           ]
@@ -50,9 +56,11 @@
           "name": "TOTP Login",
           "items": [
             "Log out, then log in with correct username/password → shows 2FA verification screen",
-            "2FA screen shows 6-digit code input with numeric keyboard on mobile",
-            "Enter correct TOTP code → logs in and redirects to dashboard",
-            "Code auto-submits when 6 digits are entered",
+            "2FA screen shows 6 separate digit boxes with numeric keyboard on mobile",
+            "Typing a digit auto-advances to next box",
+            "Backspace in empty box moves to previous box",
+            "Pasting a 6-digit code fills all boxes",
+            "Enter correct TOTP code → auto-submits and logs in, redirects to dashboard",
             "Enter wrong code → shows 'Invalid verification code' with attempts remaining",
             "After 5 wrong attempts → shows 'Too many attempts' and returns to login",
             "'← Back to login' link returns to username/password form"
@@ -138,9 +146,11 @@
         {
           "name": "Settings 2FA Section",
           "items": [
-            "QR code is visible and scannable on mobile",
-            "Backup codes grid fits within card on mobile",
             "Enable/Disable/Regenerate buttons are full-width on mobile",
+            "2FA flows open as bottom sheet on mobile (not centered modal)",
+            "QR code is visible and scannable inside bottom sheet",
+            "6-digit split input boxes are properly sized in bottom sheet",
+            "Backup codes grid fits within bottom sheet on mobile",
             "2FA requirement toggles display correctly on mobile"
           ]
         },
