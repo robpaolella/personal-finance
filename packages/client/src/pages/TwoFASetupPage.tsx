@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import InlineNotification from '../components/InlineNotification';
+import TotpCodeInput from '../components/TotpCodeInput';
 
 interface SetupData {
   qrCodeUrl: string;
@@ -21,6 +22,14 @@ export default function TwoFASetupPage() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
+
+  // Auto-submit when 6 digits entered
+  useEffect(() => {
+    if (verifyCode.length === 6 && step === 'scan' && !loading) {
+      handleVerify({ preventDefault: () => {} } as FormEvent);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verifyCode]);
 
   const handleStartSetup = async () => {
     setError('');
@@ -148,26 +157,18 @@ export default function TwoFASetupPage() {
               </div>
 
               <form onSubmit={handleVerify}>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wide">
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-3 uppercase tracking-wide">
                   Verification Code
                 </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
+                <TotpCodeInput
                   value={verifyCode}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                    setVerifyCode(val);
-                  }}
-                  className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-lg bg-[var(--bg-input)] text-[var(--text-primary)] outline-none font-mono text-center tracking-[0.3em] mb-4"
-                  placeholder="000000"
-                  required
-                  autoComplete="one-time-code"
+                  onChange={setVerifyCode}
+                  autoFocus
                 />
                 <button
                   type="submit"
                   disabled={loading || verifyCode.length !== 6}
-                  className="w-full py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-sm font-semibold btn-primary transition-colors disabled:opacity-60"
+                  className="w-full mt-4 py-2.5 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-sm font-semibold btn-primary transition-colors disabled:opacity-60"
                 >
                   {loading ? 'Verifying...' : 'Verify & Enable 2FA'}
                 </button>

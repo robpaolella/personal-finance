@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import InlineNotification from '../components/InlineNotification';
+import TotpCodeInput from '../components/TotpCodeInput';
 
 export default function LoginPage() {
   const { login, verify2FA, user } = useAuth();
@@ -18,7 +19,6 @@ export default function LoginPage() {
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [backupCode, setBackupCode] = useState('');
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
-  const totpInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -73,13 +73,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-
-  // Auto-focus TOTP input when showing 2FA form
-  useEffect(() => {
-    if (needs2FA && totpInputRef.current) {
-      totpInputRef.current.focus();
-    }
-  }, [needs2FA, useBackupCode]);
 
   // Auto-submit when 6 digits entered
   useEffect(() => {
@@ -150,19 +143,10 @@ export default function LoginPage() {
                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wide">
                   Verification Code
                 </label>
-                <input
-                  ref={totpInputRef}
-                  type="text"
-                  inputMode="numeric"
+                <TotpCodeInput
                   value={totpCode}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                    setTotpCode(val);
-                  }}
-                  className="w-full px-3 py-2.5 border border-[var(--bg-input-border)] rounded-lg text-lg bg-[var(--bg-input)] text-[var(--text-primary)] outline-none font-mono text-center tracking-[0.3em]"
-                  placeholder="000000"
-                  required
-                  autoComplete="one-time-code"
+                  onChange={setTotpCode}
+                  autoFocus={needs2FA && !useBackupCode}
                 />
               </div>
             )}
