@@ -92,9 +92,12 @@ Examples:
 
 ### Branch Strategy
 
-- Use feature branches for all new work (e.g., `feature/bank-sync`, `design/implement-design-guide`)
-- Merge to `main` after testing
-- If experimenting with something risky, create a branch first
+- The `main` branch is **protected**. Never commit directly to `main`.
+- For every task, create a branch from `main` and do all work there, committing incrementally.
+- When finished, notify the developer that the branch is ready so they can open a PR on GitHub.
+- Branch prefixes: `feature/`, `fix/`, `chore/`, or `refactor/` as appropriate.
+  - Examples: `feature/bank-sync`, `fix/expired-jwt-redirect`, `chore/ci-pipeline`, `refactor/category-service`
+- If experimenting with something risky, create a branch first.
 
 ## Code Style & Conventions
 
