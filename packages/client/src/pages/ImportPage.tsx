@@ -583,20 +583,20 @@ export default function ImportPage() {
       {/* Step 2: Map Columns */}
       {step === 1 && parseResult && (
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-          <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
-            <div>
-              <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
-              <p className="text-[12px] text-[var(--text-secondary)] mt-1 m-0">
-                Account: {accounts.find((a) => a.id === selectedAccountId)?.name} · {parseResult.totalRows} transactions · Format: {parseResult.detectedFormat}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setStep(0)}
-                className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline"
-              >
-                ← Back
-              </button>
+          <div className="mb-4">
+            <button
+              onClick={() => setStep(0)}
+              className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline mb-3"
+            >
+              ← Back
+            </button>
+            <div className={`flex justify-between items-center ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
+              <div>
+                <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
+                <p className="text-[12px] text-[var(--text-secondary)] mt-1 m-0">
+                  Account: {accounts.find((a) => a.id === selectedAccountId)?.name} · {parseResult.totalRows} transactions · Format: {parseResult.detectedFormat}
+                </p>
+              </div>
               <button
                 onClick={handleAutoCategorize}
                 className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-primary"
@@ -731,7 +731,7 @@ export default function ImportPage() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
                 </svg>
-                AI-categorized
+                Auto-categorized
               </span>
               {!isMobile && <span className="text-[12px] text-[var(--text-secondary)]">Click any category to change it</span>}
             </div>
