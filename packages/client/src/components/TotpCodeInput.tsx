@@ -89,7 +89,7 @@ export default function TotpCodeInput({ value, onChange, autoFocus = false, disa
           ref={(el) => { inputRefs.current[i] = el; }}
           type="text"
           inputMode="numeric"
-          autoComplete={i === 0 ? 'one-time-code' : 'off'}
+          autoComplete="off"
           maxLength={1}
           value={digits[i]?.trim() || ''}
           onChange={(e) => handleChange(i, e)}
