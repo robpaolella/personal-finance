@@ -715,17 +715,17 @@ export default function TransactionsPage() {
               </div>
             )}
             {showMobileFilters && (
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
                 <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+                  className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
                   <option value="All">All Accounts</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id.toString()}>{accountLabel(a)}</option>
                   ))}
                 </select>
                 <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-                  <option value="All">All</option>
+                  className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
+                  <option value="All">All Types</option>
                   <option value="Income">Income</option>
                   <option value="Expense">Expense</option>
                 </select>
