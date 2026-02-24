@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import BankSyncSection from '../components/BankSyncSection';
 import InlineNotification from '../components/InlineNotification';
+import TotpCodeInput from '../components/TotpCodeInput';
 import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type AccountClassification } from '../components/badges';
 import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
@@ -584,16 +585,13 @@ function PreferencesTab() {
                 <code className="text-[11px] font-mono text-[var(--text-primary)] break-all select-all">{setupData.secret}</code>
               </div>
             )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                inputMode="numeric"
+            <div className="mb-3">
+              <TotpCodeInput
                 value={verifyCode}
-                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[14px] bg-[var(--bg-input)] outline-none text-[var(--text-body)] font-mono text-center tracking-[0.2em]"
-                placeholder="000000"
-                autoComplete="one-time-code"
+                onChange={setVerifyCode}
+                autoFocus
               />
+            </div>
               <button
                 onClick={async () => {
                   setTwofaError('');
@@ -616,11 +614,10 @@ function PreferencesTab() {
                   }
                 }}
                 disabled={twofaLoading || verifyCode.length !== 6}
-                className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60"
+                className="w-full px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60"
               >
                 {twofaLoading ? 'Verifying...' : 'Verify'}
               </button>
-            </div>
             <button
               type="button"
               onClick={() => { setTwofaStep('idle'); setSetupData(null); setVerifyCode(''); setShowSecret(false); }}
