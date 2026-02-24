@@ -745,6 +745,12 @@ Form Input → Storage → Display:
 **Resolution:** Separated liabilities in the balance loop and subtracted them. Replaced inline depreciation math with `calculateCurrentValue()` from `utils/depreciation.ts` which handles both depreciation methods.
 **Rule going forward:** Dashboard and Net Worth page must use the same calculation logic. Always use the shared `calculateCurrentValue()` utility — never inline depreciation math. Always separate liability balances and subtract them from net worth.
 
+### PR Descriptions Must Be Raw Markdown in Console (2026-02-24)
+**Context:** Asked to create a PR description
+**Problem:** First attempt rendered as formatted text (not copyable markdown). Second attempt saved to a file instead of printing to console.
+**Resolution:** Print PR descriptions as raw markdown directly in the console output so the developer can copy-paste into GitHub.
+**Rule going forward:** Always output PR descriptions as a raw markdown code block in the console. Never render as formatted text and never save to a file unless explicitly asked.
+
 ### CSV Import Must Include Transfer Detection (2026-02-24)
 **Context:** Credit card payment "PAYMENT THANK YOU" not flagged during CSV import
 **Problem:** Transfer detection (`detectTransfers()`) was only wired for SimpleFIN sync. CSV import hardcoded `isLikelyTransfer: false` with no server call.
