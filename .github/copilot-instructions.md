@@ -764,6 +764,18 @@ Form Input → Storage → Display:
 **Resolution:** Added `/api/import/check-transfers` endpoint in import.ts. Wired ImportPage to call it after categorization, setting `isLikelyTransfer` on matching rows.
 **Rule going forward:** Any detection logic available for SimpleFIN sync must also be available for CSV import. The two import paths should have feature parity for duplicate detection, transfer detection, and categorization.
 
+### Mockup Viewer Loads from .github/mockups/ Only (2026-02-24)
+**Context:** Added 2FA sections to `.github/design-system.jsx` but they didn't appear on `/mockup?mockup=design-system`
+**Problem:** The mockup viewer (`MockupPage.tsx`) uses `import.meta.glob('../../../../.github/mockups/*.tsx')` — it only loads `.tsx` files from `.github/mockups/`. The `.github/design-system.jsx` at the repo root is the authoritative design reference but is NOT what the mockup viewer renders.
+**Resolution:** Updated `.github/mockups/design-system.tsx` (the renderable copy) with the same changes.
+**Rule going forward:** When updating the design system, always update BOTH files: `.github/design-system.jsx` (authoritative reference) and `.github/mockups/design-system.tsx` (renderable mockup). The mockup viewer only sees files in `.github/mockups/`.
+
+### Design System Mockup Must Use Full Theme Token Names (2026-02-24)
+**Context:** TOTP code input boxes appeared invisible in the design system mockup
+**Problem:** Used shorthand token names (`t.ib`, `t.input`, `t.tp`, `t.tm`) that don't exist in the theme object. The actual tokens are `t.bgInputBorder`, `t.bgInput`, `t.textPrimary`, `t.textMuted`. No error is thrown — the styles just silently resolve to `undefined` and the elements render without borders or backgrounds.
+**Resolution:** Replaced all shorthand tokens with the correct full names from the theme object defined at the top of the file.
+**Rule going forward:** When adding sections to the design system mockup, always reference the theme object at the top of the file for exact token names. Never abbreviate — there are no shorthand aliases. Test that new elements are visually visible before committing.
+
 ## Development Workflow
 
 ### Environments
