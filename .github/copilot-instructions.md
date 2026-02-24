@@ -312,6 +312,186 @@ Centered pill button `+ Transaction` floating above the tab bar on Dashboard and
 - Auth fields: `autoComplete="username"` / `autoComplete="current-password"` / `autoComplete="new-password"`
 - All touch targets: minimum 44px height
 
+## Mockup Workflow
+
+### How to Create and View Mockups
+
+When I ask you to prototype, mock up, or visually design something before implementing it, follow this workflow:
+
+### Setup (one time)
+
+A mockup viewer route exists at `/mockup` in the app. It renders whatever component is exported from `packages/client/src/pages/MockupPage.tsx`. This page is only available in development (`npm run dev`) and is excluded from production builds.
+
+### Creating a Mockup
+
+1. Write the mockup as a React component in `packages/client/src/pages/MockupPage.tsx`
+2. The component has full access to:
+   - All CSS custom properties (light/dark mode theming)
+   - DM Sans and DM Mono fonts
+   - All existing shared components (Badge, Card, Toggle, InlineNotification, etc.)
+   - `useIsMobile()` hook for testing responsive layouts
+   - Tailwind CSS classes
+3. Export the component as the default export
+4. Tell me to open `http://localhost:5173/mockup` in my browser to view it
+
+### Mockup Requirements
+
+- **Always include a dark/light toggle** in the mockup so I can verify both themes
+- **For mobile mockups**, wrap the content in a 390px-wide container with the phone frame styling (rounded corners, shadow) so it's viewable on a desktop browser
+- **For desktop mockups**, render at full width
+- **For comparison mockups** (e.g., "admin view vs member view"), include a toggle to switch between views
+- **Include realistic sample data** — never use "Lorem ipsum" or placeholder text. Use data that resembles what the app actually displays.
+- **Make it interactive** where relevant — dropdowns should open, toggles should toggle, expandable sections should expand
+
+### After Approval
+
+Once I approve the mockup:
+1. If it's a new design pattern, save a copy to `.github/mockups/` with a descriptive name for future reference
+2. Clear `MockupPage.tsx` back to a placeholder (or leave the last mockup — it doesn't matter since it's dev-only)
+3. Proceed with implementation, referencing the mockup you just built
+
+### Example MockupPage.tsx
+
+```tsx
+// packages/client/src/pages/MockupPage.tsx
+import { useState } from 'react';
+
+export default function MockupPage() {
+  const [dark, setDark] = useState(false);
+
+  return (
+    <div className={dark ? 'dark' : ''}>
+      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-primary)] p-8">
+        {/* Theme toggle */}
+        <button
+          onClick={() => setDark(!dark)}
+          className="fixed top-4 right-4 z-50 w-10 h-10 rounded-full bg-[var(--bg-card)] border border-[var(--bg-card-border)] flex items-center justify-center"
+        >
+          {dark ? '☀' : '☾'}
+        </button>
+
+        {/* Your mockup content here */}
+        <h1 className="text-xl font-bold mb-4">Mockup Title</h1>
+      </div>
+    </div>
+  );
+}
+```
+
+### Adding the Route
+
+Add this route to the app's router (only in development):
+
+```tsx
+// In your router configuration
+{import.meta.env.DEV && (
+  <Route path="/mockup" element={<MockupPage />} />
+)}
+```
+
+This ensures the mockup page never appears in production builds.
+
+## QA Checklists
+
+### When to Create a QA Checklist
+
+Create a QA checklist whenever:
+- A feature branch is ready for testing
+- A multi-prompt build sequence is complete
+- I ask you to create a QA checklist or test plan
+
+### How It Works
+
+The app has a permanent dev-only QA viewer at `/qa` that renders interactive checklists from JSON config files. Copilot only writes the test items — the viewer UI is already built and reusable.
+
+### Creating a Checklist
+
+1. Create a JSON file at `.github/qa/{feature-name}.json` following this schema:
+
+```json
+{
+  "title": "Roles & Permissions QA",
+  "storageKey": "qa-roles-permissions",
+  "testingOrder": "Start with Section 1 (fresh install). Create users in Section 2, then test permissions in order.",
+  "sections": [
+    {
+      "title": "1. Fresh Install Setup",
+      "groups": [
+        {
+          "name": "Admin Account Creation",
+          "items": [
+            "Setup page shows welcome message and form",
+            "Username validates: lowercase alphanumeric only",
+            "Submitting creates account and redirects to Dashboard",
+            "Created user has role 'owner'"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "2. Permission Enforcement",
+      "groups": [
+        {
+          "name": "Transactions",
+          "items": [
+            "Member WITH transactions.create → Add button works",
+            "Member WITHOUT transactions.create → Add button disabled",
+            "Member WITHOUT transactions.delete → Delete button hidden"
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+2. Tell me to open `http://localhost:5173/qa?checklist={feature-name}` to use it.
+
+### Item Writing Style
+
+Each test item should describe a specific action and expected result:
+
+Good: "Tap '+ Transaction' pill → bottom sheet slides up with form"
+Good: "Toggle off 'Delete' permission → delete button hidden on member's view"
+
+Bad: "Test the transaction form"
+Bad: "Check permissions work"
+
+### Section Organization
+
+Organize by user flow, not by technical component:
+
+Good: "Adding a Transaction", "Member Permission Enforcement", "Dark Mode"
+Bad: "AuthContext.tsx", "API Routes", "Database Schema"
+
+### The QA Viewer Provides
+
+The viewer component handles all of this automatically — Copilot never needs to build it:
+- Click-to-cycle: ○ Untested → ✓ Pass → ✗ Fail → ⏭ Skip → ○ Untested
+- Per-item notes with add/edit/clear
+- Collapsible sections with progress counts and color-coded headers
+- Sticky progress bar with pass/fail/skip/remaining counts and percentage
+- Segmented progress visualization
+- Persistence via localStorage (using the storageKey from the JSON)
+- Reset All button
+- **Export Results** button that copies a Markdown summary to the clipboard
+
+### Sharing Results with Copilot
+
+After testing, click "Export Results" in the progress bar. This copies a Markdown summary to your clipboard with all failed items, notes, skipped items, and passed items. Paste it directly into the Copilot chat and ask for fix prompts.
+
+Example workflow:
+1. Run through the checklist
+2. Click "Export Results" → "Results copied to clipboard"
+3. Paste into Copilot: "Here are my QA results. Please create fix prompts for the failed items."
+4. Copilot reads the failures and notes, writes targeted fix prompts
+
+### After QA
+
+- Failed items: I may ask you to create fix prompts based on failures
+- The JSON file stays in `.github/qa/` as a record of what was tested
+- Re-run anytime by revisiting the `/qa` URL
+
 ## Project Learnings
 
 This is a living document. You MUST maintain this section throughout the life of the project. It captures hard-won lessons — things that broke, things that were non-obvious, decisions that were made and why — so we never repeat mistakes or lose context.
