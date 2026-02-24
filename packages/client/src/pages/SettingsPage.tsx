@@ -520,8 +520,6 @@ function PreferencesTab() {
           </div>
         </div>
 
-        {twofaError && <InlineNotification type="error" message={twofaError} dismissible onDismiss={() => setTwofaError('')} className="mb-3" />}
-
         {/* Idle state */}
         {twofaStep === 'idle' && !twofaEnabled && (
           <button
@@ -562,9 +560,17 @@ function PreferencesTab() {
           </div>
         )}
 
-        {/* QR Scan step */}
-        {twofaStep === 'scan' && setupData && (
-          <div className="mt-3">
+        {/* QR Scan step — in modal */}
+        <ResponsiveModal
+          title={twofaStep === 'scan' ? 'Enable Two-Factor Authentication' : twofaStep === 'backup' ? '2FA Enabled' : twofaStep === 'disable' ? 'Disable 2FA' : twofaStep === 'regenerate' ? 'Regenerate Backup Codes' : ''}
+          isOpen={twofaStep !== 'idle'}
+          onClose={() => { setTwofaStep('idle'); setSetupData(null); setVerifyCode(''); setShowSecret(false); setTwofaPassword(''); setTwofaError(''); }}
+          maxWidth="420px"
+        >
+          {twofaError && <InlineNotification type="error" message={twofaError} dismissible onDismiss={() => setTwofaError('')} className="mb-3" />}
+
+          {twofaStep === 'scan' && setupData && (
+          <div>
             <p className="text-[13px] text-[var(--text-secondary)] mb-3">
               Scan this QR code with your authenticator app, then enter the code below.
             </p>
@@ -618,19 +624,11 @@ function PreferencesTab() {
               >
                 {twofaLoading ? 'Verifying...' : 'Verify'}
               </button>
-            <button
-              type="button"
-              onClick={() => { setTwofaStep('idle'); setSetupData(null); setVerifyCode(''); setShowSecret(false); }}
-              className="mt-2 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer"
-            >
-              Cancel
-            </button>
           </div>
         )}
 
-        {/* Backup codes display */}
         {twofaStep === 'backup' && (
-          <div className="mt-3">
+          <div>
             <p className="text-[13px] text-[var(--text-secondary)] mb-1">Save these backup codes — each can only be used once.</p>
             <p className="text-[11px] text-[var(--color-negative)] font-medium mb-3">⚠ These codes won't be shown again.</p>
             <div className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg p-3 mb-3">
@@ -661,19 +659,24 @@ function PreferencesTab() {
           </div>
         )}
 
-        {/* Disable 2FA */}
         {twofaStep === 'disable' && (
-          <div className="mt-3">
+          <div>
             <p className="text-[13px] text-[var(--text-secondary)] mb-3">Enter your password to disable two-factor authentication.</p>
+            <input
+              type="password"
+              value={twofaPassword}
+              onChange={(e) => setTwofaPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)] mb-3"
+              placeholder="Current password"
+              autoComplete="current-password"
+            />
             <div className="flex gap-2">
-              <input
-                type="password"
-                value={twofaPassword}
-                onChange={(e) => setTwofaPassword(e.target.value)}
-                className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]"
-                placeholder="Current password"
-                autoComplete="current-password"
-              />
+              <button
+                onClick={() => { setTwofaStep('idle'); setTwofaPassword(''); }}
+                className="flex-1 px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] border-none cursor-pointer btn-secondary"
+              >
+                Cancel
+              </button>
               <button
                 onClick={async () => {
                   setTwofaError('');
@@ -695,34 +698,32 @@ function PreferencesTab() {
                   }
                 }}
                 disabled={twofaLoading || !twofaPassword}
-                className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--color-negative)] text-white border-none cursor-pointer hover:brightness-110 disabled:opacity-60"
+                className="flex-1 px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--color-negative)] text-white border-none cursor-pointer hover:brightness-110 disabled:opacity-60"
               >
                 {twofaLoading ? 'Disabling...' : 'Disable'}
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => { setTwofaStep('idle'); setTwofaPassword(''); }}
-              className="mt-2 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer"
-            >
-              Cancel
-            </button>
           </div>
         )}
 
-        {/* Regenerate backup codes */}
         {twofaStep === 'regenerate' && (
-          <div className="mt-3">
+          <div>
             <p className="text-[13px] text-[var(--text-secondary)] mb-3">Enter your password to regenerate backup codes. This will invalidate all previous codes.</p>
+            <input
+              type="password"
+              value={twofaPassword}
+              onChange={(e) => setTwofaPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)] mb-3"
+              placeholder="Current password"
+              autoComplete="current-password"
+            />
             <div className="flex gap-2">
-              <input
-                type="password"
-                value={twofaPassword}
-                onChange={(e) => setTwofaPassword(e.target.value)}
-                className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]"
-                placeholder="Current password"
-                autoComplete="current-password"
-              />
+              <button
+                onClick={() => { setTwofaStep('idle'); setTwofaPassword(''); }}
+                className="flex-1 px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] border-none cursor-pointer btn-secondary"
+              >
+                Cancel
+              </button>
               <button
                 onClick={async () => {
                   setTwofaError('');
@@ -743,20 +744,14 @@ function PreferencesTab() {
                   }
                 }}
                 disabled={twofaLoading || !twofaPassword}
-                className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60"
+                className="flex-1 px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60"
               >
                 {twofaLoading ? 'Regenerating...' : 'Regenerate'}
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => { setTwofaStep('idle'); setTwofaPassword(''); }}
-              className="mt-2 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-transparent border-none cursor-pointer"
-            >
-              Cancel
-            </button>
           </div>
         )}
+        </ResponsiveModal>
       </div>
     </div>
   );
