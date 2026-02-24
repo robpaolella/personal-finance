@@ -362,6 +362,7 @@ interface ManagedUser {
 function PreferencesTab() {
   const { user, refreshUser } = useAuth();
   const { addToast } = useToast();
+  const isMobile = useIsMobile();
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -369,6 +370,16 @@ function PreferencesTab() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  });
+
+  const toggleTheme = () => {
+    const next = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    document.documentElement.classList.toggle('dark', next === 'dark');
+    localStorage.setItem('ledger-theme', next);
+  };
 
   const handleSaveProfile = async () => {
     setProfileLoading(true);
@@ -408,13 +419,27 @@ function PreferencesTab() {
     }
   };
 
+  const hasPwInput = currentPassword || newPassword || confirmPassword;
+
   return (
     <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
       <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">My Preferences</h3>
       <p className="text-[13px] text-[var(--text-secondary)] mb-4">Manage your profile and display settings.</p>
 
+      {/* Appearance */}
+      <div className="mb-5">
+        <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2">Appearance</label>
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-2.5 px-3 py-2 border border-[var(--table-border)] rounded-lg bg-[var(--bg-input)] text-[13px] cursor-pointer text-[var(--text-body)]"
+        >
+          <span className="text-[16px]">{theme === 'dark' ? '☀️' : '🌙'}</span>
+          {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        </button>
+      </div>
+
       {/* Profile section */}
-      <div className="grid grid-cols-2 gap-4 mb-5">
+      <div className={`${isMobile ? 'flex flex-col gap-3' : 'grid grid-cols-2 gap-4'} mb-5`}>
         <div>
           <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Display Name</label>
           <input value={displayName} onChange={(e) => setDisplayName(e.target.value)}
@@ -427,50 +452,47 @@ function PreferencesTab() {
         </div>
       </div>
 
+      <button onClick={handleSaveProfile} disabled={profileLoading}
+        className={`px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60 mb-5 ${isMobile ? 'w-full' : ''}`}>
+        Save Profile
+      </button>
+
       {/* Password section */}
       <div className="mb-5">
         <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Change Password</label>
         {pwError && <InlineNotification type="error" message={pwError} dismissible onDismiss={() => setPwError('')} className="mb-2" />}
-        <div className="grid grid-cols-3 gap-3">
+        <div className={isMobile ? 'flex flex-col gap-3' : 'grid grid-cols-3 gap-3'}>
           <input type="password" placeholder="Current password" value={currentPassword} autoComplete="current-password"
             onChange={(e) => setCurrentPassword(e.target.value)}
-            className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           <input type="password" placeholder="New password" value={newPassword} autoComplete="new-password"
             onChange={(e) => setNewPassword(e.target.value)}
-            className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
           <input type="password" placeholder="Confirm new" value={confirmPassword} autoComplete="new-password"
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
         </div>
+        {hasPwInput && (
+          <button onClick={handleChangePassword} disabled={pwLoading}
+            className={`mt-3 px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] border-none cursor-pointer btn-secondary disabled:opacity-60 ${isMobile ? 'w-full' : ''}`}>
+            Change Password
+          </button>
+        )}
       </div>
 
-      {/* Role + actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-[var(--text-secondary)]">Role:</span>
-          {user?.role === 'owner' ? (
-            <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--badge-owner-bg)', color: 'var(--badge-owner-text)' }}>Owner</span>
-          ) : user?.role === 'admin' ? (
-            <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-admin-bg)] text-[var(--badge-admin-text)]">Admin</span>
-          ) : (
-            <>
-              <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
-              <span className="text-[11px] text-[var(--text-muted)]">Permissions managed by admin</span>
-            </>
-          )}
-        </div>
-        <div className="flex gap-2">
-          {currentPassword && (
-            <button onClick={handleChangePassword} disabled={pwLoading}
-              className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] border-none cursor-pointer btn-secondary disabled:opacity-60">
-              Change Password
-            </button>
-          )}
-          <button onClick={handleSaveProfile} disabled={profileLoading}
-            className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary disabled:opacity-60">
-            Save Changes
-          </button>
-        </div>
+      {/* Role */}
+      <div className="flex items-center gap-2">
+        <span className="text-[12px] text-[var(--text-secondary)]">Role:</span>
+        {user?.role === 'owner' ? (
+          <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--badge-owner-bg)', color: 'var(--badge-owner-text)' }}>Owner</span>
+        ) : user?.role === 'admin' ? (
+          <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-admin-bg)] text-[var(--badge-admin-text)]">Admin</span>
+        ) : (
+          <>
+            <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]">Member</span>
+            <span className="text-[11px] text-[var(--text-muted)]">Permissions managed by admin</span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1464,7 +1486,7 @@ export default function SettingsPage() {
           )}
 
           {/* App Info Card */}
-          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-4 mt-3">
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-4 mt-3 mb-20">
             <div className="flex justify-between items-center text-[12px] text-[var(--text-secondary)]">
               <span>Ledger</span>
               <span className="font-mono text-[11px] text-[var(--text-muted)]">v1.0.0</span>
