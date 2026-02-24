@@ -6,6 +6,7 @@ import { eq, sql, like } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 import { parseVenmoCSV } from '../services/venmoParser.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
+import { detectTransfers } from '../services/transferDetector.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -294,6 +295,22 @@ router.post('/check-duplicates', requirePermission('import.csv'), (req: Request,
   } catch (err) {
     console.error('POST /import/check-duplicates error:', err);
     res.status(500).json({ error: 'Duplicate check failed' });
+  }
+});
+
+// POST /api/import/check-transfers — batch transfer detection for CSV import
+router.post('/check-transfers', requirePermission('import.csv'), (req: Request, res: Response) => {
+  try {
+    const { items } = req.body as { items: { description: string; amount: number }[] };
+    if (!items || !Array.isArray(items)) {
+      res.status(400).json({ error: 'items array is required' });
+      return;
+    }
+    const results = detectTransfers(items.map((i) => ({ payee: i.description, description: i.description, amount: i.amount })));
+    res.json({ data: results });
+  } catch (err) {
+    console.error('POST /import/check-transfers error:', err);
+    res.status(500).json({ error: 'Transfer check failed' });
   }
 });
 

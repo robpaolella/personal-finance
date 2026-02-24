@@ -335,6 +335,22 @@ export default function ImportPage() {
       // Duplicate detection failed — continue without it
     }
 
+    // Run transfer detection in batch
+    try {
+      const transferItems = merged.map((r) => ({ description: r.description, amount: r.amount }));
+      const transferRes = await apiFetch<{ data: boolean[] }>(
+        '/import/check-transfers',
+        { method: 'POST', body: JSON.stringify({ items: transferItems }) }
+      );
+      transferRes.data.forEach((isTransfer, i) => {
+        if (isTransfer && merged[i]) {
+          merged[i].isLikelyTransfer = true;
+        }
+      });
+    } catch {
+      // Transfer detection failed — continue without it
+    }
+
     setCategorizedRows(merged);
     // Auto-uncheck exact duplicates
     const selected = new Set(merged.map((_, i) => i));

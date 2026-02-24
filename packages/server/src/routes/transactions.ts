@@ -44,8 +44,8 @@ router.get('/', (req: Request, res: Response) => {
     if (accountId) conditions.push(eq(transactions.account_id, parseInt(accountId, 10)));
     if (categoryId) conditions.push(eq(transactions.category_id, parseInt(categoryId, 10)));
     if (groupName) conditions.push(eq(categories.group_name, groupName));
-    if (type === 'income') conditions.push(sql`${transactions.amount} < 0`);
-    if (type === 'expense') conditions.push(sql`${transactions.amount} >= 0`);
+    if (type === 'income') conditions.push(eq(categories.type, 'income'));
+    if (type === 'expense') conditions.push(eq(categories.type, 'expense'));
     if (owner) conditions.push(sql`EXISTS (SELECT 1 FROM account_owners ao JOIN users u ON ao.user_id = u.id WHERE ao.account_id = ${accounts.id} AND u.display_name = ${owner})`);
     if (search) {
       conditions.push(
