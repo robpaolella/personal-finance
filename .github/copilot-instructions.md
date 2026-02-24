@@ -33,7 +33,7 @@ packages/
 │   
 ├── server/          # Express API
 │   ├── src/
-│   │   ├── routes/         # REST endpoints (auth, users, transactions, accounts, categories, budgets, reports, networth, balances, assets, import, simplefin, dashboard)
+│   │   ├── routes/         # REST endpoints (auth, users, transactions, accounts, categories, budgets, reports, networth, balances, assets, import, simplefin, dashboard, setup, dev)
 │   │   ├── middleware/     # auth.ts (JWT), permissions.ts (requireRole, requirePermission), errorHandler.ts
 │   │   ├── services/       # simplefin.ts, venmoParser.ts, duplicateDetector.ts, transferDetector.ts, signConversion.ts
 │   │   ├── db/             # index.ts (connection), schema.ts (Drizzle), seed.ts, migrations
@@ -44,6 +44,9 @@ packages/
 
 scripts/             # Workflow scripts (db-reset, db-backup, db-restore, build, deploy, docker-seed, docker-reset)
 .github/             # Design files, prompts, and this instructions file
+  ├── mockups/       # Approved mockup components (.tsx), viewable at /mockup
+  ├── qa/            # QA checklist JSON configs, viewable at /qa
+  └── design-system.jsx (referenced by mockups/design-system.tsx)
 ```
 
 ## Git Commit Conventions
@@ -320,19 +323,20 @@ When I ask you to prototype, mock up, or visually design something before implem
 
 ### Setup (one time)
 
-A mockup viewer route exists at `/mockup` in the app. It renders whatever component is exported from `packages/client/src/pages/MockupPage.tsx`. This page is only available in development (`npm run dev`) and is excluded from production builds.
+A mockup index route exists at `/mockup` in the app. It lists all `.tsx` files in `.github/mockups/` as clickable cards. Clicking one loads it via `?mockup={name}` query parameter with dynamic lazy import. This page is only available in development (`npm run dev`) and is excluded from production builds.
 
 ### Creating a Mockup
 
-1. Write the mockup as a React component in `packages/client/src/pages/MockupPage.tsx`
-2. The component has full access to:
+1. Create a new `.tsx` file in `.github/mockups/` with a descriptive name (e.g., `import-mobile-mockup.tsx`)
+2. The component must export a default React component
+3. The component has full access to:
    - All CSS custom properties (light/dark mode theming)
    - DM Sans and DM Mono fonts
    - All existing shared components (Badge, Card, Toggle, InlineNotification, etc.)
    - `useIsMobile()` hook for testing responsive layouts
    - Tailwind CSS classes
-3. Export the component as the default export
-4. Tell me to open `http://localhost:5173/mockup` in my browser to view it
+4. Tell me to open `http://localhost:5173/mockup?mockup={name}` in my browser to view it
+5. The mockup index at `/mockup` will automatically discover the new file
 
 ### Mockup Requirements
 
@@ -346,50 +350,18 @@ A mockup viewer route exists at `/mockup` in the app. It renders whatever compon
 ### After Approval
 
 Once I approve the mockup:
-1. If it's a new design pattern, save a copy to `.github/mockups/` with a descriptive name for future reference
-2. Clear `MockupPage.tsx` back to a placeholder (or leave the last mockup — it doesn't matter since it's dev-only)
-3. Proceed with implementation, referencing the mockup you just built
-
-### Example MockupPage.tsx
-
-```tsx
-// packages/client/src/pages/MockupPage.tsx
-import { useState } from 'react';
-
-export default function MockupPage() {
-  const [dark, setDark] = useState(false);
-
-  return (
-    <div className={dark ? 'dark' : ''}>
-      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-primary)] p-8">
-        {/* Theme toggle */}
-        <button
-          onClick={() => setDark(!dark)}
-          className="fixed top-4 right-4 z-50 w-10 h-10 rounded-full bg-[var(--bg-card)] border border-[var(--bg-card-border)] flex items-center justify-center"
-        >
-          {dark ? '☀' : '☾'}
-        </button>
-
-        {/* Your mockup content here */}
-        <h1 className="text-xl font-bold mb-4">Mockup Title</h1>
-      </div>
-    </div>
-  );
-}
-```
+1. The mockup file stays in `.github/mockups/` for future reference (it's already there)
+2. Proceed with implementation, referencing the mockup
 
 ### Adding the Route
 
-Add this route to the app's router (only in development):
+The route is already registered in App.tsx (dev-only). No setup needed:
 
 ```tsx
-// In your router configuration
-{import.meta.env.DEV && (
-  <Route path="/mockup" element={<MockupPage />} />
-)}
+{import.meta.env.DEV && <Route path="/mockup" element={<MockupPage />} />}
 ```
 
-This ensures the mockup page never appears in production builds.
+MockupPage.tsx is the index/viewer — do NOT edit it to add mockups. Instead, add `.tsx` files to `.github/mockups/`.
 
 ## QA Checklists
 
@@ -472,7 +444,7 @@ The viewer component handles all of this automatically — Copilot never needs t
 - Collapsible sections with progress counts and color-coded headers
 - Sticky progress bar with pass/fail/skip/remaining counts and percentage
 - Segmented progress visualization
-- Persistence via localStorage (using the storageKey from the JSON)
+- Persistence via `dev_storage` table on the server (synced automatically, with localStorage as fallback cache)
 - Reset All button
 - **Export Results** button that copies a Markdown summary to the clipboard
 
@@ -720,6 +692,18 @@ Form Input → Storage → Display:
 **Problem:** Side-by-side doesn't fit on mobile, and the depreciable assets table columns are too cramped
 **Resolution:** On mobile: hero card → Update Balances button → accounts grouped by classification as individual cards (with expandable holdings for investment accounts) → depreciable assets as individual cards with method badges → + Add Asset button.
 **Rule going forward:** Investment accounts with holdings should show an expandable section within their card. Depreciable assets show name, date, cost, method badge (SL/DB X%), and current value — no table columns.
+
+### Dev Storage for Tool State (2026-02-24)
+**Context:** QA checklist progress was stored in localStorage, lost across browsers/devices
+**Problem:** QA testing on a phone couldn't be resumed on desktop, and clearing browser data wiped all progress
+**Resolution:** Created `dev_storage` table (key TEXT PK, value TEXT, updated_at TEXT) and `/api/dev/storage/:key` CRUD routes. QAPage loads from server on mount (falls back to localStorage), debounces saves to server (500ms). Mockup index also uses `.github/mockups/` directory with Vite glob imports for discovery.
+**Rule going forward:** Dev tool state that should persist across devices goes in `dev_storage` via the `/api/dev` routes. Use localStorage only as an immediate cache, not as the source of truth for dev tools.
+
+### Mockups Live in .github/mockups/ (2026-02-24)
+**Context:** Mockups were created by overwriting MockupPage.tsx directly
+**Problem:** Only one mockup visible at a time, no history, old mockups lost when replaced
+**Resolution:** MockupPage.tsx is now an index/viewer. Mockup components live as individual `.tsx` files in `.github/mockups/`. The viewer discovers them via `import.meta.glob` and loads them lazily via `?mockup={name}` query parameter.
+**Rule going forward:** Never edit MockupPage.tsx to add mockups. Always create new `.tsx` files in `.github/mockups/`. Each file must have a default export React component.
 
 ## Development Workflow
 
