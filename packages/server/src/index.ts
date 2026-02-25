@@ -79,7 +79,9 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/networth', networthRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/simplefin', simplefinRoutes);
-app.use('/api/dev', devRoutes);
+if (!isProd) {
+  app.use('/api/dev', devRoutes);
+}
 
 // Global error handler (must be after all routes)
 app.use(errorHandler);
