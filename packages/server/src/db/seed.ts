@@ -34,6 +34,10 @@ async function seed() {
       display_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'member',
       is_active INTEGER NOT NULL DEFAULT 1,
+      twofa_enabled INTEGER NOT NULL DEFAULT 0,
+      twofa_secret TEXT,
+      twofa_backup_codes TEXT,
+      twofa_enabled_at TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
