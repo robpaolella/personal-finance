@@ -6,3 +6,4 @@ data/
 .DS_Store
 *.tsbuildinfo
 backups/
+simplefin-test.json
