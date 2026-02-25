@@ -1626,9 +1626,8 @@ function ExpandableCard({ title, subtitle, expanded, onToggle, children }: {
   onToggle: () => void;
   children: ReactNode;
 }) {
-  const cardContent = (
-    <div className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col ${expanded ? '' : 'h-[420px]'}`}
-      style={expanded ? { height: '80vh', maxHeight: '80vh' } : undefined}>
+  const header = (
+    <>
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">{title}</h3>
         <button
@@ -1640,19 +1639,32 @@ function ExpandableCard({ title, subtitle, expanded, onToggle, children }: {
         </button>
       </div>
       <p className="text-[13px] text-[var(--text-secondary)] mb-3">{subtitle}</p>
-      {children}
-    </div>
+    </>
   );
 
-  if (!expanded) return cardContent;
-
-  return createPortal(
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onToggle}>
-      <div style={{ width: 'calc((100vw - 220px - 72px - 20px) / 2)' }} onClick={(e) => e.stopPropagation()}>
-        {cardContent}
+  return (
+    <>
+      {/* Always render inline card to preserve grid layout */}
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]"
+        style={expanded ? { opacity: 0.4, pointerEvents: 'none' } : undefined}>
+        {header}
+        {children}
       </div>
-    </div>,
-    document.body
+
+      {/* Expanded modal via portal */}
+      {expanded && createPortal(
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onToggle}>
+          <div style={{ width: 'calc((100vw - 220px - 72px - 20px) / 2)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col"
+              style={{ height: '80vh', maxHeight: '80vh' }}>
+              {header}
+              {children}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
