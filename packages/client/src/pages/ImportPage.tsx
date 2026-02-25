@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
@@ -123,6 +123,7 @@ export default function ImportPage() {
       // Set default tab if not specified in URL
       if (!searchParams.get('tab') && has) setActiveTab('sync');
     }).catch(() => setHasConnections(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCsvSort = (key: string) => {
@@ -381,7 +382,7 @@ export default function ImportPage() {
       });
       addToast(`Import complete — ${validRows.length} transactions imported`);
       navigate('/transactions');
-    } catch (err) {
+    } catch (_err) {
       addToast('Import failed', 'error');
     } finally {
       setImporting(false);

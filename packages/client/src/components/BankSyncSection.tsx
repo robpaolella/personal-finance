@@ -268,7 +268,7 @@ function AccountLinkingTable({
           )
         );
       }
-    } catch (err) {
+    } catch (_err) {
       addToast('Failed to update link', 'error');
     } finally {
       setSavingLink(null);

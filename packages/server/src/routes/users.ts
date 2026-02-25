@@ -307,7 +307,7 @@ router.put('/:id/permissions', requireRole('admin'), (req: Request, res: Respons
 
     const txn = sqlite.transaction(() => {
       for (const [perm, granted] of Object.entries(permissions)) {
-        if (ALL_PERMISSIONS.includes(perm as any)) {
+        if ((ALL_PERMISSIONS as readonly string[]).includes(perm)) {
           upsert.run(id, perm, granted ? 1 : 0);
         }
       }
@@ -545,14 +545,6 @@ router.delete('/:id/permanent', requireRole('admin'), permanentDeleteLimiter, (r
       }
 
       // 2. Co-owned accounts: remove this user
-      const coOwnedRemoved = sqlite.prepare(`
-        DELETE FROM account_owners WHERE user_id = ?
-          AND account_id IN (
-            SELECT ao.account_id FROM account_owners ao
-            JOIN accounts a ON ao.account_id = a.id AND a.is_active = 1
-            WHERE ao.user_id = ?
-          )
-      `);
       // Need to count co-owned before deleting
       const coOwnedCount = (sqlite.prepare(`
         SELECT COUNT(*) as cnt FROM account_owners WHERE user_id = ?

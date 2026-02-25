@@ -68,7 +68,6 @@ interface Category {
 // Field wrapper with validation error display
 function Field({
   label,
-  required,
   error,
   children,
 }: {
@@ -457,7 +456,7 @@ export default function TransactionsPage() {
   // Bulk edit mode
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [bulkAction, setBulkAction] = useState<string | null>(null);
+  const [_bulkAction, setBulkAction] = useState<string | null>(null);
   const [bulkDate, setBulkDate] = useState('');
   const [bulkAccountId, setBulkAccountId] = useState<number | ''>('');
   const [bulkCategoryId, setBulkCategoryId] = useState<number | ''>('');
@@ -604,7 +603,7 @@ export default function TransactionsPage() {
       addToast(msg);
       setSelectedIds(new Set());
       loadTransactions();
-    } catch (err) {
+    } catch (_err) {
       addToast('Bulk operation failed', 'error');
     }
   };

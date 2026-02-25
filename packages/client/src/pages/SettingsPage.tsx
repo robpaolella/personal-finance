@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
-import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';

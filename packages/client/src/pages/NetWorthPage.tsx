@@ -216,8 +216,8 @@ export default function NetWorthPage() {
       setSyncBalances(res.data);
       setSyncBalanceSelected(new Set(res.data.map(b => b.accountId)));
       setSyncHoldingsSelected(new Set(res.data.filter(b => (b.holdings || []).length > 0).map(b => b.accountId)));
-    } catch (err: any) {
-      setSyncBalanceError(err.message || 'Failed to fetch balances from SimpleFIN');
+    } catch (err: unknown) {
+      setSyncBalanceError(err instanceof Error ? err.message : 'Failed to fetch balances from SimpleFIN');
     } finally {
       setSyncBalanceLoading(false);
     }

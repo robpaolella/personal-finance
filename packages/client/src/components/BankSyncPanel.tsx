@@ -218,7 +218,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
       setSelectedTxnRows(selected);
 
       setStep(1);
-    } catch (err) {
+    } catch (_err) {
       addToast('Failed to fetch from SimpleFIN. Check your connection in Settings.', 'error');
     } finally {
       setFetching(false);

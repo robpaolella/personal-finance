@@ -12,7 +12,7 @@ import type { AccountClassification } from '@ledger/shared/src/types.js';
  *
  * All types require a sign flip to match Ledger's convention.
  */
-export function convertToLedgerSign(simplefinAmount: number, classification: AccountClassification): number {
+export function convertToLedgerSign(simplefinAmount: number, _classification: AccountClassification): number {
   // All classifications: flip the sign
   // Liquid:      SF positive (deposit/in) → Ledger negative (money in) ✓
   // Liquid:      SF negative (withdrawal/out) → Ledger positive (money out) ✓
