@@ -122,3 +122,53 @@ sqlite.exec(`
 
 export const db = drizzle(sqlite, { schema });
 export { sqlite };
+
+// Auto-seed categories on first run (empty database)
+const catCount = sqlite.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number };
+if (catCount.count === 0) {
+  console.log('Fresh database detected — seeding default categories...');
+
+  let sortOrder = 0;
+
+  const incomeCategories = ['Take Home Pay', 'Interest Income', 'Other Income'];
+  for (const name of incomeCategories) {
+    db.insert(schema.categories).values({
+      group_name: 'Income',
+      sub_name: name,
+      display_name: `Income: ${name}`,
+      type: 'income',
+      is_deductible: 0,
+      sort_order: sortOrder++,
+    }).run();
+  }
+
+  const expenseGroups: Array<{ group: string; subs: string[]; deductible?: boolean }> = [
+    { group: 'Auto/Transportation', subs: ['Fuel', 'Service', 'Transportation', 'Other Auto/Transportation'] },
+    { group: 'Clothing', subs: ['Clothes/Shoes', 'Laundry/Dry Cleaning', 'Other Clothing'] },
+    { group: 'Daily Living', subs: ['Dining/Eating Out', 'Groceries', 'Personal Supplies', 'Pets', 'Other Daily Living'] },
+    { group: 'Education', subs: ['Tuition', 'Other Education'] },
+    { group: 'Entertainment', subs: ['Books/Magazine', 'Hobby', 'Other Entertainment'] },
+    { group: 'Health', subs: ['Medicine/Drug', 'Doctor/Dentist/Optometrist', 'Hospital', 'Other Health'], deductible: true },
+    { group: 'Household', subs: ['Rent', 'Furnishings', 'Appliances', 'Improvements', 'Maintenance', 'Other Household'] },
+    { group: 'Insurance', subs: ['Auto', 'Health', 'Other'] },
+    { group: 'Loan', subs: ['Auto', 'Personal Note', 'Other'] },
+    { group: 'Tax Not Withheld', subs: ['Fed', 'Other'] },
+    { group: 'Utilities', subs: ['Internet', 'Phone', 'Power', 'Water', 'Other'] },
+  ];
+
+  for (const { group, subs, deductible } of expenseGroups) {
+    for (const sub of subs) {
+      db.insert(schema.categories).values({
+        group_name: group,
+        sub_name: sub,
+        display_name: `${group}: ${sub}`,
+        type: 'expense',
+        is_deductible: deductible ? 1 : 0,
+        sort_order: sortOrder++,
+      }).run();
+    }
+  }
+
+  const seeded = sqlite.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number };
+  console.log(`  Seeded ${seeded.count} categories.`);
+}
