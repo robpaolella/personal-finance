@@ -1759,6 +1759,10 @@ export default function SettingsPage() {
     }
     groupMap.get(key)!.subs.push(cat);
   }
+  // Sort sub-categories within each group by sort_order
+  for (const g of grouped) {
+    g.subs.sort((a, b) => a.sort_order - b.sort_order);
+  }
 
   const expenseGroups = grouped.filter((g) => g.type === 'expense').sort((a, b) => a.group.localeCompare(b.group));
   const incomeGroups = grouped.filter((g) => g.type === 'income').sort((a, b) => a.group.localeCompare(b.group));
