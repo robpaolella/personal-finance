@@ -83,7 +83,7 @@ function AppShell() {
   }, [handlePermissionDenied]);
 
   return (
-    <div className="flex h-screen bg-[var(--bg-main)] font-sans">
+    <div className="flex h-screen h-[100dvh] bg-[var(--bg-main)] font-sans">
       {/* Sidebar */}
       <div className="w-[220px] bg-[var(--bg-sidebar)] flex flex-col shrink-0 desktop-only">
         {/* Logo */}
