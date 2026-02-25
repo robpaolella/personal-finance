@@ -1714,8 +1714,8 @@ export default function SettingsPage() {
     groupMap.get(key)!.subs.push(cat);
   }
 
-  const expenseGroups = grouped.filter((g) => g.type === 'expense');
-  const incomeGroups = grouped.filter((g) => g.type === 'income');
+  const expenseGroups = grouped.filter((g) => g.type === 'expense').sort((a, b) => a.group.localeCompare(b.group));
+  const incomeGroups = grouped.filter((g) => g.type === 'income').sort((a, b) => a.group.localeCompare(b.group));
   const allGroups = [...incomeGroups, ...expenseGroups];
   const existingGroupNames = [...new Set(categories.filter((c) => c.type === 'expense').map((c) => c.group_name))];
   existingGroupNames.push('Income');
@@ -1852,11 +1852,22 @@ export default function SettingsPage() {
           <>
             <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Categories</h2>
             <div className="flex flex-col gap-3 pb-16">
-              {allGroups.map((g) => {
+              {allGroups.map((g, idx) => {
                 const allGroupNames = allGroups.map((x) => x.group);
                 const color = getCategoryColor(g.group, allGroupNames);
+                const isFirstOfType = idx === 0 || allGroups[idx - 1].type !== g.type;
                 return (
-                  <div key={`${g.type}:${g.group}`} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
+                  <div key={`${g.type}:${g.group}`}>
+                    {isFirstOfType && (
+                      <div className={`flex items-center gap-2 ${idx > 0 ? 'mt-2' : ''} mb-2`}>
+                        <div className="h-[2px] flex-1" style={{ background: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }} />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.06em] whitespace-nowrap" style={{ color: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }}>
+                          {g.type === 'income' ? 'Income Categories' : 'Expense Categories'}
+                        </span>
+                        <div className="h-[2px] flex-1" style={{ background: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }} />
+                      </div>
+                    )}
+                    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-sm" style={{ background: color }} />{g.group}
@@ -1869,6 +1880,7 @@ export default function SettingsPage() {
                         {s.sub_name}
                       </div>
                     ))}
+                    </div>
                   </div>
                 );
               })}
@@ -2021,11 +2033,22 @@ export default function SettingsPage() {
             >
               <div className="flex-1 min-h-0">
                 <ScrollableList maxHeight="100%">
-                  {allGroups.map((g) => {
+                  {allGroups.map((g, idx) => {
                   const allGroupNames = allGroups.map((x) => x.group);
                   const color = getCategoryColor(g.group, allGroupNames);
+                  const isFirstOfType = idx === 0 || allGroups[idx - 1].type !== g.type;
                   return (
-                    <div key={`${g.type}:${g.group}`} className="mb-2">
+                    <div key={`${g.type}:${g.group}`}>
+                      {isFirstOfType && (
+                        <div className={`flex items-center gap-2 ${idx > 0 ? 'mt-3' : ''} mb-2`}>
+                          <div className="h-[2px] flex-1" style={{ background: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }} />
+                          <span className="text-[10px] font-bold uppercase tracking-[0.06em] whitespace-nowrap" style={{ color: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }}>
+                            {g.type === 'income' ? 'Income Categories' : 'Expense Categories'}
+                          </span>
+                          <div className="h-[2px] flex-1" style={{ background: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }} />
+                        </div>
+                      )}
+                      <div className="mb-2">
                       <div className="flex justify-between items-center py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
                         <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-sm" style={{ background: color }} />{g.group}
@@ -2038,6 +2061,7 @@ export default function SettingsPage() {
                           <span>{s.sub_name}</span>
                         </div>
                       ))}
+                      </div>
                     </div>
                   );
                 })}
