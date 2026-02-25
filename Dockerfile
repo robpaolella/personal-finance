@@ -3,7 +3,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY packages/client/package.json ./packages/client/
 COPY packages/server/package.json ./packages/server/
 COPY packages/shared/package.json ./packages/shared/
@@ -27,7 +27,7 @@ LABEL org.opencontainers.image.license="MIT"
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY packages/server/package.json ./packages/server/
 COPY packages/shared/package.json ./packages/shared/
 
@@ -37,7 +37,7 @@ COPY --from=builder /app/packages/client/dist ./packages/client/dist
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
-RUN mkdir -p /app/packages/server/data
+RUN mkdir -p /app/data
 
 EXPOSE 3001
 

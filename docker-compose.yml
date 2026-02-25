@@ -6,7 +6,7 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - ./data:/app/packages/server/data
+      - ./data:/app/data
     environment:
       - NODE_ENV=production
       # Optional: set a stable JWT secret. If omitted, one is auto-generated
