@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import type { AuthPayload } from '@ledger/shared/src/types.js';
+import { getJwtSecret } from '../utils/jwt.js';
 
 declare global {
   namespace Express {
@@ -27,8 +28,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
 
   const token = authHeader.slice(7);
   try {
-    const secret = process.env.JWT_SECRET || 'fallback-secret';
-    const payload = jwt.verify(token, secret) as AuthPayload;
+    const payload = jwt.verify(token, getJwtSecret()) as AuthPayload;
 
     // Reject temp 2FA tokens from being used as full auth tokens
     if (payload.purpose === '2fa') {

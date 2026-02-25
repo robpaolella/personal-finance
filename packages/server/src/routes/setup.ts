@@ -6,6 +6,7 @@ import { db } from '../db/index.js';
 import { users, appConfig } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
+import { getJwtSecret } from '../utils/jwt.js';
 
 const router = Router();
 
@@ -77,7 +78,7 @@ router.post('/create-admin', setupLimiter, async (req: Request, res: Response): 
   // Mark setup as complete
   db.insert(appConfig).values({ key: 'setup_complete', value: 'true' }).run();
 
-  const secret = process.env.JWT_SECRET || 'fallback-secret';
+  const secret = getJwtSecret();
   const token = jwt.sign(
     { userId, username, displayName: displayName.trim(), role: 'owner' as const },
     secret,

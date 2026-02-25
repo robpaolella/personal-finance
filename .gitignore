@@ -6,4 +6,5 @@ data/
 .DS_Store
 *.tsbuildinfo
 backups/
+.jwt-secret
 simplefin-test.json

@@ -8,6 +8,7 @@ import { users, userPermissions, appConfig } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
 import { ALL_PERMISSIONS } from '../middleware/permissions.js';
+import { getJwtSecret } from '../utils/jwt.js';
 import type { AuthPayload } from '@ledger/shared/src/types.js';
 
 const router = Router();
@@ -47,7 +48,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response): Promise
     return;
   }
 
-  const secret = process.env.JWT_SECRET || 'fallback-secret';
+  const secret = getJwtSecret();
 
   // If 2FA is enabled, return a temp token instead of full JWT
   if (user.twofa_enabled) {
@@ -252,7 +253,7 @@ router.post('/2fa/verify', async (req: Request, res: Response): Promise<void> =>
     }
 
     // Verify the temp token
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
+    const jwtSecret = getJwtSecret();
     let payload: AuthPayload;
     try {
       payload = jwt.verify(tempToken, jwtSecret) as AuthPayload;
