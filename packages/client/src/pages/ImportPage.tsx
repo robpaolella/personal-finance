@@ -335,6 +335,22 @@ export default function ImportPage() {
       // Duplicate detection failed — continue without it
     }
 
+    // Run transfer detection in batch
+    try {
+      const transferItems = merged.map((r) => ({ description: r.description, amount: r.amount }));
+      const transferRes = await apiFetch<{ data: boolean[] }>(
+        '/import/check-transfers',
+        { method: 'POST', body: JSON.stringify({ items: transferItems }) }
+      );
+      transferRes.data.forEach((isTransfer, i) => {
+        if (isTransfer && merged[i]) {
+          merged[i].isLikelyTransfer = true;
+        }
+      });
+    } catch {
+      // Transfer detection failed — continue without it
+    }
+
     setCategorizedRows(merged);
     // Auto-uncheck exact duplicates
     const selected = new Set(merged.map((_, i) => i));
@@ -567,22 +583,25 @@ export default function ImportPage() {
       {/* Step 2: Map Columns */}
       {step === 1 && parseResult && (
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
-          <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
-            <div>
-              <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
-              <p className="text-[12px] text-[var(--text-secondary)] mt-1 m-0">
-                Account: {accounts.find((a) => a.id === selectedAccountId)?.name} · {parseResult.totalRows} transactions · Format: {parseResult.detectedFormat}
-              </p>
-            </div>
+          <div className={`flex justify-between items-center mb-2 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
+            <button
+              onClick={() => setStep(0)}
+              className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline"
+            >
+              ← Back
+            </button>
             <button
               onClick={handleAutoCategorize}
               className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-primary"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
-              </svg>
-              Auto-Categorize
+              Next →
             </button>
+          </div>
+          <div className="mb-4">
+            <p className="font-semibold text-[var(--text-primary)] m-0">{file?.name}</p>
+            <p className="text-[12px] text-[var(--text-secondary)] mt-1 m-0">
+              Account: {accounts.find((a) => a.id === selectedAccountId)?.name} · {parseResult.totalRows} transactions · Format: {parseResult.detectedFormat}
+            </p>
           </div>
 
           {/* Column mapping */}
@@ -700,11 +719,17 @@ export default function ImportPage() {
         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
           <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-3 items-stretch' : ''}`}>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setStep(1)}
+                className="text-[12px] text-[var(--badge-category-text)] bg-transparent border-none cursor-pointer btn-ghost hover:underline"
+              >
+                ← Back
+              </button>
               <span className="flex items-center gap-1 px-2.5 py-1 bg-[var(--badge-category-bg)] rounded-lg text-[11px] text-[var(--badge-category-text)] font-semibold">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
                 </svg>
-                AI-categorized
+                Auto-categorized
               </span>
               {!isMobile && <span className="text-[12px] text-[var(--text-secondary)]">Click any category to change it</span>}
             </div>

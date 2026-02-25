@@ -33,7 +33,7 @@ packages/
 │   
 ├── server/          # Express API
 │   ├── src/
-│   │   ├── routes/         # REST endpoints (auth, users, transactions, accounts, categories, budgets, reports, networth, balances, assets, import, simplefin, dashboard)
+│   │   ├── routes/         # REST endpoints (auth, users, transactions, accounts, categories, budgets, reports, networth, balances, assets, import, simplefin, dashboard, setup, dev)
 │   │   ├── middleware/     # auth.ts (JWT), permissions.ts (requireRole, requirePermission), errorHandler.ts
 │   │   ├── services/       # simplefin.ts, venmoParser.ts, duplicateDetector.ts, transferDetector.ts, signConversion.ts
 │   │   ├── db/             # index.ts (connection), schema.ts (Drizzle), seed.ts, migrations
@@ -44,6 +44,9 @@ packages/
 
 scripts/             # Workflow scripts (db-reset, db-backup, db-restore, build, deploy, docker-seed, docker-reset)
 .github/             # Design files, prompts, and this instructions file
+  ├── mockups/       # Approved mockup components (.tsx), viewable at /mockup
+  ├── qa/            # QA checklist JSON configs, viewable at /qa
+  └── design-system.jsx (referenced by mockups/design-system.tsx)
 ```
 
 ## Git Commit Conventions
@@ -93,11 +96,21 @@ Examples:
 ### Branch Strategy
 
 - The `main` branch is **protected**. Never commit directly to `main`.
-- For every task, create a branch from `main` and do all work there, committing incrementally.
-- When finished, notify the developer that the branch is ready so they can open a PR on GitHub.
+- **At the start of every task**, check the current branch with `git branch --show-current`.
+  - If there's an in-progress feature branch with uncommitted or unpushed work, **ask the developer** whether to continue on it or start fresh.
+  - If starting a new task, pull the latest main (`git checkout main && git pull`) and create a new feature branch.
+- **Mid-session branch switching:** If the current task is complete (or reaches a logical stopping point) and the next piece of work is unrelated, do the following automatically:
+  1. Commit all remaining changes on the current branch.
+  2. Push the current branch (`git push -u origin <branch-name>`).
+  3. Notify the developer that the branch is ready for a PR.
+  4. Switch to main and pull latest (`git checkout main && git pull`).
+  5. Create a new branch for the next task.
+  - If the new work **depends on** uncommitted/unmerged changes from the previous branch, warn the developer and ask how to proceed rather than switching silently.
+- Never reuse a branch that has already been merged.
 - Branch prefixes: `feature/`, `fix/`, `chore/`, or `refactor/` as appropriate.
   - Examples: `feature/bank-sync`, `fix/expired-jwt-redirect`, `chore/ci-pipeline`, `refactor/category-service`
-- If experimenting with something risky, create a branch first.
+- Commit incrementally as you work — don't wait until the end.
+- When finished with a branch, notify the developer that it's ready for a PR.
 
 ## Code Style & Conventions
 
@@ -323,19 +336,20 @@ When I ask you to prototype, mock up, or visually design something before implem
 
 ### Setup (one time)
 
-A mockup viewer route exists at `/mockup` in the app. It renders whatever component is exported from `packages/client/src/pages/MockupPage.tsx`. This page is only available in development (`npm run dev`) and is excluded from production builds.
+A mockup index route exists at `/mockup` in the app. It lists all `.tsx` files in `.github/mockups/` as clickable cards. Clicking one loads it via `?mockup={name}` query parameter with dynamic lazy import. This page is only available in development (`npm run dev`) and is excluded from production builds.
 
 ### Creating a Mockup
 
-1. Write the mockup as a React component in `packages/client/src/pages/MockupPage.tsx`
-2. The component has full access to:
+1. Create a new `.tsx` file in `.github/mockups/` with a descriptive name (e.g., `import-mobile-mockup.tsx`)
+2. The component must export a default React component
+3. The component has full access to:
    - All CSS custom properties (light/dark mode theming)
    - DM Sans and DM Mono fonts
    - All existing shared components (Badge, Card, Toggle, InlineNotification, etc.)
    - `useIsMobile()` hook for testing responsive layouts
    - Tailwind CSS classes
-3. Export the component as the default export
-4. Tell me to open `http://localhost:5173/mockup` in my browser to view it
+4. Tell me to open `http://localhost:5173/mockup?mockup={name}` in my browser to view it
+5. The mockup index at `/mockup` will automatically discover the new file
 
 ### Mockup Requirements
 
@@ -349,50 +363,18 @@ A mockup viewer route exists at `/mockup` in the app. It renders whatever compon
 ### After Approval
 
 Once I approve the mockup:
-1. If it's a new design pattern, save a copy to `.github/mockups/` with a descriptive name for future reference
-2. Clear `MockupPage.tsx` back to a placeholder (or leave the last mockup — it doesn't matter since it's dev-only)
-3. Proceed with implementation, referencing the mockup you just built
-
-### Example MockupPage.tsx
-
-```tsx
-// packages/client/src/pages/MockupPage.tsx
-import { useState } from 'react';
-
-export default function MockupPage() {
-  const [dark, setDark] = useState(false);
-
-  return (
-    <div className={dark ? 'dark' : ''}>
-      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-primary)] p-8">
-        {/* Theme toggle */}
-        <button
-          onClick={() => setDark(!dark)}
-          className="fixed top-4 right-4 z-50 w-10 h-10 rounded-full bg-[var(--bg-card)] border border-[var(--bg-card-border)] flex items-center justify-center"
-        >
-          {dark ? '☀' : '☾'}
-        </button>
-
-        {/* Your mockup content here */}
-        <h1 className="text-xl font-bold mb-4">Mockup Title</h1>
-      </div>
-    </div>
-  );
-}
-```
+1. The mockup file stays in `.github/mockups/` for future reference (it's already there)
+2. Proceed with implementation, referencing the mockup
 
 ### Adding the Route
 
-Add this route to the app's router (only in development):
+The route is already registered in App.tsx (dev-only). No setup needed:
 
 ```tsx
-// In your router configuration
-{import.meta.env.DEV && (
-  <Route path="/mockup" element={<MockupPage />} />
-)}
+{import.meta.env.DEV && <Route path="/mockup" element={<MockupPage />} />}
 ```
 
-This ensures the mockup page never appears in production builds.
+MockupPage.tsx is the index/viewer — do NOT edit it to add mockups. Instead, add `.tsx` files to `.github/mockups/`.
 
 ## QA Checklists
 
@@ -475,7 +457,7 @@ The viewer component handles all of this automatically — Copilot never needs t
 - Collapsible sections with progress counts and color-coded headers
 - Sticky progress bar with pass/fail/skip/remaining counts and percentage
 - Segmented progress visualization
-- Persistence via localStorage (using the storageKey from the JSON)
+- Persistence via `dev_storage` table on the server (synced automatically, with localStorage as fallback cache)
 - Reset All button
 - **Export Results** button that copies a Markdown summary to the clipboard
 
@@ -723,6 +705,60 @@ Form Input → Storage → Display:
 **Problem:** Side-by-side doesn't fit on mobile, and the depreciable assets table columns are too cramped
 **Resolution:** On mobile: hero card → Update Balances button → accounts grouped by classification as individual cards (with expandable holdings for investment accounts) → depreciable assets as individual cards with method badges → + Add Asset button.
 **Rule going forward:** Investment accounts with holdings should show an expandable section within their card. Depreciable assets show name, date, cost, method badge (SL/DB X%), and current value — no table columns.
+
+### Transaction Type Filter Must Use Category Type (2026-02-24)
+**Context:** Filtering transactions by "Income" or "Expense" on the Transactions page
+**Problem:** Filter checked `amount < 0` for income and `amount >= 0` for expense. This incorrectly classified refunds (negative expenses like -$29.99) as income, inflating the income transaction count.
+**Resolution:** Changed filter to use `eq(categories.type, 'income')` and `eq(categories.type, 'expense')` instead of amount sign checks.
+**Rule going forward:** Never use amount sign to determine transaction type. Always use the `categories.type` field. A negative expense is still an expense (it's a refund), not income.
+
+### Budget Display Must Handle Negative Actuals (2026-02-24)
+**Context:** Budget page showing actual spending per category
+**Problem:** Display logic used `sub.actual > 0` checks, which hid negative actuals (refunds). An Amazon refund of -$29.99 in "Other Daily Living" showed "—" instead of the amount.
+**Resolution:** Changed all `sub.actual > 0` and `gActual > 0` display checks to `!== 0` across both mobile and desktop views (6 locations in BudgetPage.tsx).
+**Rule going forward:** When displaying monetary values, use `!== 0` checks, never `> 0`, unless you explicitly intend to hide negative values. Refunds produce negative category totals that must be visible.
+
+### Dashboard Net Worth Must Match Net Worth Page (2026-02-24)
+**Context:** Dashboard KPI showed net worth ~$7K higher than the Net Worth page
+**Problem:** Two bugs: (1) Dashboard summed ALL balances including credit card liabilities (adding them instead of subtracting). (2) Dashboard used inline straight-line depreciation, ignoring the declining balance method for assets like vehicles.
+**Resolution:** Separated liabilities in the balance loop and subtracted them. Replaced inline depreciation math with `calculateCurrentValue()` from `utils/depreciation.ts` which handles both depreciation methods.
+**Rule going forward:** Dashboard and Net Worth page must use the same calculation logic. Always use the shared `calculateCurrentValue()` utility — never inline depreciation math. Always separate liability balances and subtract them from net worth.
+
+### PR Descriptions Must Be Raw Markdown in Console (2026-02-24)
+**Context:** Asked to create a PR description
+**Problem:** First attempt rendered as formatted text (not copyable markdown). Second attempt saved to a file instead of printing to console.
+**Resolution:** Print PR descriptions as raw markdown directly in the console output so the developer can copy-paste into GitHub.
+**Rule going forward:** Always output PR descriptions as a raw markdown code block in the console. Never render as formatted text and never save to a file unless explicitly asked.
+
+### CSV Import Must Include Transfer Detection (2026-02-24)
+**Context:** Credit card payment "PAYMENT THANK YOU" not flagged during CSV import
+**Problem:** Transfer detection (`detectTransfers()`) was only wired for SimpleFIN sync. CSV import hardcoded `isLikelyTransfer: false` with no server call.
+**Resolution:** Added `/api/import/check-transfers` endpoint in import.ts. Wired ImportPage to call it after categorization, setting `isLikelyTransfer` on matching rows.
+**Rule going forward:** Any detection logic available for SimpleFIN sync must also be available for CSV import. The two import paths should have feature parity for duplicate detection, transfer detection, and categorization.
+
+### Mockup Viewer Loads from .github/mockups/ Only (2026-02-24)
+**Context:** Added 2FA sections to `.github/design-system.jsx` but they didn't appear on `/mockup?mockup=design-system`
+**Problem:** The mockup viewer (`MockupPage.tsx`) uses `import.meta.glob('../../../../.github/mockups/*.tsx')` — it only loads `.tsx` files from `.github/mockups/`. The `.github/design-system.jsx` at the repo root is the authoritative design reference but is NOT what the mockup viewer renders.
+**Resolution:** Updated `.github/mockups/design-system.tsx` (the renderable copy) with the same changes.
+**Rule going forward:** When updating the design system, always update BOTH files: `.github/design-system.jsx` (authoritative reference) and `.github/mockups/design-system.tsx` (renderable mockup). The mockup viewer only sees files in `.github/mockups/`.
+
+### Design System Mockup Must Use Full Theme Token Names (2026-02-24)
+**Context:** TOTP code input boxes appeared invisible in the design system mockup
+**Problem:** Used shorthand token names (`t.ib`, `t.input`, `t.tp`, `t.tm`) that don't exist in the theme object. The actual tokens are `t.bgInputBorder`, `t.bgInput`, `t.textPrimary`, `t.textMuted`. No error is thrown — the styles just silently resolve to `undefined` and the elements render without borders or backgrounds.
+**Resolution:** Replaced all shorthand tokens with the correct full names from the theme object defined at the top of the file.
+**Rule going forward:** When adding sections to the design system mockup, always reference the theme object at the top of the file for exact token names. Never abbreviate — there are no shorthand aliases. Test that new elements are visually visible before committing.
+
+### Dev Storage for Tool State (2026-02-24)
+**Context:** QA checklist progress was stored in localStorage, lost across browsers/devices
+**Problem:** QA testing on a phone couldn't be resumed on desktop, and clearing browser data wiped all progress
+**Resolution:** Created `dev_storage` table (key TEXT PK, value TEXT, updated_at TEXT) and `/api/dev/storage/:key` CRUD routes. QAPage loads from server on mount (falls back to localStorage), debounces saves to server (500ms). Mockup index also uses `.github/mockups/` directory with Vite glob imports for discovery.
+**Rule going forward:** Dev tool state that should persist across devices goes in `dev_storage` via the `/api/dev` routes. Use localStorage only as an immediate cache, not as the source of truth for dev tools.
+
+### Mockups Live in .github/mockups/ (2026-02-24)
+**Context:** Mockups were created by overwriting MockupPage.tsx directly
+**Problem:** Only one mockup visible at a time, no history, old mockups lost when replaced
+**Resolution:** MockupPage.tsx is now an index/viewer. Mockup components live as individual `.tsx` files in `.github/mockups/`. The viewer discovers them via `import.meta.glob` and loads them lazily via `?mockup={name}` query parameter.
+**Rule going forward:** Never edit MockupPage.tsx to add mockups. Always create new `.tsx` files in `.github/mockups/`. Each file must have a default export React component.
 
 ## Development Workflow
 

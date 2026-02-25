@@ -7,13 +7,22 @@ interface User {
   displayName: string;
   role: 'owner' | 'admin' | 'member';
   permissions: Record<string, boolean>;
+  twofaEnabled?: boolean;
+  twofaSetupRequired?: boolean;
+}
+
+interface LoginResult {
+  requiresTwoFA?: boolean;
+  tempToken?: string;
+  twofaSetupRequired?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<LoginResult>;
+  verify2FA: (tempToken: string, code: string, isBackupCode?: boolean) => Promise<void>;
   logout: () => void;
   isAdmin: () => boolean;
   isOwner: () => boolean;
@@ -50,17 +59,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, [token, fetchMe]);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await apiFetch<{ data: { token: string; user: User } }>('/auth/login', {
+  const login = useCallback(async (username: string, password: string): Promise<LoginResult> => {
+    const res = await apiFetch<{ data: { status?: string; tempToken?: string; token?: string; user?: { twofaEnabled?: boolean }; twofaSetupRequired?: boolean } }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
+      skipAuth: true,
+    });
+
+    // 2FA required — return temp token for verification step
+    if (res.data.status === '2fa_required' && res.data.tempToken) {
+      return { requiresTwoFA: true, tempToken: res.data.tempToken };
+    }
+
+    // Normal login (no 2FA)
+    localStorage.setItem('token', res.data.token!);
+    localStorage.setItem('user', JSON.stringify(res.data.user));
+    setToken(res.data.token!);
+    const meRes = await apiFetch<{ data: User }>('/auth/me');
+    setUser(meRes.data);
+    return { twofaSetupRequired: res.data.twofaSetupRequired || meRes.data.twofaSetupRequired };
+  }, []);
+
+  const verify2FA = useCallback(async (tempToken: string, code: string, isBackupCode = false) => {
+    const body = isBackupCode
+      ? { tempToken, backupCode: code }
+      : { tempToken, token: code };
+
+    const res = await apiFetch<{ data: { token: string; user: Record<string, unknown>; twofaSetupRequired?: boolean } }>('/auth/2fa/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
       skipAuth: true,
     });
 
     localStorage.setItem('token', res.data.token);
     localStorage.setItem('user', JSON.stringify(res.data.user));
     setToken(res.data.token);
-    // Fetch full user with permissions from /me
     const meRes = await apiFetch<{ data: User }>('/auth/me');
     setUser(meRes.data);
   }, []);
@@ -87,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token, fetchMe]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin, isOwner, hasPermission, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, verify2FA, logout, isAdmin, isOwner, hasPermission, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
