@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
-import { accounts, accountOwners, users, transactions, simplefinLinks } from '../db/schema.js';
+import { accounts, transactions, simplefinLinks } from '../db/schema.js';
 import { eq, asc, sql } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 

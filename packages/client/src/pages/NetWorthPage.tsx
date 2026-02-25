@@ -216,8 +216,8 @@ export default function NetWorthPage() {
       setSyncBalances(res.data);
       setSyncBalanceSelected(new Set(res.data.map(b => b.accountId)));
       setSyncHoldingsSelected(new Set(res.data.filter(b => (b.holdings || []).length > 0).map(b => b.accountId)));
-    } catch (err: any) {
-      setSyncBalanceError(err.message || 'Failed to fetch balances from SimpleFIN');
+    } catch (err: unknown) {
+      setSyncBalanceError(err instanceof Error ? err.message : 'Failed to fetch balances from SimpleFIN');
     } finally {
       setSyncBalanceLoading(false);
     }
@@ -859,7 +859,7 @@ export default function NetWorthPage() {
                     onClick={() => { setBalanceTab(tab); if (tab === 'sync' && syncBalances.length === 0) fetchSyncBalances(); }}
                     className={`flex-1 text-[12px] font-semibold py-1.5 rounded-md border-none cursor-pointer transition-colors ${
                       balanceTab === tab
-                        ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
+                        ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs'
                         : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >

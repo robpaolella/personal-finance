@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
-import { fmt } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
@@ -1733,7 +1732,7 @@ export default function SettingsPage() {
             <button key={tab.id} onClick={() => switchTab(tab.id)}
               className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${isMobile ? 'flex-1' : ''} ${
                 activeTab === tab.id
-                  ? 'bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-sm'
+                  ? 'bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-xs'
                   : 'bg-transparent text-[var(--text-secondary)] font-normal'
               }`}>
               {tab.label}

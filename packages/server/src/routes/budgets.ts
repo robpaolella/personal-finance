@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { budgets, categories, transactions, accounts } from '../db/schema.js';
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();

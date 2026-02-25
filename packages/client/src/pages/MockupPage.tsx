@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 // Discover all .tsx mockup files in .github/mockups/
@@ -16,7 +15,7 @@ function parseMockupEntries(): { name: string; displayName: string; path: string
         .replace(/\b\w/g, (c) => c.toUpperCase());
       return { name, displayName, path };
     })
-    .filter(Boolean)
+    .filter((entry): entry is { name: string; displayName: string; path: string } => entry !== null)
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
@@ -99,8 +98,9 @@ function MockupViewer({ name, entries }: { name: string; entries: { name: string
       return;
     }
     loader()
-      .then((mod: any) => {
-        const comp = mod.default || mod;
+      .then((mod: unknown) => {
+        const m = mod as Record<string, unknown>;
+        const comp = (m.default || m) as React.ComponentType;
         if (typeof comp === 'function') {
           setComponent(() => comp);
         } else {

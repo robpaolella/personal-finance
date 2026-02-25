@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3';
-import path from 'path';
 
 /**
  * Migration: Create account_owners junction table and populate it

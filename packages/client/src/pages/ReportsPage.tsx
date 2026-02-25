@@ -80,6 +80,7 @@ export default function ReportsPage() {
         setYear(res.data[0]);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadData = useCallback(async () => {

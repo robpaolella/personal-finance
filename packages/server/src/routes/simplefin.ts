@@ -6,12 +6,10 @@ import {
   simplefinHoldings,
   transactions,
   accounts,
-  balanceSnapshots,
   categories,
 } from '../db/schema.js';
-import { eq, and, or, inArray, isNull, sql } from 'drizzle-orm';
+import { eq, or, isNull } from 'drizzle-orm';
 import { claimAccessUrl, fetchAccounts } from '../services/simplefin.js';
-import type { SimpleFINAccount, SimpleFINTransaction } from '../services/simplefin.js';
 import { convertToLedgerSign } from '../services/signConversion.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
 import { detectTransfers } from '../services/transferDetector.js';
@@ -45,8 +43,8 @@ router.post('/connections', requirePermission('simplefin.manage'), async (req: R
     if (setupToken) {
       try {
         accessUrl = await claimAccessUrl(setupToken);
-      } catch (err: any) {
-        res.status(400).json({ error: err.message || 'Failed to claim setup token' });
+      } catch (err: unknown) {
+        res.status(400).json({ error: (err instanceof Error ? err.message : 'Failed to claim setup token') });
         return;
       }
     }
@@ -147,12 +145,13 @@ router.put('/connections/:id', requirePermission('simplefin.manage'), async (req
     if (setupToken) {
       try {
         updates.access_url = await claimAccessUrl(setupToken);
-      } catch (err: any) {
-        res.status(400).json({ error: err.message || 'Failed to claim setup token' });
+      } catch (err: unknown) {
+        res.status(400).json({ error: (err instanceof Error ? err.message : 'Failed to claim setup token') });
         return;
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     db.update(simplefinConnections).set(updates as any).where(eq(simplefinConnections.id, id)).run();
 
     res.json({ data: { id, label: (updates.label as string) || conn.label } });
@@ -255,9 +254,9 @@ router.get('/connections/:id/accounts', async (req: Request, res: Response) => {
     });
 
     res.json({ data });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('GET /simplefin/connections/:id/accounts error:', err);
-    res.status(500).json({ error: err.message || 'Failed to fetch SimpleFIN accounts' });
+    res.status(500).json({ error: (err instanceof Error ? err.message : 'Failed to fetch SimpleFIN accounts') });
   }
 });
 
@@ -452,8 +451,8 @@ router.post('/sync', requirePermission('import.bank_sync'), async (req: Request,
       let response;
       try {
         response = await fetchAccounts(conn.access_url, startTs, endTs);
-      } catch (err: any) {
-        console.error(`Failed to fetch from connection ${conn.id}:`, err.message);
+      } catch (err: unknown) {
+        console.error(`Failed to fetch from connection ${conn.id}:`, err instanceof Error ? err.message : err);
         continue;
       }
 
@@ -787,9 +786,9 @@ router.get('/balances', requirePermission('balances.update'), async (req: Reques
     }
 
     res.json({ data: results });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('GET /simplefin/balances error:', err);
-    res.status(500).json({ error: err.message || 'Failed to fetch balances' });
+    res.status(500).json({ error: (err instanceof Error ? err.message : 'Failed to fetch balances') });
   }
 });
 

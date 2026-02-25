@@ -1,6 +1,10 @@
 # To publish a release:
 #   git tag v1.0.0
 #   git push origin v1.0.0
+#
+# Required secrets for Docker Hub:
+#   DOCKERHUB_USERNAME - Docker Hub username
+#   DOCKERHUB_TOKEN    - Docker Hub access token
 
 name: Release
 
@@ -9,8 +13,9 @@ on:
     tags: ['v*']
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/ledger
+  GHCR_REGISTRY: ghcr.io
+  GHCR_IMAGE: ${{ github.repository_owner }}/ledger
+  DOCKERHUB_IMAGE: robpaolella/ledger
 
 jobs:
   release:
@@ -45,9 +50,15 @@ jobs:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract version from tag
         id: version
@@ -59,5 +70,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE }}:${{ steps.version.outputs.tag }}
+            ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE }}:latest
+            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.version.outputs.tag }}
+            ${{ env.DOCKERHUB_IMAGE }}:latest

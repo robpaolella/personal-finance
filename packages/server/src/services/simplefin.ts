@@ -46,7 +46,6 @@ export interface SimpleFINResponse {
 }
 
 const MAX_DAYS_PER_REQUEST = 60;
-const MS_PER_DAY = 86400000;
 
 /**
  * Claim a SimpleFIN Access URL from a setup token.

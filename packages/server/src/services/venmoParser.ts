@@ -46,8 +46,8 @@ export function parseVenmoCSV(headers: string[], rows: string[][], ownerName: st
     const to = toIdx >= 0 ? row[toIdx]?.trim() : '';
     const type = typeIdx >= 0 ? row[typeIdx]?.trim() : '';
 
-    let description = '';
-    let finalAmount = amount;
+    let description: string;
+    let finalAmount: number;
 
     // Build description: combine sender/recipient with note
     const fmtDesc = (name: string, prefix?: string): string => {

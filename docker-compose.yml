@@ -1,12 +1,15 @@
 services:
   ledger:
-    build: .
+    image: robpaolella/ledger:latest
+    # To build locally instead of pulling from Docker Hub, comment out `image` and uncomment:
+    # build: .
     ports:
       - "3001:3001"
     volumes:
-      - ./data:/app/packages/server/data
+      - ./data:/app/data
     environment:
       - NODE_ENV=production
-      - JWT_SECRET=${JWT_SECRET}
-      - DATABASE_PATH=/app/packages/server/data/ledger.db
+      # Optional: set a stable JWT secret. If omitted, one is auto-generated
+      # and persisted in the data volume on first run.
+      # - JWT_SECRET=your-secret-here
     restart: unless-stopped
