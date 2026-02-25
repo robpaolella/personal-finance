@@ -65,8 +65,9 @@ interface GroupedCategory {
 // Sortable sub-category row for desktop
 function SortableDesktopSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: boolean; onEdit: (c: Category) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
+  const restrictedTransform = transform ? { ...transform, x: 0 } : transform;
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Transform.toString(restrictedTransform),
     transition,
     ...(isDragging ? { zIndex: 10, position: 'relative' as const } : {}),
   };
@@ -93,8 +94,9 @@ function SortableDesktopSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: 
 // Sortable sub-category row for mobile
 function SortableMobileSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: boolean; onEdit: (c: Category) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
+  const restrictedTransform = transform ? { ...transform, x: 0 } : transform;
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Transform.toString(restrictedTransform),
     transition,
     ...(isDragging ? { zIndex: 10, position: 'relative' as const } : {}),
   };
