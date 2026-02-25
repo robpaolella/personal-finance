@@ -859,7 +859,7 @@ export default function NetWorthPage() {
                     onClick={() => { setBalanceTab(tab); if (tab === 'sync' && syncBalances.length === 0) fetchSyncBalances(); }}
                     className={`flex-1 text-[12px] font-semibold py-1.5 rounded-md border-none cursor-pointer transition-colors ${
                       balanceTab === tab
-                        ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
+                        ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs'
                         : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >

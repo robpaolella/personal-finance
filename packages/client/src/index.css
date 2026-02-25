@@ -1,6 +1,21 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+
+  --color-sidebar: #0f172a;
+  --color-surface: #f4f6f9;
+  --color-card: #ffffff;
+  --color-border: #e8ecf1;
+  --color-text-primary: #0f172a;
+  --color-text-body: #475569;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #94a3b8;
+  --color-positive: #10b981;
+  --color-negative: #ef4444;
+  --color-accent: #3b82f6;
+}
 
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(10px); }
