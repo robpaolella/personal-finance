@@ -581,17 +581,10 @@ function PreferencesTab() {
                 <img src={setupData.qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowSecret(!showSecret)}
-              className="text-[11px] text-[var(--color-accent)] hover:underline bg-transparent border-none cursor-pointer mb-2"
-            >
-              {showSecret ? 'Hide secret key' : "Can't scan? Enter manually"}
-            </button>
             {showSecret && (
               <Tooltip content={secretCopied ? '✓ Copied to clipboard' : 'Click to copy'}>
                 <div
-                  className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg px-4 py-2 mb-3 text-center mx-auto w-fit cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+                  className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg px-4 py-2 mb-2 text-center mx-auto w-fit cursor-pointer hover:border-[var(--color-accent)] transition-colors"
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(setupData.secret);
@@ -613,6 +606,13 @@ function PreferencesTab() {
                 </div>
               </Tooltip>
             )}
+            <button
+              type="button"
+              onClick={() => setShowSecret(!showSecret)}
+              className="text-[11px] text-[var(--color-accent)] hover:underline bg-transparent border-none cursor-pointer mb-2 w-full text-center"
+            >
+              {showSecret ? 'Hide secret key' : "Can't scan? Enter manually"}
+            </button>
             <div className="mb-3">
               <TotpCodeInput
                 value={verifyCode}
