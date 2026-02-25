@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { useToast } from '../context/ToastContext';
@@ -1599,6 +1600,62 @@ function StickyAddButton({ permission, label, onClick }: { permission: string; l
   );
 }
 
+// --- Expand/Contract Icons ---
+const ExpandIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="14" y1="10" x2="21" y2="3" />
+    <polyline points="9 21 3 21 3 15" />
+    <line x1="10" y1="14" x2="3" y2="21" />
+  </svg>
+);
+const ContractIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="4 14 10 14 10 20" />
+    <line x1="3" y1="21" x2="10" y2="14" />
+    <polyline points="20 10 14 10 14 4" />
+    <line x1="21" y1="3" x2="14" y2="10" />
+  </svg>
+);
+
+// --- Expandable Card Wrapper ---
+function ExpandableCard({ title, subtitle, expanded, onToggle, children }: {
+  title: string;
+  subtitle: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const cardContent = (
+    <div className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col ${expanded ? '' : 'h-[420px]'}`}
+      style={expanded ? { height: '80vh', maxHeight: '80vh' } : undefined}>
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">{title}</h3>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
+          className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[var(--bg-hover)]"
+          title={expanded ? 'Collapse' : 'Expand'}
+        >
+          {expanded ? <ContractIcon /> : <ExpandIcon />}
+        </button>
+      </div>
+      <p className="text-[13px] text-[var(--text-secondary)] mb-3">{subtitle}</p>
+      {children}
+    </div>
+  );
+
+  if (!expanded) return cardContent;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onToggle}>
+      <div style={{ width: 'calc((100vw - 220px - 72px - 20px) / 2)' }} onClick={(e) => e.stopPropagation()}>
+        {cardContent}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function SettingsPage() {
   const { addToast } = useToast();
   const { isAdmin, hasPermission, user, logout } = useAuth();
@@ -1611,6 +1668,8 @@ export default function SettingsPage() {
   const [userList, setUserList] = useState<{ id: number; displayName: string }[]>([]);
   const [editingAccount, setEditingAccount] = useState<Account | null | 'new'>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null | 'new'>(null);
+  const [expandedAccounts, setExpandedAccounts] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState(false);
 
   const switchTab = (tab: string) => {
     setSearchParams({ tab });
@@ -1889,9 +1948,12 @@ export default function SettingsPage() {
 
           <div className="grid grid-cols-2 gap-5">
             {/* Accounts */}
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]">
-              <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Accounts</h3>
-              <p className="text-[13px] text-[var(--text-secondary)] mb-3">Each account has an owner and classification for filtering and net worth.</p>
+            <ExpandableCard
+              title="Accounts"
+              subtitle="Each account has an owner and classification for filtering and net worth."
+              expanded={expandedAccounts}
+              onToggle={() => setExpandedAccounts(!expandedAccounts)}
+            >
               <div className="flex-1 min-h-0">
                 <ScrollableList maxHeight="100%">
                   <table className="w-full border-collapse text-[13px]">
@@ -1936,12 +1998,15 @@ export default function SettingsPage() {
                   Add Account
                 </button>
               </PermissionGate>
-            </div>
+            </ExpandableCard>
 
             {/* Categories */}
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]">
-              <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Categories</h3>
-              <p className="text-[13px] text-[var(--text-secondary)] mb-3">Parent categories group sub-categories for budgets and reports.</p>
+            <ExpandableCard
+              title="Categories"
+              subtitle="Parent categories group sub-categories for budgets and reports."
+              expanded={expandedCategories}
+              onToggle={() => setExpandedCategories(!expandedCategories)}
+            >
               <div className="flex-1 min-h-0">
                 <ScrollableList maxHeight="100%">
                   {allGroups.map((g) => {
@@ -1973,7 +2038,7 @@ export default function SettingsPage() {
                   Add Category
                 </button>
               </PermissionGate>
-            </div>
+            </ExpandableCard>
           </div>
 
           {/* Users & Permissions — Admin only */}
