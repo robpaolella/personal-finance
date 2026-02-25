@@ -1980,7 +1980,7 @@ export default function SettingsPage() {
                     <tbody>
                       {accounts.map((a) => (
                         <tr key={a.id}
-                          onClick={() => hasPermission('accounts.edit') ? setEditingAccount(a) : null}
+                          onClick={() => hasPermission('accounts.edit') ? (setExpandedAccounts(false), setEditingAccount(a)) : null}
                           className={`border-b border-[var(--table-row-border)] transition-colors ${hasPermission('accounts.edit') ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''}`}>
                           <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
                             {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
@@ -2004,7 +2004,7 @@ export default function SettingsPage() {
                 </ScrollableList>
               </div>
               <PermissionGate permission="accounts.create" fallback="disabled">
-                <button onClick={() => setEditingAccount('new')}
+                <button onClick={() => { setExpandedAccounts(false); setEditingAccount('new'); }}
                   className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 btn-secondary">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Add Account
@@ -2033,7 +2033,7 @@ export default function SettingsPage() {
                         <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
                       </div>
                       {g.subs.map((s) => (
-                        <div key={s.id} onClick={() => hasPermission('categories.edit') ? setEditingCategory(s) : null}
+                        <div key={s.id} onClick={() => hasPermission('categories.edit') ? (setExpandedCategories(false), setEditingCategory(s)) : null}
                           className={`flex justify-between py-1 pl-[18px] text-[12px] text-[var(--text-secondary)] ${hasPermission('categories.edit') ? 'cursor-pointer hover:text-[var(--btn-secondary-text)]' : ''}`}>
                           <span>{s.sub_name}</span>
                         </div>
@@ -2044,7 +2044,7 @@ export default function SettingsPage() {
                 </ScrollableList>
               </div>
               <PermissionGate permission="categories.create" fallback="disabled">
-                <button onClick={() => setEditingCategory('new')}
+                <button onClick={() => { setExpandedCategories(false); setEditingCategory('new'); }}
                   className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 btn-secondary">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Add Category
