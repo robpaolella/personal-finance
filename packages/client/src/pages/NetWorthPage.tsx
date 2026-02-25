@@ -581,8 +581,8 @@ export default function NetWorthPage() {
                           className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                       </div>
                       <div>
-                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
-                        <input type="number" inputMode="numeric" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
+                        <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
                           className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                       </div>
                     </div>
@@ -595,7 +595,13 @@ export default function NetWorthPage() {
                         <option value="declining_balance">Declining Balance</option>
                       </select>
                     </div>
-                    {assetForm.depreciationMethod === 'declining_balance' && (
+                    {assetForm.depreciationMethod === 'straight_line' ? (
+                      <div>
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
+                        <input type="number" inputMode="numeric" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                      </div>
+                    ) : (
                       <div>
                         <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Annual Rate %</label>
                         <input type="number" inputMode="decimal" min="1" max="99" placeholder="e.g., 30" value={assetForm.decliningRate}
@@ -614,11 +620,6 @@ export default function NetWorthPage() {
                         </div>
                       </div>
                     )}
-                    <div>
-                      <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
-                      <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
-                        className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-                    </div>
                   </div>
                   <div className="flex gap-2 mt-4 justify-end">
                     {editingAssetId !== 'new' && hasPermission('assets.delete') && (
@@ -763,17 +764,18 @@ export default function NetWorthPage() {
                   <input type="date" value={assetForm.purchaseDate} onChange={(e) => setAssetForm({ ...assetForm, purchaseDate: e.target.value })}
                     className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                 </div>
-                {/* Original Cost */}
-                <div>
-                  <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
-                  <input type="number" inputMode="decimal" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
-                </div>
-                {/* Lifespan */}
-                <div>
-                  <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
-                  <input type="number" inputMode="numeric" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                {/* Original Cost & Salvage Value */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
+                    <input type="number" inputMode="decimal" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
+                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
+                    <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
+                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                  </div>
                 </div>
                 {/* Depreciation Method */}
                 <div>
@@ -792,8 +794,14 @@ export default function NetWorthPage() {
                     <option value="declining_balance">Declining Balance</option>
                   </select>
                 </div>
-                {/* Annual Rate % (declining balance only) */}
-                {assetForm.depreciationMethod === 'declining_balance' && (
+                {/* Lifespan or Annual Rate — swaps in same position */}
+                {assetForm.depreciationMethod === 'straight_line' ? (
+                  <div>
+                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Lifespan (years)</label>
+                    <input type="number" inputMode="numeric" value={assetForm.lifespanYears} onChange={(e) => setAssetForm({ ...assetForm, lifespanYears: e.target.value })}
+                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                  </div>
+                ) : (
                   <div>
                     <label className="text-[11px] text-[var(--text-secondary)] font-medium flex items-center gap-1 mb-0.5">
                       Annual Rate %
@@ -821,12 +829,6 @@ export default function NetWorthPage() {
                     </div>
                   </div>
                 )}
-                {/* Salvage Value */}
-                <div>
-                  <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
-                  <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
-                </div>
               </div>
               <div className="flex gap-2 mt-3 justify-end">
                 {editingAssetId !== 'new' && hasPermission('assets.delete') && (
