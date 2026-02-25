@@ -95,9 +95,22 @@ Examples:
 
 ### Branch Strategy
 
-- Use feature branches for all new work (e.g., `feature/bank-sync`, `design/implement-design-guide`)
-- Merge to `main` after testing
-- If experimenting with something risky, create a branch first
+- The `main` branch is **protected**. Never commit directly to `main`.
+- **At the start of every task**, check the current branch with `git branch --show-current`.
+  - If there's an in-progress feature branch with uncommitted or unpushed work, **ask the developer** whether to continue on it or start fresh.
+  - If starting a new task, pull the latest main (`git checkout main && git pull`) and create a new feature branch.
+- **Mid-session branch switching:** If the current task is complete (or reaches a logical stopping point) and the next piece of work is unrelated, do the following automatically:
+  1. Commit all remaining changes on the current branch.
+  2. Push the current branch (`git push -u origin <branch-name>`).
+  3. Notify the developer that the branch is ready for a PR.
+  4. Switch to main and pull latest (`git checkout main && git pull`).
+  5. Create a new branch for the next task.
+  - If the new work **depends on** uncommitted/unmerged changes from the previous branch, warn the developer and ask how to proceed rather than switching silently.
+- Never reuse a branch that has already been merged.
+- Branch prefixes: `feature/`, `fix/`, `chore/`, or `refactor/` as appropriate.
+  - Examples: `feature/bank-sync`, `fix/expired-jwt-redirect`, `chore/ci-pipeline`, `refactor/category-service`
+- Commit incrementally as you work — don't wait until the end.
+- When finished with a branch, notify the developer that it's ready for a PR.
 
 ## Code Style & Conventions
 
@@ -692,6 +705,48 @@ Form Input → Storage → Display:
 **Problem:** Side-by-side doesn't fit on mobile, and the depreciable assets table columns are too cramped
 **Resolution:** On mobile: hero card → Update Balances button → accounts grouped by classification as individual cards (with expandable holdings for investment accounts) → depreciable assets as individual cards with method badges → + Add Asset button.
 **Rule going forward:** Investment accounts with holdings should show an expandable section within their card. Depreciable assets show name, date, cost, method badge (SL/DB X%), and current value — no table columns.
+
+### Transaction Type Filter Must Use Category Type (2026-02-24)
+**Context:** Filtering transactions by "Income" or "Expense" on the Transactions page
+**Problem:** Filter checked `amount < 0` for income and `amount >= 0` for expense. This incorrectly classified refunds (negative expenses like -$29.99) as income, inflating the income transaction count.
+**Resolution:** Changed filter to use `eq(categories.type, 'income')` and `eq(categories.type, 'expense')` instead of amount sign checks.
+**Rule going forward:** Never use amount sign to determine transaction type. Always use the `categories.type` field. A negative expense is still an expense (it's a refund), not income.
+
+### Budget Display Must Handle Negative Actuals (2026-02-24)
+**Context:** Budget page showing actual spending per category
+**Problem:** Display logic used `sub.actual > 0` checks, which hid negative actuals (refunds). An Amazon refund of -$29.99 in "Other Daily Living" showed "—" instead of the amount.
+**Resolution:** Changed all `sub.actual > 0` and `gActual > 0` display checks to `!== 0` across both mobile and desktop views (6 locations in BudgetPage.tsx).
+**Rule going forward:** When displaying monetary values, use `!== 0` checks, never `> 0`, unless you explicitly intend to hide negative values. Refunds produce negative category totals that must be visible.
+
+### Dashboard Net Worth Must Match Net Worth Page (2026-02-24)
+**Context:** Dashboard KPI showed net worth ~$7K higher than the Net Worth page
+**Problem:** Two bugs: (1) Dashboard summed ALL balances including credit card liabilities (adding them instead of subtracting). (2) Dashboard used inline straight-line depreciation, ignoring the declining balance method for assets like vehicles.
+**Resolution:** Separated liabilities in the balance loop and subtracted them. Replaced inline depreciation math with `calculateCurrentValue()` from `utils/depreciation.ts` which handles both depreciation methods.
+**Rule going forward:** Dashboard and Net Worth page must use the same calculation logic. Always use the shared `calculateCurrentValue()` utility — never inline depreciation math. Always separate liability balances and subtract them from net worth.
+
+### PR Descriptions Must Be Raw Markdown in Console (2026-02-24)
+**Context:** Asked to create a PR description
+**Problem:** First attempt rendered as formatted text (not copyable markdown). Second attempt saved to a file instead of printing to console.
+**Resolution:** Print PR descriptions as raw markdown directly in the console output so the developer can copy-paste into GitHub.
+**Rule going forward:** Always output PR descriptions as a raw markdown code block in the console. Never render as formatted text and never save to a file unless explicitly asked.
+
+### CSV Import Must Include Transfer Detection (2026-02-24)
+**Context:** Credit card payment "PAYMENT THANK YOU" not flagged during CSV import
+**Problem:** Transfer detection (`detectTransfers()`) was only wired for SimpleFIN sync. CSV import hardcoded `isLikelyTransfer: false` with no server call.
+**Resolution:** Added `/api/import/check-transfers` endpoint in import.ts. Wired ImportPage to call it after categorization, setting `isLikelyTransfer` on matching rows.
+**Rule going forward:** Any detection logic available for SimpleFIN sync must also be available for CSV import. The two import paths should have feature parity for duplicate detection, transfer detection, and categorization.
+
+### Mockup Viewer Loads from .github/mockups/ Only (2026-02-24)
+**Context:** Added 2FA sections to `.github/design-system.jsx` but they didn't appear on `/mockup?mockup=design-system`
+**Problem:** The mockup viewer (`MockupPage.tsx`) uses `import.meta.glob('../../../../.github/mockups/*.tsx')` — it only loads `.tsx` files from `.github/mockups/`. The `.github/design-system.jsx` at the repo root is the authoritative design reference but is NOT what the mockup viewer renders.
+**Resolution:** Updated `.github/mockups/design-system.tsx` (the renderable copy) with the same changes.
+**Rule going forward:** When updating the design system, always update BOTH files: `.github/design-system.jsx` (authoritative reference) and `.github/mockups/design-system.tsx` (renderable mockup). The mockup viewer only sees files in `.github/mockups/`.
+
+### Design System Mockup Must Use Full Theme Token Names (2026-02-24)
+**Context:** TOTP code input boxes appeared invisible in the design system mockup
+**Problem:** Used shorthand token names (`t.ib`, `t.input`, `t.tp`, `t.tm`) that don't exist in the theme object. The actual tokens are `t.bgInputBorder`, `t.bgInput`, `t.textPrimary`, `t.textMuted`. No error is thrown — the styles just silently resolve to `undefined` and the elements render without borders or backgrounds.
+**Resolution:** Replaced all shorthand tokens with the correct full names from the theme object defined at the top of the file.
+**Rule going forward:** When adding sections to the design system mockup, always reference the theme object at the top of the file for exact token names. Never abbreviate — there are no shorthand aliases. Test that new elements are visually visible before committing.
 
 ### Dev Storage for Tool State (2026-02-24)
 **Context:** QA checklist progress was stored in localStorage, lost across browsers/devices

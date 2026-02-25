@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
 import SetupPage from './pages/SetupPage';
+import TwoFASetupPage from './pages/TwoFASetupPage';
 import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import BudgetPage from './pages/BudgetPage';
@@ -40,6 +41,7 @@ function useTheme() {
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -51,6 +53,11 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Redirect to forced 2FA setup if required (but not if already on that page)
+  if (user.twofaSetupRequired && location.pathname !== '/setup-2fa') {
+    return <Navigate to="/setup-2fa" replace />;
   }
 
   return <>{children}</>;
@@ -76,7 +83,7 @@ function AppShell() {
   }, [handlePermissionDenied]);
 
   return (
-    <div className="flex h-screen bg-[var(--bg-main)] font-sans">
+    <div className="flex h-screen h-[100dvh] bg-[var(--bg-main)] font-sans">
       {/* Sidebar */}
       <div className="w-[220px] bg-[var(--bg-sidebar)] flex flex-col shrink-0 desktop-only">
         {/* Logo */}
@@ -230,6 +237,7 @@ export default function App() {
               {import.meta.env.DEV && <Route path="/mockup" element={<MockupPage />} />}
               {import.meta.env.DEV && <Route path="/qa" element={<QAPage />} />}
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/setup-2fa" element={<ProtectedRoute><TwoFASetupPage /></ProtectedRoute>} />
               <Route
                 path="/*"
                 element={

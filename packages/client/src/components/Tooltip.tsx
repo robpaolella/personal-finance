@@ -11,7 +11,7 @@ export default function Tooltip({ content, children }: TooltipProps) {
   const [coords, setCoords] = useState<{ top: number; left: number; arrowLeft: number; flipped: boolean } | null>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;

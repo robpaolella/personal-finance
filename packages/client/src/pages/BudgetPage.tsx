@@ -269,7 +269,7 @@ export default function BudgetPage() {
                   const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : 0;
                   const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
                   const isEditing = editingCell?.categoryId === sub.categoryId;
-                  const hasData = sub.budgeted > 0 || sub.actual > 0;
+                  const hasData = sub.budgeted > 0 || sub.actual !== 0;
                   return (
                     <div key={sub.categoryId} style={{ marginBottom: si < g.subs.length - 1 ? 10 : 0 }}>
                       <div className="flex items-center mb-0.5">
@@ -277,7 +277,7 @@ export default function BudgetPage() {
                         <div className="flex items-center flex-shrink-0 ml-2">
                           {isEditing ? (
                             <span className="text-[11px] font-mono text-[var(--text-muted)]">
-                              {sub.actual > 0 ? fmt(sub.actual) : '—'} /
+                              {sub.actual !== 0 ? fmt(sub.actual) : '—'} /
                               <input type="number" min="0" step="1" inputMode="decimal" autoFocus
                                 className="w-[50px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 ml-1 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                                 value={editingCell.value}
@@ -290,7 +290,7 @@ export default function BudgetPage() {
                             <span
                               onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
                               className={`text-[11px] font-mono ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-body)]'} ${canEditBudgets ? 'cursor-pointer' : ''}`}>
-                              {hasData ? `${sub.actual > 0 ? fmt(sub.actual) : '—'} / ${sub.budgeted > 0 ? fmt(sub.budgeted) : '—'}` : '—'}
+                              {hasData ? `${sub.actual !== 0 ? fmt(sub.actual) : '—'} / ${sub.budgeted > 0 ? fmt(sub.budgeted) : '—'}` : '—'}
                             </span>
                           )}
                         </div>
@@ -402,12 +402,12 @@ export default function BudgetPage() {
                       {g.groupName}
                     </span>
                     <span className={`font-semibold text-[12px] font-mono ${gBudgeted > 0 && gActual > gBudgeted ? 'text-[#ef4444]' : 'text-[var(--text-secondary)]'}`}>
-                      {gActual > 0 ? fmt(gActual) : '—'} / {gBudgeted > 0 ? fmt(gBudgeted) : '—'}
+                      {gActual !== 0 ? fmt(gActual) : '—'} / {gBudgeted > 0 ? fmt(gBudgeted) : '—'}
                     </span>
                   </div>
                   {/* Sub-category rows */}
                   {g.subs.map((sub) => {
-                    const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : (sub.actual > 0 ? 100 : 0);
+                    const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : (sub.actual !== 0 ? 100 : 0);
                     const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
                     const isEditing = editingCell?.categoryId === sub.categoryId;
                     return (
@@ -419,8 +419,8 @@ export default function BudgetPage() {
                             background: sub.budgeted > 0 && sub.actual > sub.budgeted ? '#ef4444' : color,
                           }} />
                         </div>
-                        <span className="w-[60px] text-right text-[11px] font-mono text-[var(--text-secondary)]">
-                          {sub.actual > 0 ? fmt(sub.actual) : '—'}
+                        <span className="w-[80px] text-right text-[11px] font-mono text-[var(--text-secondary)]">
+                          {sub.actual !== 0 ? fmt(sub.actual) : '—'}
                         </span>
                         {isEditing ? (
                           <input
@@ -429,7 +429,7 @@ export default function BudgetPage() {
                             step="1"
                             autoFocus
                             inputMode="decimal"
-                            className="w-[60px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                            className="w-[80px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                             value={editingCell.value}
                             onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
                             onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
@@ -438,7 +438,7 @@ export default function BudgetPage() {
                         ) : (
                           <span
                             onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                            className={`w-[60px] text-right text-[11px] font-mono ${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
+                            className={`w-[80px] text-right text-[11px] font-mono ${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
                           >
                             {sub.budgeted > 0 ? fmt(sub.budgeted) : ''}
                           </span>
