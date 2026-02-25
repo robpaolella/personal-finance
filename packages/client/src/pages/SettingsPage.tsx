@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { apiFetch } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -57,6 +60,49 @@ interface GroupedCategory {
   group: string;
   type: string;
   subs: Category[];
+}
+
+// Grip dots drag handle icon
+function DragHandle({ className = '' }: { className?: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className={className}>
+      <circle cx="3.5" cy="2" r="1.2" /><circle cx="8.5" cy="2" r="1.2" />
+      <circle cx="3.5" cy="6" r="1.2" /><circle cx="8.5" cy="6" r="1.2" />
+      <circle cx="3.5" cy="10" r="1.2" /><circle cx="8.5" cy="10" r="1.2" />
+    </svg>
+  );
+}
+
+// Sortable sub-category row for desktop
+function SortableDesktopSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: boolean; onEdit: (c: Category) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <div ref={setNodeRef} style={style} className={`flex items-center py-1 pl-[10px] text-[12px] text-[var(--text-secondary)] group/sub ${canEdit ? 'cursor-pointer hover:text-[var(--btn-secondary-text)]' : ''}`}>
+      {canEdit && (
+        <span {...attributes} {...listeners} className="opacity-0 group-hover/sub:opacity-50 hover:!opacity-100 cursor-grab mr-1.5 text-[var(--text-muted)]">
+          <DragHandle />
+        </span>
+      )}
+      <span className={canEdit ? '' : 'pl-[18px]'} onClick={() => canEdit ? onEdit(cat) : null}>{cat.sub_name}</span>
+    </div>
+  );
+}
+
+// Sortable sub-category row for mobile
+function SortableMobileSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: boolean; onEdit: (c: Category) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <div ref={setNodeRef} style={style} className={`flex items-center py-1.5 text-[12px] text-[var(--text-secondary)] border-b border-[var(--table-row-border)] last:border-b-0 ${canEdit ? 'active:text-[var(--btn-secondary-text)]' : ''}`}>
+      {canEdit && (
+        <span {...attributes} {...listeners} className="opacity-50 cursor-grab mr-2 text-[var(--text-muted)] touch-none">
+          <DragHandle />
+        </span>
+      )}
+      <span className={canEdit ? '' : 'pl-4'} onClick={() => canEdit ? onEdit(cat) : null}>{cat.sub_name}</span>
+    </div>
+  );
 }
 
 // --- Account Form ---
@@ -1782,6 +1828,36 @@ export default function SettingsPage() {
     return null;
   };
 
+  // Drag-and-drop sensors and handler for category reorder
+  const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 5 } });
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } });
+  const dndSensors = useSensors(pointerSensor, touchSensor);
+
+  const handleCategoryDragEnd = async (event: DragEndEvent, groupSubs: Category[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = groupSubs.findIndex((s) => s.id === active.id);
+    const newIndex = groupSubs.findIndex((s) => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(groupSubs, oldIndex, newIndex);
+    const items = reordered.map((s, i) => ({ id: s.id, sort_order: i }));
+    // Optimistic update
+    setCategories((prev) => {
+      const updated = [...prev];
+      for (const item of items) {
+        const cat = updated.find((c) => c.id === item.id);
+        if (cat) cat.sort_order = item.sort_order;
+      }
+      return updated;
+    });
+    try {
+      await apiFetch('/categories/reorder', { method: 'PUT', body: JSON.stringify({ items }) });
+    } catch {
+      addToast('Failed to save sort order', 'error');
+      loadData();
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
@@ -1874,12 +1950,13 @@ export default function SettingsPage() {
                       </span>
                       <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
                     </div>
-                    {g.subs.map((s) => (
-                      <div key={s.id} onClick={() => hasPermission('categories.edit') ? setEditingCategory(s) : null}
-                        className={`py-1.5 pl-4 text-[12px] text-[var(--text-secondary)] border-b border-[var(--table-row-border)] last:border-b-0 ${hasPermission('categories.edit') ? 'cursor-pointer active:text-[var(--btn-secondary-text)]' : ''}`}>
-                        {s.sub_name}
-                      </div>
-                    ))}
+                    <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={(e) => handleCategoryDragEnd(e, g.subs)}>
+                      <SortableContext items={g.subs.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                        {g.subs.map((s) => (
+                          <SortableMobileSub key={s.id} cat={s} canEdit={hasPermission('categories.edit')} onEdit={(c) => setEditingCategory(c)} />
+                        ))}
+                      </SortableContext>
+                    </DndContext>
                     </div>
                   </div>
                 );
@@ -2055,12 +2132,13 @@ export default function SettingsPage() {
                         </span>
                         <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
                       </div>
-                      {g.subs.map((s) => (
-                        <div key={s.id} onClick={() => hasPermission('categories.edit') ? (setExpandedCategories(false), setEditingCategory(s)) : null}
-                          className={`flex justify-between py-1 pl-[18px] text-[12px] text-[var(--text-secondary)] ${hasPermission('categories.edit') ? 'cursor-pointer hover:text-[var(--btn-secondary-text)]' : ''}`}>
-                          <span>{s.sub_name}</span>
-                        </div>
-                      ))}
+                      <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={(e) => handleCategoryDragEnd(e, g.subs)}>
+                        <SortableContext items={g.subs.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                          {g.subs.map((s) => (
+                            <SortableDesktopSub key={s.id} cat={s} canEdit={hasPermission('categories.edit')} onEdit={(c) => { setExpandedCategories(false); setEditingCategory(c); }} />
+                          ))}
+                        </SortableContext>
+                      </DndContext>
                       </div>
                     </div>
                   );
