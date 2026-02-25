@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { budgets, categories, transactions, accounts } from '../db/schema.js';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
@@ -130,7 +130,9 @@ router.get('/summary', (req: Request, res: Response) => {
     const { startDate, endDate } = monthRange(month);
 
     // Get all categories
-    const allCategories = db.select().from(categories).all();
+    const allCategories = db.select().from(categories)
+      .orderBy(asc(categories.sort_order), asc(categories.sub_name))
+      .all();
 
     // Get budgets for this month
     const monthBudgets = db.select().from(budgets)

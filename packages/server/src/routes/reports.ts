@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/index.js';
 import { transactions, categories, accounts } from '../db/schema.js';
-import { eq, sql } from 'drizzle-orm';
+import { eq, asc, sql } from 'drizzle-orm';
 
 const router = Router();
 
@@ -37,6 +37,7 @@ router.get('/annual', (req: Request, res: Response) => {
       group_name: categories.group_name,
       sub_name: categories.sub_name,
       type: categories.type,
+      sort_order: categories.sort_order,
       month: sql<number>`cast(substr(${transactions.date}, 6, 2) as integer)`,
       total: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
     }).from(transactions)
@@ -44,6 +45,7 @@ router.get('/annual', (req: Request, res: Response) => {
       .innerJoin(accounts, eq(transactions.account_id, accounts.id))
       .where(sql`substr(${transactions.date}, 1, 4) = ${year} ${ownerFilter}`)
       .groupBy(transactions.category_id, sql`cast(substr(${transactions.date}, 6, 2) as integer)`)
+      .orderBy(asc(categories.sort_order), asc(categories.sub_name))
       .all();
 
     // Build income data: keyed by sub_name → 12 monthly totals
