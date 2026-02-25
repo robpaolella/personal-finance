@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { useToast } from '../context/ToastContext';
@@ -1599,6 +1600,74 @@ function StickyAddButton({ permission, label, onClick }: { permission: string; l
   );
 }
 
+// --- Expand/Contract Icons ---
+const ExpandIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="14" y1="10" x2="21" y2="3" />
+    <polyline points="9 21 3 21 3 15" />
+    <line x1="10" y1="14" x2="3" y2="21" />
+  </svg>
+);
+const ContractIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="4 14 10 14 10 20" />
+    <line x1="3" y1="21" x2="10" y2="14" />
+    <polyline points="20 10 14 10 14 4" />
+    <line x1="21" y1="3" x2="14" y2="10" />
+  </svg>
+);
+
+// --- Expandable Card Wrapper ---
+function ExpandableCard({ title, subtitle, expanded, onToggle, children }: {
+  title: string;
+  subtitle: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const header = (
+    <>
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">{title}</h3>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
+          className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[var(--bg-hover)]"
+          title={expanded ? 'Collapse' : 'Expand'}
+        >
+          {expanded ? <ContractIcon /> : <ExpandIcon />}
+        </button>
+      </div>
+      <p className="text-[13px] text-[var(--text-secondary)] mb-3">{subtitle}</p>
+    </>
+  );
+
+  return (
+    <>
+      {/* Always render inline card to preserve grid layout */}
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]"
+        style={expanded ? { opacity: 0.4, pointerEvents: 'none' } : undefined}>
+        {header}
+        {children}
+      </div>
+
+      {/* Expanded modal via portal */}
+      {expanded && createPortal(
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onToggle}>
+          <div style={{ width: 'calc((100vw - 220px - 72px - 20px) / 2)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col"
+              style={{ height: '80vh', maxHeight: '80vh' }}>
+              {header}
+              {children}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 export default function SettingsPage() {
   const { addToast } = useToast();
   const { isAdmin, hasPermission, user, logout } = useAuth();
@@ -1611,6 +1680,8 @@ export default function SettingsPage() {
   const [userList, setUserList] = useState<{ id: number; displayName: string }[]>([]);
   const [editingAccount, setEditingAccount] = useState<Account | null | 'new'>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null | 'new'>(null);
+  const [expandedAccounts, setExpandedAccounts] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState(false);
 
   const switchTab = (tab: string) => {
     setSearchParams({ tab });
@@ -1889,9 +1960,12 @@ export default function SettingsPage() {
 
           <div className="grid grid-cols-2 gap-5">
             {/* Accounts */}
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]">
-              <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Accounts</h3>
-              <p className="text-[13px] text-[var(--text-secondary)] mb-3">Each account has an owner and classification for filtering and net worth.</p>
+            <ExpandableCard
+              title="Accounts"
+              subtitle="Each account has an owner and classification for filtering and net worth."
+              expanded={expandedAccounts}
+              onToggle={() => setExpandedAccounts(!expandedAccounts)}
+            >
               <div className="flex-1 min-h-0">
                 <ScrollableList maxHeight="100%">
                   <table className="w-full border-collapse text-[13px]">
@@ -1906,7 +1980,7 @@ export default function SettingsPage() {
                     <tbody>
                       {accounts.map((a) => (
                         <tr key={a.id}
-                          onClick={() => hasPermission('accounts.edit') ? setEditingAccount(a) : null}
+                          onClick={() => hasPermission('accounts.edit') ? (setExpandedAccounts(false), setEditingAccount(a)) : null}
                           className={`border-b border-[var(--table-row-border)] transition-colors ${hasPermission('accounts.edit') ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''}`}>
                           <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
                             {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
@@ -1930,18 +2004,21 @@ export default function SettingsPage() {
                 </ScrollableList>
               </div>
               <PermissionGate permission="accounts.create" fallback="disabled">
-                <button onClick={() => setEditingAccount('new')}
+                <button onClick={() => { setExpandedAccounts(false); setEditingAccount('new'); }}
                   className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 btn-secondary">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Add Account
                 </button>
               </PermissionGate>
-            </div>
+            </ExpandableCard>
 
             {/* Categories */}
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]">
-              <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">Categories</h3>
-              <p className="text-[13px] text-[var(--text-secondary)] mb-3">Parent categories group sub-categories for budgets and reports.</p>
+            <ExpandableCard
+              title="Categories"
+              subtitle="Parent categories group sub-categories for budgets and reports."
+              expanded={expandedCategories}
+              onToggle={() => setExpandedCategories(!expandedCategories)}
+            >
               <div className="flex-1 min-h-0">
                 <ScrollableList maxHeight="100%">
                   {allGroups.map((g) => {
@@ -1956,7 +2033,7 @@ export default function SettingsPage() {
                         <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
                       </div>
                       {g.subs.map((s) => (
-                        <div key={s.id} onClick={() => hasPermission('categories.edit') ? setEditingCategory(s) : null}
+                        <div key={s.id} onClick={() => hasPermission('categories.edit') ? (setExpandedCategories(false), setEditingCategory(s)) : null}
                           className={`flex justify-between py-1 pl-[18px] text-[12px] text-[var(--text-secondary)] ${hasPermission('categories.edit') ? 'cursor-pointer hover:text-[var(--btn-secondary-text)]' : ''}`}>
                           <span>{s.sub_name}</span>
                         </div>
@@ -1967,13 +2044,13 @@ export default function SettingsPage() {
                 </ScrollableList>
               </div>
               <PermissionGate permission="categories.create" fallback="disabled">
-                <button onClick={() => setEditingCategory('new')}
+                <button onClick={() => { setExpandedCategories(false); setEditingCategory('new'); }}
                   className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 btn-secondary">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Add Category
                 </button>
               </PermissionGate>
-            </div>
+            </ExpandableCard>
           </div>
 
           {/* Users & Permissions — Admin only */}
