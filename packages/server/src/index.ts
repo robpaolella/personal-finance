@@ -90,7 +90,7 @@ app.use(errorHandler);
 if (isProd) {
   const clientDist = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDist));
-  app.get('*', (_req, res) => {
+  app.get('*path', (_req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
