@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import InlineNotification from '../components/InlineNotification';
 import TotpCodeInput from '../components/TotpCodeInput';
+import Tooltip from '../components/Tooltip';
 
 interface SetupData {
   qrCodeUrl: string;
@@ -21,6 +22,7 @@ export default function TwoFASetupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [secretCopied, setSecretCopied] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
   // Auto-submit when 6 digits entered
@@ -152,23 +154,42 @@ export default function TwoFASetupPage() {
               <div className="mb-6">
                 <button
                   type="button"
-                  onClick={() => setShowSecret(!showSecret)}
-                  className="text-xs text-[var(--color-accent)] hover:underline bg-transparent border-none cursor-pointer mb-2"
+                  onClick={() => { setShowSecret(!showSecret); setSecretCopied(false); }}
+                  className="text-xs text-[var(--color-accent)] hover:underline bg-transparent border-none cursor-pointer mb-2 w-full text-center"
                 >
-                  {showSecret ? 'Hide manual entry key' : "Can't scan? Enter key manually"}
+                  {showSecret ? 'Hide secret key' : "Can't scan? Enter manually"}
                 </button>
                 {showSecret && (
-                  <div className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg p-3 mt-1">
-                    <p className="text-xs text-[var(--text-muted)] mb-1">Secret key:</p>
-                    <code className="text-sm font-mono text-[var(--text-primary)] break-all select-all">
-                      {setupData.secret}
-                    </code>
+                  <div className="flex justify-center">
+                  <Tooltip content={secretCopied ? '✓ Copied to clipboard' : 'Click to copy'}>
+                    <div
+                      className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg px-4 py-2 text-center w-fit cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(setupData.secret);
+                        } catch {
+                          const ta = document.createElement('textarea');
+                          ta.value = setupData.secret;
+                          ta.style.position = 'fixed';
+                          ta.style.opacity = '0';
+                          document.body.appendChild(ta);
+                          ta.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(ta);
+                        }
+                        setSecretCopied(true);
+                        setTimeout(() => setSecretCopied(false), 2000);
+                      }}
+                    >
+                      <code className="text-[11px] font-mono text-[var(--text-primary)] break-all select-all">{setupData.secret}</code>
+                    </div>
+                  </Tooltip>
                   </div>
                 )}
               </div>
 
               <form onSubmit={handleVerify}>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-3 uppercase tracking-wide">
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-3 uppercase tracking-wide text-center">
                   Verification Code
                 </label>
                 <TotpCodeInput
