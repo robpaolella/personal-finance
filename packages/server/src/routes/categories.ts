@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db/index.js';
+import { db, sqlite } from '../db/index.js';
 import { categories, transactions } from '../db/schema.js';
-import { eq, asc, sql } from 'drizzle-orm';
+import { eq, asc, and, sql } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
@@ -36,17 +36,64 @@ router.post('/', requirePermission('categories.create'), (req: Request, res: Res
     return;
   }
   const displayName = type === 'income' ? subName : `${groupName}: ${subName}`;
+
+  // Compute sort_order: insert alphabetically among siblings in the same group
+  const siblings = db.select({ sub_name: categories.sub_name, sort_order: categories.sort_order })
+    .from(categories)
+    .where(and(eq(categories.group_name, groupName), eq(categories.type, type)))
+    .orderBy(asc(categories.sort_order), asc(categories.sub_name))
+    .all();
+  let newSortOrder = 0;
+  const lowerNew = subName.toLowerCase();
+  for (let i = 0; i < siblings.length; i++) {
+    if (lowerNew <= siblings[i].sub_name.toLowerCase()) {
+      newSortOrder = i;
+      // Shift siblings at and after the insertion point
+      for (let j = siblings.length - 1; j >= i; j--) {
+        db.update(categories).set({ sort_order: j + 1 })
+          .where(and(
+            eq(categories.group_name, groupName),
+            eq(categories.type, type),
+            eq(categories.sub_name, siblings[j].sub_name)
+          )).run();
+      }
+      break;
+    }
+    if (i === siblings.length - 1) {
+      newSortOrder = siblings.length;
+    }
+  }
+
   const result = db.insert(categories).values({
     group_name: groupName,
     sub_name: subName,
     display_name: displayName,
     type,
     is_deductible: isDeductible ? 1 : 0,
+    sort_order: newSortOrder,
   }).run();
   const created = db.select().from(categories)
     .where(eq(categories.id, Number(result.lastInsertRowid)))
     .get();
   res.status(201).json({ data: created });
+});
+
+// PUT /api/categories/reorder
+router.put('/reorder', requirePermission('categories.edit'), (req: Request, res: Response): void => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: 'items array is required' });
+    return;
+  }
+  const stmt = sqlite.prepare('UPDATE categories SET sort_order = ? WHERE id = ?');
+  const runAll = sqlite.transaction(() => {
+    for (const item of items) {
+      if (typeof item.id !== 'number' || typeof item.sort_order !== 'number') continue;
+      stmt.run(item.sort_order, item.id);
+    }
+  });
+  runAll();
+  res.json({ data: { message: 'Sort order updated' } });
 });
 
 // PUT /api/categories/:id
