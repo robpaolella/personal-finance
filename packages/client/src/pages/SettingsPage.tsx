@@ -13,6 +13,7 @@ import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
 import PermissionGate from '../components/PermissionGate';
 import ResponsiveModal from '../components/ResponsiveModal';
+import Tooltip from '../components/Tooltip';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment', 'retirement', 'venmo', 'cash'];
@@ -386,6 +387,7 @@ function PreferencesTab() {
   const [twofaError, setTwofaError] = useState('');
   const [twofaLoading, setTwofaLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [secretCopied, setSecretCopied] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
   const toggleTheme = () => {
@@ -564,7 +566,7 @@ function PreferencesTab() {
         <ResponsiveModal
           title={twofaStep === 'scan' ? 'Enable Two-Factor Authentication' : twofaStep === 'backup' ? '2FA Enabled' : twofaStep === 'disable' ? 'Disable 2FA' : twofaStep === 'regenerate' ? 'Regenerate Backup Codes' : ''}
           isOpen={twofaStep !== 'idle'}
-          onClose={() => { setTwofaStep('idle'); setSetupData(null); setVerifyCode(''); setShowSecret(false); setTwofaPassword(''); setTwofaError(''); }}
+          onClose={() => { setTwofaStep('idle'); setSetupData(null); setVerifyCode(''); setShowSecret(false); setSecretCopied(false); setTwofaPassword(''); setTwofaError(''); }}
           maxWidth="420px"
         >
           {twofaError && <InlineNotification type="error" message={twofaError} dismissible onDismiss={() => setTwofaError('')} className="mb-3" />}
@@ -587,9 +589,29 @@ function PreferencesTab() {
               {showSecret ? 'Hide secret key' : "Can't scan? Enter manually"}
             </button>
             {showSecret && (
-              <div className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg p-2 mb-3 text-center mx-auto w-fit">
-                <code className="text-[11px] font-mono text-[var(--text-primary)] break-all select-all">{setupData.secret}</code>
-              </div>
+              <Tooltip content={secretCopied ? '✓ Copied to clipboard' : 'Click to copy'}>
+                <div
+                  className="bg-[var(--bg-input)] border border-[var(--bg-input-border)] rounded-lg px-4 py-2 mb-3 text-center mx-auto w-fit cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(setupData.secret);
+                    } catch {
+                      const ta = document.createElement('textarea');
+                      ta.value = setupData.secret;
+                      ta.style.position = 'fixed';
+                      ta.style.opacity = '0';
+                      document.body.appendChild(ta);
+                      ta.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(ta);
+                    }
+                    setSecretCopied(true);
+                    setTimeout(() => setSecretCopied(false), 2000);
+                  }}
+                >
+                  <code className="text-[11px] font-mono text-[var(--text-primary)] break-all select-all">{setupData.secret}</code>
+                </div>
+              </Tooltip>
             )}
             <div className="mb-3">
               <TotpCodeInput
