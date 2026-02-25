@@ -62,29 +62,30 @@ interface GroupedCategory {
   subs: Category[];
 }
 
-// Grip dots drag handle icon
-function DragHandle({ className = '' }: { className?: string }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className={className}>
-      <circle cx="3.5" cy="2" r="1.2" /><circle cx="8.5" cy="2" r="1.2" />
-      <circle cx="3.5" cy="6" r="1.2" /><circle cx="8.5" cy="6" r="1.2" />
-      <circle cx="3.5" cy="10" r="1.2" /><circle cx="8.5" cy="10" r="1.2" />
-    </svg>
-  );
-}
-
 // Sortable sub-category row for desktop
 function SortableDesktopSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: boolean; onEdit: (c: Category) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { zIndex: 10, position: 'relative' as const } : {}),
+  };
   return (
-    <div ref={setNodeRef} style={style} className={`flex items-center py-1 pl-[10px] text-[12px] text-[var(--text-secondary)] group/sub ${canEdit ? 'cursor-pointer hover:text-[var(--btn-secondary-text)]' : ''}`}>
-      {canEdit && (
-        <span {...attributes} {...listeners} className="opacity-0 group-hover/sub:opacity-50 hover:!opacity-100 cursor-grab mr-1.5 text-[var(--text-muted)]">
-          <DragHandle />
-        </span>
+    <div ref={setNodeRef} style={style}
+      {...(canEdit ? { ...attributes, ...listeners } : {})}
+      onClick={() => canEdit ? onEdit(cat) : null}
+      className={`relative flex items-center py-1 pl-[18px] text-[12px] text-[var(--text-secondary)] ${canEdit ? 'cursor-pointer hover:text-[var(--btn-secondary-text)] hover:bg-[var(--bg-hover)]' : ''} ${isDragging ? 'rounded-md bg-[var(--bg-hover)] border border-[var(--color-accent)] shadow-sm' : ''}`}>
+      {isDragging && (
+        <>
+          <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 text-[var(--color-accent)]">
+            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M5 0L10 6H0Z" fill="currentColor"/></svg>
+          </span>
+          <span className="absolute left-1/2 -bottom-2.5 -translate-x-1/2 text-[var(--color-accent)]">
+            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M5 6L0 0H10Z" fill="currentColor"/></svg>
+          </span>
+        </>
       )}
-      <span className={canEdit ? '' : 'pl-[18px]'} onClick={() => canEdit ? onEdit(cat) : null}>{cat.sub_name}</span>
+      <span>{cat.sub_name}</span>
     </div>
   );
 }
@@ -92,15 +93,27 @@ function SortableDesktopSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: 
 // Sortable sub-category row for mobile
 function SortableMobileSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: boolean; onEdit: (c: Category) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { zIndex: 10, position: 'relative' as const } : {}),
+  };
   return (
-    <div ref={setNodeRef} style={style} className={`flex items-center py-1.5 text-[12px] text-[var(--text-secondary)] border-b border-[var(--table-row-border)] last:border-b-0 ${canEdit ? 'active:text-[var(--btn-secondary-text)]' : ''}`}>
-      {canEdit && (
-        <span {...attributes} {...listeners} className="opacity-50 cursor-grab mr-2 text-[var(--text-muted)] touch-none">
-          <DragHandle />
-        </span>
+    <div ref={setNodeRef} style={style}
+      {...(canEdit ? { ...attributes, ...listeners } : {})}
+      onClick={() => canEdit ? onEdit(cat) : null}
+      className={`relative flex items-center py-1.5 pl-4 text-[12px] text-[var(--text-secondary)] border-b border-[var(--table-row-border)] last:border-b-0 ${canEdit ? 'active:text-[var(--btn-secondary-text)]' : ''} ${isDragging ? 'rounded-md bg-[var(--bg-hover)] border-[var(--color-accent)] shadow-sm' : ''}`}>
+      {isDragging && (
+        <>
+          <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 text-[var(--color-accent)]">
+            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M5 0L10 6H0Z" fill="currentColor"/></svg>
+          </span>
+          <span className="absolute left-1/2 -bottom-2.5 -translate-x-1/2 text-[var(--color-accent)]">
+            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M5 6L0 0H10Z" fill="currentColor"/></svg>
+          </span>
+        </>
       )}
-      <span className={canEdit ? '' : 'pl-4'} onClick={() => canEdit ? onEdit(cat) : null}>{cat.sub_name}</span>
+      <span>{cat.sub_name}</span>
     </div>
   );
 }
