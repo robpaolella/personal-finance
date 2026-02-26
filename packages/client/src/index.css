@@ -79,6 +79,10 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
   outline: none;
 }
+input.no-focus-ring:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
 input.error:focus, select.error:focus, textarea.error:focus,
 input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[aria-invalid="true"]:focus {
   border-color: var(--color-negative);

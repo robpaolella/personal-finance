@@ -241,7 +241,7 @@ export default function BudgetPage() {
                         <span className="pl-1 text-[12px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
                         {isEditing ? (
                           <input type="text" inputMode="decimal" autoFocus
-                            className="flex-1 min-w-0 text-right font-mono text-[12px] py-0.5 pr-1 bg-transparent outline-none border-none text-[var(--text-body)]"
+                            className="flex-1 min-w-0 text-right font-mono text-[12px] py-0.5 pr-1 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
                             value={editingCell.value}
                             onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
                             onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
@@ -297,7 +297,7 @@ export default function BudgetPage() {
                               <span className="pl-0.5 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
                               {isEditing ? (
                                 <input type="text" inputMode="decimal" autoFocus
-                                  className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-0.5 bg-transparent outline-none border-none text-[var(--text-body)]"
+                                  className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-0.5 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
                                   value={editingCell.value}
                                   onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
                                   onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
@@ -366,7 +366,7 @@ export default function BudgetPage() {
                             type="text"
                             autoFocus
                             inputMode="decimal"
-                            className="flex-1 min-w-0 text-right text-[12px] font-mono py-1 pr-1.5 bg-transparent outline-none border-none text-[var(--text-body)]"
+                            className="flex-1 min-w-0 text-right text-[12px] font-mono py-1 pr-1.5 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
                             value={editingCell.value}
                             onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
                             onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
@@ -459,7 +459,7 @@ export default function BudgetPage() {
                                 type="text"
                                 autoFocus
                                 inputMode="decimal"
-                                className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-1 bg-transparent outline-none border-none text-[var(--text-body)]"
+                                className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-1 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
                                 value={editingCell.value}
                                 onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
                                 onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
