@@ -269,7 +269,6 @@ export default function BudgetPage() {
                   const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : 0;
                   const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
                   const isEditing = editingCell?.categoryId === sub.categoryId;
-                  const hasData = sub.budgeted > 0 || sub.actual !== 0;
                   return (
                     <div key={sub.categoryId} style={{ marginBottom: si < g.subs.length - 1 ? 10 : 0 }}>
                       <div className="flex items-center mb-0.5">
