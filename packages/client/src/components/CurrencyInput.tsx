@@ -24,7 +24,7 @@ function formatCurrency(val: string): string {
 }
 
 const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ value, onChange, className, autoFocus, onKeyDown, onBlur, placeholder, allowNegative = false }, ref) => {
+  ({ value, onChange, className, autoFocus, onKeyDown, onBlur, placeholder = '$0.00', allowNegative = false }, ref) => {
     const [focused, setFocused] = useState(!!autoFocus);
 
     const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
