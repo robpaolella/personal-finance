@@ -229,24 +229,32 @@ export default function BudgetPage() {
                   style={{ borderBottom: i < income.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
                   <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{r.subName}</span>
                   <div className="flex gap-3 flex-shrink-0 ml-2">
-                    <span className="w-[70px] text-right text-[12px] font-mono text-[var(--text-muted)]">
-                      {isEditing ? (
-                        <input type="number" min="0" step="1" inputMode="decimal" autoFocus
-                          className="w-full text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
-                          value={editingCell.value}
-                          onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
-                          onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
-                          onBlur={() => handleBudgetBlur(r.categoryId)}
-                        />
-                      ) : (
-                        <span
-                          onClick={() => canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
-                          className={canEditBudgets ? 'cursor-pointer' : ''}>
-                          {r.budgeted > 0 ? fmt(r.budgeted) : '—'}
-                        </span>
-                      )}
-                    </span>
-                    <span className="w-[70px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)]">
+                    <div className="w-[70px]">
+                      <div
+                        className={`flex items-center w-full rounded ${
+                          isEditing
+                            ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
+                            : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
+                        }`}
+                        onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
+                      >
+                        <span className="pl-1 text-[12px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
+                        {isEditing ? (
+                          <input type="text" inputMode="decimal" autoFocus
+                            className="flex-1 min-w-0 text-right font-mono text-[12px] py-0.5 pr-1 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
+                            value={editingCell.value}
+                            onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
+                            onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
+                            onBlur={() => handleBudgetBlur(r.categoryId)}
+                          />
+                        ) : (
+                          <span className="flex-1 text-right font-mono text-[12px] py-0.5 pr-1 text-[var(--text-muted)]">
+                            {r.budgeted > 0 ? r.budgeted.toLocaleString('en-US') : '0'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="w-[70px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)] flex items-center justify-end">
                       {r.actual > 0 ? fmt(r.actual) : '—'}
                     </span>
                   </div>
@@ -269,30 +277,39 @@ export default function BudgetPage() {
                   const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : 0;
                   const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
                   const isEditing = editingCell?.categoryId === sub.categoryId;
-                  const hasData = sub.budgeted > 0 || sub.actual !== 0;
                   return (
                     <div key={sub.categoryId} style={{ marginBottom: si < g.subs.length - 1 ? 10 : 0 }}>
                       <div className="flex items-center mb-0.5">
                         <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{sub.subName}</span>
                         <div className="flex items-center flex-shrink-0 ml-2">
-                          {isEditing ? (
-                            <span className="text-[11px] font-mono text-[var(--text-muted)]">
-                              {sub.actual !== 0 ? fmt(sub.actual) : '—'} /
-                              <input type="number" min="0" step="1" inputMode="decimal" autoFocus
-                                className="w-[50px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 ml-1 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
-                                value={editingCell.value}
-                                onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
-                                onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
-                                onBlur={() => handleBudgetBlur(sub.categoryId)}
-                              />
-                            </span>
-                          ) : (
-                            <span
-                              onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                              className={`text-[11px] font-mono ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-body)]'} ${canEditBudgets ? 'cursor-pointer' : ''}`}>
-                              {hasData ? `${sub.actual !== 0 ? fmt(sub.actual) : '—'} / ${sub.budgeted > 0 ? fmt(sub.budgeted) : '—'}` : '—'}
-                            </span>
-                          )}
+                          <span className="text-[11px] font-mono text-[var(--text-muted)]">
+                            {sub.actual !== 0 ? fmt(sub.actual) : '—'} /
+                          </span>
+                          <div className="w-[55px] flex-shrink-0 ml-1">
+                            <div
+                              className={`flex items-center w-full rounded ${
+                                isEditing
+                                  ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
+                                  : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
+                              }`}
+                              onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
+                            >
+                              <span className="pl-0.5 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
+                              {isEditing ? (
+                                <input type="text" inputMode="decimal" autoFocus
+                                  className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-0.5 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
+                                  value={editingCell.value}
+                                  onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
+                                  onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
+                                  onBlur={() => handleBudgetBlur(sub.categoryId)}
+                                />
+                              ) : (
+                                <span className={`flex-1 text-right text-[11px] font-mono py-0.5 pr-0.5 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-body)]'}`}>
+                                  {sub.budgeted > 0 ? sub.budgeted.toLocaleString('en-US') : '0'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                       {sub.budgeted > 0 && (
@@ -318,13 +335,13 @@ export default function BudgetPage() {
           <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
           <div className="flex-1 min-h-0 mt-2">
             <ScrollableList maxHeight="100%">
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse table-fixed">
                 <thead>
                   <tr>
                     <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Budget</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Actual</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right">Diff</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right w-[80px]">Budget</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right w-[90px]">Actual</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right w-[100px]">Diff</th>
                   </tr>
                 </thead>
             <tbody>
@@ -333,34 +350,39 @@ export default function BudgetPage() {
                 const isEditing = editingCell?.categoryId === r.categoryId;
                 return (
                   <tr key={r.categoryId} className="border-b border-[var(--table-row-border)]">
-                    <td className="px-2.5 py-2 text-[13px] font-medium text-[var(--text-primary)]">{r.subName}</td>
-                    <td className="px-2.5 py-2 text-right font-mono text-[12px]">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          autoFocus
-                          inputMode="decimal"
-                          className="w-20 text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1.5 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
-                          value={editingCell.value}
-                          onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
-                          onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
-                          onBlur={() => handleBudgetBlur(r.categoryId)}
-                        />
-                      ) : (
-                        <span
-                          onClick={() => canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
-                          className={`${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1.5 py-0.5 -mx-1.5 text-[var(--text-body)]`}
-                        >
-                          {r.budgeted > 0 ? fmt(r.budgeted) : '—'}
-                        </span>
-                      )}
+                    <td className="px-2.5 py-1.5 text-[13px] font-medium text-[var(--text-primary)]">{r.subName}</td>
+                    <td className="px-1 py-1">
+                      <div
+                        className={`flex items-center w-full rounded ${
+                          isEditing
+                            ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
+                            : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
+                        }`}
+                        onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
+                      >
+                        <span className="pl-1.5 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            autoFocus
+                            inputMode="decimal"
+                            className="flex-1 min-w-0 text-right text-[11px] font-mono py-1 pr-1.5 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
+                            value={editingCell.value}
+                            onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
+                            onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
+                            onBlur={() => handleBudgetBlur(r.categoryId)}
+                          />
+                        ) : (
+                          <span className="flex-1 text-right text-[11px] font-mono py-1 pr-1.5 text-[var(--text-body)]">
+                            {r.budgeted > 0 ? r.budgeted.toLocaleString('en-US') : '0'}
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-2.5 py-2 text-right font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                    <td className="px-2.5 py-1.5 text-right font-mono text-[11px] font-semibold text-[var(--text-primary)]">
                       {r.actual > 0 ? fmt(r.actual) : '—'}
                     </td>
-                    <td className={`px-2.5 py-2 text-right font-mono text-[12px] ${
+                    <td className={`px-2.5 py-1.5 text-right font-mono text-[11px] ${
                       (r.budgeted > 0 || r.actual > 0) ? (diff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]') : 'text-[var(--text-muted)]'
                     }`}>
                       {(r.budgeted > 0 || r.actual > 0) ? `${diff >= 0 ? '+' : ''}${fmt(diff)}` : '—'}
@@ -371,9 +393,9 @@ export default function BudgetPage() {
               {/* Total Row */}
               <tr className="bg-[var(--bg-hover)]">
                 <td className="px-2.5 py-2 text-[13px] font-bold text-[var(--text-primary)]">Total</td>
-                <td className="px-2.5 py-2 text-right font-mono font-bold text-[var(--text-primary)]">{fmt(totals.budgetedIncome)}</td>
-                <td className="px-2.5 py-2 text-right font-mono font-bold text-[var(--text-primary)]">{fmt(totals.actualIncome)}</td>
-                <td className={`px-2.5 py-2 text-right font-mono font-bold ${incDiff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                <td className="px-2.5 py-2 text-right font-mono text-[11px] font-bold text-[var(--text-primary)]">{fmt(totals.budgetedIncome)}</td>
+                <td className="px-2.5 py-2 text-right font-mono text-[11px] font-bold text-[var(--text-primary)]">{fmt(totals.actualIncome)}</td>
+                <td className={`px-2.5 py-2 text-right font-mono text-[11px] font-bold ${incDiff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
                   {incDiff >= 0 ? '+' : ''}{fmt(incDiff)}
                 </td>
               </tr>
@@ -422,27 +444,34 @@ export default function BudgetPage() {
                         <span className="w-[80px] text-right text-[11px] font-mono text-[var(--text-secondary)]">
                           {sub.actual !== 0 ? fmt(sub.actual) : '—'}
                         </span>
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            autoFocus
-                            inputMode="decimal"
-                            className="w-[80px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
-                            value={editingCell.value}
-                            onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
-                            onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
-                            onBlur={() => handleBudgetBlur(sub.categoryId)}
-                          />
-                        ) : (
-                          <span
-                            onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                            className={`w-[80px] text-right text-[11px] font-mono ${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1 py-0.5 -mx-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
+                        <div className="w-[80px] flex-shrink-0">
+                          <div
+                            className={`flex items-center w-full rounded ${
+                              isEditing
+                                ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
+                                : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
+                            }`}
+                            onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
                           >
-                            {sub.budgeted > 0 ? fmt(sub.budgeted) : ''}
-                          </span>
-                        )}
+                            <span className="pl-1 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                inputMode="decimal"
+                                className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-1 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
+                                value={editingCell.value}
+                                onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
+                                onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
+                                onBlur={() => handleBudgetBlur(sub.categoryId)}
+                              />
+                            ) : (
+                              <span className={`flex-1 text-right text-[11px] font-mono py-0.5 pr-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}>
+                                {sub.budgeted > 0 ? sub.budgeted.toLocaleString('en-US') : '0'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     );
                   })}

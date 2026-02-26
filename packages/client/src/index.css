@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Hide number input spinners globally */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 @theme {
   --font-sans: 'DM Sans', sans-serif;
   --font-mono: 'DM Mono', monospace;
@@ -68,6 +78,10 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
   outline: none;
+}
+input.no-focus-ring:focus {
+  border-color: transparent;
+  box-shadow: none;
 }
 input.error:focus, select.error:focus, textarea.error:focus,
 input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[aria-invalid="true"]:focus {
