@@ -5,6 +5,7 @@ import { fmt, fmtShort } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
+import CurrencyInput from '../components/CurrencyInput';
 import PermissionGate from '../components/PermissionGate';
 import Spinner from '../components/Spinner';
 import Tooltip from '../components/Tooltip';
@@ -576,14 +577,14 @@ export default function NetWorthPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
-                        <input type="number" inputMode="decimal" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
-                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost</label>
+                        <CurrencyInput value={assetForm.cost} onChange={(val) => setAssetForm({ ...assetForm, cost: val })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] font-mono bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                       </div>
                       <div>
-                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
-                        <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
-                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+                        <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value</label>
+                        <CurrencyInput value={assetForm.salvageValue} onChange={(val) => setAssetForm({ ...assetForm, salvageValue: val })}
+                          className="w-full px-2.5 py-2 border border-[var(--table-border)] rounded-md text-[13px] font-mono bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
                       </div>
                     </div>
                     <div>
@@ -767,14 +768,14 @@ export default function NetWorthPage() {
                 {/* Original Cost & Salvage Value */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost ($)</label>
-                    <input type="number" inputMode="decimal" value={assetForm.cost} onChange={(e) => setAssetForm({ ...assetForm, cost: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Original Cost</label>
+                    <CurrencyInput value={assetForm.cost} onChange={(val) => setAssetForm({ ...assetForm, cost: val })}
+                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                   </div>
                   <div>
-                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value ($)</label>
-                    <input type="number" inputMode="decimal" value={assetForm.salvageValue} onChange={(e) => setAssetForm({ ...assetForm, salvageValue: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
+                    <label className="text-[11px] text-[var(--text-secondary)] font-medium block mb-0.5">Salvage Value</label>
+                    <CurrencyInput value={assetForm.salvageValue} onChange={(val) => setAssetForm({ ...assetForm, salvageValue: val })}
+                      className="w-full px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono bg-[var(--bg-card)] outline-none text-[var(--text-body)]" />
                   </div>
                 </div>
                 {/* Depreciation Method */}
@@ -881,12 +882,10 @@ export default function NetWorthPage() {
                       <span className="flex-1 text-[13px] text-[var(--text-body)]">
                         {a.name} {a.lastFour && <span className="text-[var(--text-muted)] text-[11px]">({a.lastFour})</span>}
                       </span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
+                      <CurrencyInput
+                        allowNegative
                         value={balanceInputs[a.accountId] ?? ''}
-                        onChange={(e) => setBalanceInputs({ ...balanceInputs, [a.accountId]: e.target.value })}
+                        onChange={(val) => setBalanceInputs({ ...balanceInputs, [a.accountId]: val })}
                         className="w-[140px] px-2.5 py-1.5 border border-[var(--table-border)] rounded-md text-[13px] font-mono text-right outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                       />
                     </div>

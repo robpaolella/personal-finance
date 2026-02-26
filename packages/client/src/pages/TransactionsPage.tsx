@@ -5,6 +5,7 @@ import { fmt, fmtTransaction } from '../lib/formatters';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
+import CurrencyInput from '../components/CurrencyInput';
 import PermissionGate from '../components/PermissionGate';
 import SortableHeader from '../components/SortableHeader';
 import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge } from '../components/badges';
@@ -304,8 +305,8 @@ function TransactionForm({
           </Field>
         </div>
         <Field label="Amount" required error={errAmount}>
-          <input ref={amountRef} type="number" step="0.01" inputMode="decimal" value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+          <CurrencyInput ref={amountRef} allowNegative value={amount}
+            onChange={(val) => setAmount(val)}
             className={`${inputCls(!!errAmount)} font-mono`} />
         </Field>
       </div>

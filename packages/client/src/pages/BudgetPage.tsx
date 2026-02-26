@@ -231,8 +231,8 @@ export default function BudgetPage() {
                   <div className="flex gap-3 flex-shrink-0 ml-2">
                     <span className="w-[70px] text-right text-[12px] font-mono text-[var(--text-muted)]">
                       {isEditing ? (
-                        <input type="number" min="0" step="1" inputMode="decimal" autoFocus
-                          className="w-full text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                        <input type="text" inputMode="decimal" autoFocus
+                          className="w-full text-right font-mono text-[12px] ring-1 ring-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                           value={editingCell.value}
                           onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
                           onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
@@ -278,8 +278,8 @@ export default function BudgetPage() {
                           {isEditing ? (
                             <span className="text-[11px] font-mono text-[var(--text-muted)]">
                               {sub.actual !== 0 ? fmt(sub.actual) : '—'} /
-                              <input type="number" min="0" step="1" inputMode="decimal" autoFocus
-                                className="w-[50px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 ml-1 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                              <input type="text" inputMode="decimal" autoFocus
+                                className="w-[50px] text-right font-mono text-[11px] ring-1 ring-[#3b82f6] rounded px-1 py-0.5 ml-1 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                                 value={editingCell.value}
                                 onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
                                 onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
@@ -337,12 +337,10 @@ export default function BudgetPage() {
                     <td className="px-2.5 py-2 text-right font-mono text-[12px]">
                       {isEditing ? (
                         <input
-                          type="number"
-                          min="0"
-                          step="1"
+                          type="text"
                           autoFocus
                           inputMode="decimal"
-                          className="w-20 text-right font-mono text-[12px] border border-[#3b82f6] rounded px-1.5 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                          className="w-20 text-right font-mono text-[12px] ring-1 ring-[#3b82f6] rounded px-1.5 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                           value={editingCell.value}
                           onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
                           onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
@@ -424,12 +422,10 @@ export default function BudgetPage() {
                         </span>
                         {isEditing ? (
                           <input
-                            type="number"
-                            min="0"
-                            step="1"
+                            type="text"
                             autoFocus
                             inputMode="decimal"
-                            className="w-[80px] text-right font-mono text-[11px] border border-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
+                            className="w-[80px] text-right font-mono text-[11px] ring-1 ring-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
                             value={editingCell.value}
                             onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
                             onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
