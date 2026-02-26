@@ -229,24 +229,32 @@ export default function BudgetPage() {
                   style={{ borderBottom: i < income.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
                   <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{r.subName}</span>
                   <div className="flex gap-3 flex-shrink-0 ml-2">
-                    <span className="w-[70px] text-right text-[12px] font-mono text-[var(--text-muted)]">
-                      {isEditing ? (
-                        <input type="text" inputMode="decimal" autoFocus placeholder="$0"
-                          className="w-full text-right font-mono text-[12px] ring-1 ring-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
-                          value={editingCell.value}
-                          onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
-                          onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
-                          onBlur={() => handleBudgetBlur(r.categoryId)}
-                        />
-                      ) : (
-                        <span
-                          onClick={() => canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
-                          className={`block w-full text-right py-0.5 ${canEditBudgets ? 'cursor-pointer' : ''}`}>
-                          {r.budgeted > 0 ? fmt(r.budgeted) : '—'}
-                        </span>
-                      )}
-                    </span>
-                    <span className="w-[70px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)]">
+                    <div className="w-[70px]">
+                      <div
+                        className={`flex items-center w-full rounded ${
+                          isEditing
+                            ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
+                            : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
+                        }`}
+                        onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
+                      >
+                        <span className="pl-1 text-[12px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
+                        {isEditing ? (
+                          <input type="text" inputMode="decimal" autoFocus
+                            className="flex-1 min-w-0 text-right font-mono text-[12px] py-0.5 pr-1 bg-transparent outline-none border-none text-[var(--text-body)]"
+                            value={editingCell.value}
+                            onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
+                            onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
+                            onBlur={() => handleBudgetBlur(r.categoryId)}
+                          />
+                        ) : (
+                          <span className="flex-1 text-right font-mono text-[12px] py-0.5 pr-1 text-[var(--text-muted)]">
+                            {r.budgeted > 0 ? r.budgeted.toLocaleString('en-US') : '0'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="w-[70px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)] flex items-center justify-end">
                       {r.actual > 0 ? fmt(r.actual) : '—'}
                     </span>
                   </div>
@@ -277,22 +285,30 @@ export default function BudgetPage() {
                           <span className="text-[11px] font-mono text-[var(--text-muted)]">
                             {sub.actual !== 0 ? fmt(sub.actual) : '—'} /
                           </span>
-                          <div className="w-[50px] flex-shrink-0 ml-1">
-                            {isEditing ? (
-                              <input type="text" inputMode="decimal" autoFocus placeholder="$0"
-                                className="w-full text-right font-mono text-[11px] ring-1 ring-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
-                                value={editingCell.value}
-                                onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
-                                onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
-                                onBlur={() => handleBudgetBlur(sub.categoryId)}
-                              />
-                            ) : (
-                              <span
-                                onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                                className={`block w-full text-right text-[11px] font-mono py-0.5 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-body)]'} ${canEditBudgets ? 'cursor-pointer' : ''}`}>
-                                {sub.budgeted > 0 ? fmt(sub.budgeted) : '—'}
-                              </span>
-                            )}
+                          <div className="w-[55px] flex-shrink-0 ml-1">
+                            <div
+                              className={`flex items-center w-full rounded ${
+                                isEditing
+                                  ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
+                                  : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
+                              }`}
+                              onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
+                            >
+                              <span className="pl-0.5 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
+                              {isEditing ? (
+                                <input type="text" inputMode="decimal" autoFocus
+                                  className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-0.5 bg-transparent outline-none border-none text-[var(--text-body)]"
+                                  value={editingCell.value}
+                                  onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
+                                  onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
+                                  onBlur={() => handleBudgetBlur(sub.categoryId)}
+                                />
+                              ) : (
+                                <span className={`flex-1 text-right text-[11px] font-mono py-0.5 pr-0.5 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-body)]'}`}>
+                                  {sub.budgeted > 0 ? sub.budgeted.toLocaleString('en-US') : '0'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -334,33 +350,39 @@ export default function BudgetPage() {
                 const isEditing = editingCell?.categoryId === r.categoryId;
                 return (
                   <tr key={r.categoryId} className="border-b border-[var(--table-row-border)]">
-                    <td className="px-2.5 py-2 text-[13px] font-medium text-[var(--text-primary)]">{r.subName}</td>
-                    <td className="px-2.5 py-2 text-right font-mono text-[12px]">
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          autoFocus
-                          inputMode="decimal"
-                          placeholder="$0"
-                          className="w-full text-right font-mono text-[12px] ring-1 ring-[#3b82f6] rounded px-1.5 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
-                          value={editingCell.value}
-                          onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value })}
-                          onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
-                          onBlur={() => handleBudgetBlur(r.categoryId)}
-                        />
-                      ) : (
-                        <span
-                          onClick={() => canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
-                          className={`${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1.5 py-0.5 -mx-1.5 text-[var(--text-body)]`}
-                        >
-                          {r.budgeted > 0 ? fmt(r.budgeted) : '—'}
-                        </span>
-                      )}
+                    <td className="px-2.5 py-1.5 text-[13px] font-medium text-[var(--text-primary)]">{r.subName}</td>
+                    <td className="px-1 py-1">
+                      <div
+                        className={`flex items-center w-full rounded ${
+                          isEditing
+                            ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
+                            : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
+                        }`}
+                        onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
+                      >
+                        <span className="pl-1.5 text-[12px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            autoFocus
+                            inputMode="decimal"
+                            className="flex-1 min-w-0 text-right text-[12px] font-mono py-1 pr-1.5 bg-transparent outline-none border-none text-[var(--text-body)]"
+                            value={editingCell.value}
+                            onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
+                            onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
+                            onBlur={() => handleBudgetBlur(r.categoryId)}
+                          />
+                        ) : (
+                          <span className="flex-1 text-right text-[12px] font-mono py-1 pr-1.5 text-[var(--text-body)]">
+                            {r.budgeted > 0 ? r.budgeted.toLocaleString('en-US') : '0'}
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-2.5 py-2 text-right font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                    <td className="px-2.5 py-1.5 text-right font-mono text-[12px] font-semibold text-[var(--text-primary)]">
                       {r.actual > 0 ? fmt(r.actual) : '—'}
                     </td>
-                    <td className={`px-2.5 py-2 text-right font-mono text-[12px] ${
+                    <td className={`px-2.5 py-1.5 text-right font-mono text-[12px] ${
                       (r.budgeted > 0 || r.actual > 0) ? (diff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]') : 'text-[var(--text-muted)]'
                     }`}>
                       {(r.budgeted > 0 || r.actual > 0) ? `${diff >= 0 ? '+' : ''}${fmt(diff)}` : '—'}
@@ -423,26 +445,32 @@ export default function BudgetPage() {
                           {sub.actual !== 0 ? fmt(sub.actual) : '—'}
                         </span>
                         <div className="w-[80px] flex-shrink-0">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            autoFocus
-                            inputMode="decimal"
-                            placeholder="$0"
-                            className="w-full text-right font-mono text-[11px] ring-1 ring-[#3b82f6] rounded px-1 py-0.5 outline-none text-[var(--text-body)] bg-[var(--bg-input)]"
-                            value={editingCell.value}
-                            onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value })}
-                            onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
-                            onBlur={() => handleBudgetBlur(sub.categoryId)}
-                          />
-                        ) : (
-                          <span
-                            onClick={() => canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                            className={`block w-full text-right text-[11px] font-mono ${canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''} rounded px-1 py-0.5 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}
+                          <div
+                            className={`flex items-center w-full rounded ${
+                              isEditing
+                                ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
+                                : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
+                            }`}
+                            onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
                           >
-                            {sub.budgeted > 0 ? fmt(sub.budgeted) : ''}
-                          </span>
-                        )}
+                            <span className="pl-1 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                inputMode="decimal"
+                                className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-1 bg-transparent outline-none border-none text-[var(--text-body)]"
+                                value={editingCell.value}
+                                onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
+                                onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
+                                onBlur={() => handleBudgetBlur(sub.categoryId)}
+                              />
+                            ) : (
+                              <span className={`flex-1 text-right text-[11px] font-mono py-0.5 pr-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}>
+                                {sub.budgeted > 0 ? sub.budgeted.toLocaleString('en-US') : '0'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
