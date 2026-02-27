@@ -199,34 +199,31 @@ function AppShell() {
 
           {/* User card */}
           <div
-            className="flex items-center rounded-lg overflow-hidden mb-2"
+            onClick={() => navigate('/settings?tab=preferences')}
+            className="flex items-center rounded-lg overflow-hidden mb-2 cursor-pointer"
             style={sidebarCollapsed
               ? { justifyContent: 'center', padding: 0 }
               : { justifyContent: 'flex-start', gap: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }
             }
+            title={sidebarCollapsed ? user?.displayName ?? 'Preferences' : undefined}
           >
-            {/* Avatar — clickable to preferences */}
+            {/* Avatar */}
             <div
-              onClick={() => navigate('/settings?tab=preferences')}
-              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 cursor-pointer font-bold text-[12px]"
+              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 font-bold text-[12px]"
               style={{ background: '#1e3a5f', color: '#60a5fa' }}
-              title={sidebarCollapsed ? user?.displayName ?? 'Preferences' : undefined}
             >
               {user?.displayName?.charAt(0).toUpperCase() ?? '?'}
             </div>
             {!sidebarCollapsed && (
               <>
-                <div
-                  className="flex-1 min-w-0 cursor-pointer"
-                  onClick={() => navigate('/settings?tab=preferences')}
-                >
+                <div className="flex-1 min-w-0">
                   <div className="text-[12px] font-semibold text-[var(--sidebar-text)] leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
                     {user?.displayName}
                   </div>
                 </div>
                 {/* Sign out icon */}
                 <div
-                  onClick={logout}
+                  onClick={(e) => { e.stopPropagation(); logout(); }}
                   className="shrink-0 flex items-center justify-center text-[var(--nav-inactive-text)] hover:text-[var(--sidebar-text)] cursor-pointer transition-colors"
                   title="Sign out"
                 >
