@@ -760,6 +760,12 @@ Form Input → Storage → Display:
 **Resolution:** MockupPage.tsx is now an index/viewer. Mockup components live as individual `.tsx` files in `.github/mockups/`. The viewer discovers them via `import.meta.glob` and loads them lazily via `?mockup={name}` query parameter.
 **Rule going forward:** Never edit MockupPage.tsx to add mockups. Always create new `.tsx` files in `.github/mockups/`. Each file must have a default export React component.
 
+### New Mockups Require Vite Glob Re-evaluation (2026-02-27)
+**Context:** Created a new mockup `.tsx` file in `.github/mockups/` while the dev server was running
+**Problem:** The new mockup did not appear in the `/mockup` index list. Vite's `import.meta.glob` builds its file list when the module is first evaluated and does not automatically detect new files matching the pattern.
+**Resolution:** After creating a new mockup file, run `touch packages/client/src/pages/MockupPage.tsx` to trigger Vite's HMR to re-evaluate the glob and pick up the new file.
+**Rule going forward:** Always run `touch packages/client/src/pages/MockupPage.tsx` immediately after creating a new mockup file in `.github/mockups/`. This ensures the mockup appears in the viewer without requiring a full dev server restart.
+
 ## Development Workflow
 
 ### Environments
