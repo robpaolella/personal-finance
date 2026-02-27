@@ -93,7 +93,7 @@ function AppShell() {
   }, [handlePermissionDenied]);
 
   return (
-    <div className="flex h-screen h-[100dvh] bg-[var(--bg-main)] font-sans">
+    <div className="flex app-shell-height bg-[var(--bg-main)] font-sans">
       {/* Sidebar */}
       <div
         className="bg-[var(--bg-sidebar)] flex flex-col shrink-0 desktop-only overflow-hidden"

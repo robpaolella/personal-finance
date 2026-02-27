@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* App shell height: 100dvh with 100vh fallback for older browsers.
+   Tailwind generates h-screen after h-[100dvh], so 100vh wins in the cascade.
+   This class ensures 100dvh always takes priority on supporting browsers. */
+.app-shell-height {
+  height: 100vh;
+  height: 100dvh;
+}
+
 /* Hide number input spinners globally */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
