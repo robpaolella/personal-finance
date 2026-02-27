@@ -115,19 +115,21 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="kpi-grid grid grid-cols-4 gap-4 mb-7">
-        <KPICard label="Net Worth" value={fmtWhole(summary.netWorth)} />
-        <KPICard label="Liquid Assets" value={fmtWhole(summary.liquidAssets)} />
+        <KPICard label="Net Worth" value={fmtWhole(summary.netWorth)} onClick={() => navigate('/net-worth')} />
+        <KPICard label="Liquid Assets" value={fmtWhole(summary.liquidAssets)} onClick={() => navigate('/net-worth')} />
         <KPICard
           label={`${monthName.slice(0, 3)} Income`}
           value={fmtWhole(summary.monthIncome)}
           subtitle={summary.monthIncome >= summary.priorMonthIncome && summary.priorMonthIncome > 0 ? 'On track' : undefined}
           trend={summary.monthIncome >= summary.priorMonthIncome ? 'up' : 'down'}
+          onClick={() => navigate('/reports')}
         />
         <KPICard
           label={`${monthName.slice(0, 3)} Expenses`}
           value={fmtWhole(summary.monthExpenses)}
           subtitle={summary.totalBudgetedExpenses > 0 ? `${budgetPct}% of budget` : undefined}
           trend="neutral"
+          onClick={() => navigate('/reports')}
         />
       </div>
 
