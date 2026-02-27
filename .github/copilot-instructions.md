@@ -265,6 +265,7 @@ All interactive elements must have visible hover/focus states:
 - **Table rows (clickable):** `var(--bg-hover)` background + `cursor: pointer`
 - **Clickable badges:** `filter: brightness(1.1)` on hover
 - **Clickable cards:** Border lightens + shadow increases on hover
+- **Sidebar interactive elements:** `hover:bg-white/5` for nav items; `.sidebar-card` class for footer cards (bg `rgba(255,255,255,0.07)` → `rgba(255,255,255,0.12)` on hover, `transition: background 150ms ease`)
 - **Input focus:** Blue ring — `border-color: var(--color-accent)` + `box-shadow: 0 0 0 3px rgba(59,130,246,0.2)`
 - **Input error focus:** Red ring — same pattern with `var(--color-negative)`
 

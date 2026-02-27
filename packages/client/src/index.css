@@ -347,3 +347,13 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
 @media (min-width: 768px) {
   .mobile-only { display: none !important; }
 }
+
+/* Sidebar card hover */
+.sidebar-card {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: background 150ms ease;
+}
+.sidebar-card:hover {
+  background: rgba(255,255,255,0.12);
+}

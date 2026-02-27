@@ -182,8 +182,8 @@ function AppShell() {
           ) : (
             <button
               onClick={toggleTheme}
-              className="flex items-center gap-2.5 w-full text-[12px] font-medium text-[var(--nav-inactive-text)] hover:text-[var(--sidebar-text)] hover:bg-white/5 cursor-pointer rounded-lg transition-colors whitespace-nowrap overflow-hidden mb-2"
-              style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}
+              className="sidebar-card flex items-center gap-2.5 w-full text-[12px] font-medium text-[var(--nav-inactive-text)] hover:text-[var(--sidebar-text)] cursor-pointer rounded-lg whitespace-nowrap overflow-hidden mb-2"
+              style={{ padding: '8px 10px' }}
               title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
             >
               <span className="flex shrink-0">
@@ -200,10 +200,10 @@ function AppShell() {
           {/* User card */}
           <div
             onClick={() => navigate('/settings?tab=preferences')}
-            className="flex items-center rounded-lg overflow-hidden mb-2 cursor-pointer"
+            className={`flex items-center rounded-lg overflow-hidden mb-2 cursor-pointer${sidebarCollapsed ? '' : ' sidebar-card'}`}
             style={sidebarCollapsed
               ? { justifyContent: 'center', padding: 0 }
-              : { justifyContent: 'flex-start', gap: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }
+              : { justifyContent: 'flex-start', gap: 10, padding: '8px 10px' }
             }
             title={sidebarCollapsed ? user?.displayName ?? 'Preferences' : undefined}
           >
