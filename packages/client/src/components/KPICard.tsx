@@ -3,16 +3,23 @@ interface KPICardProps {
   value: string;
   subtitle?: string;
   trend?: 'up' | 'down' | 'neutral';
+  onClick?: () => void;
 }
 
-export default function KPICard({ label, value, subtitle, trend }: KPICardProps) {
+export default function KPICard({ label, value, subtitle, trend, onClick }: KPICardProps) {
   const trendColor =
     trend === 'up' ? 'text-[#10b981]' :
     trend === 'down' ? 'text-[#ef4444]' :
     'text-[var(--text-secondary)]';
 
   return (
-    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]">
+    <div
+      className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)]${onClick ? ' cursor-pointer transition-shadow duration-150 hover:shadow-md hover:border-[var(--text-muted)]' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <p className="text-[11px] text-[var(--text-secondary)] uppercase tracking-[0.05em] font-medium m-0">
         {label}
       </p>
