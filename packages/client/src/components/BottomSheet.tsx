@@ -101,7 +101,7 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
         {/* Drag handle */}
         <div
           className="flex justify-center shrink-0 cursor-grab active:cursor-grabbing select-none touch-none"
-          style={{ padding: '8px 0 4px' }}
+          style={{ padding: '14px 0 10px' }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
