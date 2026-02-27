@@ -80,7 +80,7 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50 touch-none">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-[var(--bg-modal)]"
@@ -124,8 +124,8 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
 
         {/* Content */}
         <div
-          className="flex-1 overflow-y-auto px-5 pb-1"
-          style={{ scrollbarWidth: 'none' }}
+          className="flex-1 overflow-y-auto px-5 pb-1 touch-auto"
+          style={{ scrollbarWidth: 'none', overscrollBehavior: 'contain' }}
         >
           {children}
         </div>
