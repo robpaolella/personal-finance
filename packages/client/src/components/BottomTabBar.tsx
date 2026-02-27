@@ -63,7 +63,7 @@ export default function BottomTabBar() {
 
       {/* Tab Bar */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-40 flex justify-around items-center bg-[var(--bg-card)] border-t border-[var(--bg-card-border)]"
+        className="fixed bottom-0 left-0 right-0 z-40 flex justify-around items-center bg-[var(--bg-card)] border-t border-[var(--bg-card-border)] select-none"
         style={{ padding: '10px 0 max(22px, env(safe-area-inset-bottom))' }}
       >
         {TAB_BAR_ITEMS.map((tab) => {

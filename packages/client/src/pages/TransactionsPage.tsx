@@ -937,11 +937,13 @@ export default function TransactionsPage() {
       )}
 
       {/* Pagination */}
-      <div className={`mt-3 text-[13px] text-[var(--text-secondary)] ${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center'}`}>
-        <span className="font-mono text-[12px]">
-          {total > 0 ? `${showFrom}–${showTo} of ${total}` : 'No transactions'}
-        </span>
-        <div className={`flex items-center ${isMobile ? 'justify-between' : 'gap-3'}`}>
+      <div className={`mt-3 text-[13px] text-[var(--text-secondary)] ${isMobile ? 'flex flex-col items-center gap-2 pb-16' : 'flex justify-between items-center'}`}>
+        {!isMobile && (
+          <span className="font-mono text-[12px]">
+            {total > 0 ? `${showFrom}–${showTo} of ${total}` : 'No transactions'}
+          </span>
+        )}
+        <div className={`flex items-center ${isMobile ? 'justify-center' : 'gap-3'}`}>
           {!isMobile && (
             <div className="flex items-center gap-1.5">
               <select value={pageSize} onChange={(e) => { const v = parseInt(e.target.value, 10); setPageSize(v); localStorage.setItem('ledger-page-size', v.toString()); setPage(1); }}

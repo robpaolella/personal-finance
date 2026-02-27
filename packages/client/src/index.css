@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* App shell height: 100dvh with 100vh fallback for older browsers.
+   Tailwind generates h-screen after h-[100dvh], so 100vh wins in the cascade.
+   This class ensures 100dvh always takes priority on supporting browsers. */
+.app-shell-height {
+  height: 100vh;
+  height: 100dvh;
+}
+
 /* Hide number input spinners globally */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
@@ -323,7 +331,7 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
 @media (max-width: 767px) {
   .desktop-only { display: none !important; }
   .mobile-main-content {
-    padding: 16px 16px 96px !important;
+    padding: 16px 16px 120px !important;
   }
   .tab-bar-icon svg {
     width: 22px;
@@ -346,4 +354,14 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
 }
 @media (min-width: 768px) {
   .mobile-only { display: none !important; }
+}
+
+/* Sidebar card hover */
+.sidebar-card {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: background 150ms ease;
+}
+.sidebar-card:hover {
+  background: rgba(255,255,255,0.12);
 }

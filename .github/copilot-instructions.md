@@ -265,6 +265,7 @@ All interactive elements must have visible hover/focus states:
 - **Table rows (clickable):** `var(--bg-hover)` background + `cursor: pointer`
 - **Clickable badges:** `filter: brightness(1.1)` on hover
 - **Clickable cards:** Border lightens + shadow increases on hover
+- **Sidebar interactive elements:** `hover:bg-white/5` for nav items; `.sidebar-card` class for footer cards (bg `rgba(255,255,255,0.07)` → `rgba(255,255,255,0.12)` on hover, `transition: background 150ms ease`)
 - **Input focus:** Blue ring — `border-color: var(--color-accent)` + `box-shadow: 0 0 0 3px rgba(59,130,246,0.2)`
 - **Input error focus:** Red ring — same pattern with `var(--color-negative)`
 
@@ -759,6 +760,18 @@ Form Input → Storage → Display:
 **Problem:** Only one mockup visible at a time, no history, old mockups lost when replaced
 **Resolution:** MockupPage.tsx is now an index/viewer. Mockup components live as individual `.tsx` files in `.github/mockups/`. The viewer discovers them via `import.meta.glob` and loads them lazily via `?mockup={name}` query parameter.
 **Rule going forward:** Never edit MockupPage.tsx to add mockups. Always create new `.tsx` files in `.github/mockups/`. Each file must have a default export React component.
+
+### Tailwind Class Order Does Not Guarantee CSS Cascade Order (2026-02-27)
+**Context:** The app shell used `h-screen h-[100dvh]` intending the arbitrary value to override the standard utility
+**Problem:** On mobile, bottom page content was hidden behind the browser chrome, requiring a second scroll. Investigation revealed that Tailwind generates `.h-screen` (100vh) AFTER `.h-[100dvh]` (100dvh) in the CSS output, so 100vh was winning in the cascade. Since 100vh includes the area behind mobile browser chrome (address bar, bottom navigation), the scroll container was taller than the visible area.
+**Resolution:** Created a dedicated `.app-shell-height` CSS class in `index.css` with `height: 100vh; height: 100dvh;` (CSS progressive enhancement — dvh overrides vh in the same rule block). Replaced the conflicting Tailwind classes with this single class.
+**Rule going forward:** Never rely on HTML class order to control CSS cascade priority between Tailwind utilities. When two utilities set the same CSS property and one must win, use a custom CSS class with declarations in the correct order (later declaration wins within the same rule). This is especially important for viewport units with fallbacks (vh → dvh, vh → svh).
+
+### New Mockups Require Vite Glob Re-evaluation (2026-02-27)
+**Context:** Created a new mockup `.tsx` file in `.github/mockups/` while the dev server was running
+**Problem:** The new mockup did not appear in the `/mockup` index list. Vite's `import.meta.glob` builds its file list when the module is first evaluated and does not automatically detect new files matching the pattern.
+**Resolution:** After creating a new mockup file, run `touch packages/client/src/pages/MockupPage.tsx` to trigger Vite's HMR to re-evaluate the glob and pick up the new file.
+**Rule going forward:** Always run `touch packages/client/src/pages/MockupPage.tsx` immediately after creating a new mockup file in `.github/mockups/`. This ensures the mockup appears in the viewer without requiring a full dev server restart.
 
 ## Development Workflow
 
