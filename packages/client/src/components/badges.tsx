@@ -73,6 +73,15 @@ export function ClassificationBadge({ classification }: { classification: Accoun
   );
 }
 
+/* ------ SplitBadge ------ */
+export function SplitBadge({ count }: { count: number }) {
+  return (
+    <span className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)]">
+      Split ({count})
+    </span>
+  );
+}
+
 /* ------ ConnectedBadge ------ */
 export function ConnectedBadge() {
   return (
