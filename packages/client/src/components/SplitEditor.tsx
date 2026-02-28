@@ -39,6 +39,11 @@ export default function SplitEditor({
           { categoryId: null, amount: 0 },
         ]
   );
+  // Track raw input strings so trailing decimals/zeros aren't lost during typing
+  const [rawAmounts, setRawAmounts] = useState<string[]>(
+    () => (initialSplits?.length ? initialSplits : [{ amount: totalAmount }, { amount: 0 }])
+      .map(s => s.amount ? s.amount.toString() : '')
+  );
 
   const allocated = useMemo(
     () => splits.reduce((s, r) => s + r.amount, 0),
@@ -82,6 +87,10 @@ export default function SplitEditor({
         if (prev.length <= 2) return prev;
         return prev.filter((_, i) => i !== idx);
       });
+      setRawAmounts((prev) => {
+        if (prev.length <= 2) return prev;
+        return prev.filter((_, i) => i !== idx);
+      });
     },
     []
   );
@@ -92,19 +101,26 @@ export default function SplitEditor({
       const rem = +(Math.abs(totalAmount) - alloc).toFixed(2);
       return [...prev, { categoryId: null, amount: rem > 0 ? rem : 0 }];
     });
-  }, [totalAmount]);
+    setRawAmounts((prev) => {
+      const alloc = splits.reduce((s, r) => s + r.amount, 0);
+      const rem = +(Math.abs(totalAmount) - alloc).toFixed(2);
+      return [...prev, rem > 0 ? rem.toString() : ''];
+    });
+  }, [totalAmount, splits]);
 
   const handlePctChange = useCallback(
     (idx: number, pctStr: string) => {
       const pct = parseFloat(pctStr) || 0;
       const amt = +(absTotalAmount * pct / 100).toFixed(2);
       updateSplit(idx, 'amount', amt);
+      setRawAmounts(prev => prev.map((r, i) => i === idx ? amt.toString() : r));
     },
     [absTotalAmount, updateSplit]
   );
 
   const handleAmountChange = useCallback(
     (idx: number, raw: string) => {
+      setRawAmounts(prev => prev.map((r, i) => i === idx ? raw : r));
       const val = parseFloat(raw) || 0;
       updateSplit(idx, 'amount', +(Math.abs(val).toFixed(2)));
     },
@@ -178,7 +194,7 @@ export default function SplitEditor({
             <div className={compact ? 'w-[80px]' : 'w-[100px]'}>
               {mode === '$' ? (
                 <CurrencyInput
-                  value={s.amount ? s.amount.toString() : ''}
+                  value={rawAmounts[i] ?? (s.amount ? s.amount.toString() : '')}
                   onChange={(val) => handleAmountChange(i, val)}
                   className={`${inputCls} font-mono text-right ${compact ? 'text-[11px]' : ''}`}
                   placeholder="0.00"
