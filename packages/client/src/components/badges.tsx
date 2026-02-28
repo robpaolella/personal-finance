@@ -74,10 +74,30 @@ export function ClassificationBadge({ classification }: { classification: Accoun
 }
 
 /* ------ SplitBadge ------ */
-export function SplitBadge({ count }: { count: number }) {
+export function SplitBadge({ colors, count, compact = false }: {
+  colors: string[];
+  count: number;
+  compact?: boolean;
+}) {
+  const dotSize = compact ? 8 : 10;
   return (
-    <span className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)]">
-      Split ({count})
+    <span className="inline-flex items-center gap-1">
+      <span className="inline-flex" style={{ gap: 0 }}>
+        {colors.map((color, i) => (
+          <span key={i} style={{
+            width: dotSize, height: dotSize, borderRadius: '50%',
+            background: color,
+            border: '1.5px solid var(--bg-card)',
+            marginLeft: i > 0 ? -3 : 0,
+            zIndex: colors.length - i,
+            display: 'inline-block',
+            flexShrink: 0,
+          }} />
+        ))}
+      </span>
+      <span className="text-[10px] font-semibold text-[var(--text-secondary)] px-1.5 py-0.5 rounded bg-[var(--bg-hover)] whitespace-nowrap">
+        Split ({count})
+      </span>
     </span>
   );
 }

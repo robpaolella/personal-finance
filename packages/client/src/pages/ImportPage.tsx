@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
+import { getCategoryColor } from '../lib/categoryColors';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import DuplicateBadge from '../components/DuplicateBadge';
@@ -418,6 +419,13 @@ export default function ImportPage() {
     catGroups.get(c.group_name)!.push(c);
   }
 
+  const allGroupNames = [...new Set(categories.map(c => c.group_name))];
+  const getSplitColors = (splits: SplitRow[]) =>
+    splits.map(s => {
+      const cat = categories.find(c => c.id === s.categoryId);
+      return getCategoryColor(cat?.group_name ?? '', allGroupNames);
+    });
+
   const validImportCount = categorizedRows.filter((r, i) => selectedImportRows.has(i) && (r.categoryId != null || (r.splits && r.splits.length >= 2))).length;
 
   // Split editor modal state for import rows
@@ -433,6 +441,7 @@ export default function ImportPage() {
     } : r));
     setSelectedImportRows(prev => { const next = new Set(prev); next.add(idx); return next; });
     setSplitEditingIdx(null);
+    addToast(`Split applied across ${appliedSplits.length} categories`, 'success');
   };
 
   const handleSplitCancel = (idx: number) => {
@@ -823,7 +832,21 @@ export default function ImportPage() {
                           <div className="mt-2">
                             {r.splits && r.splits.length >= 2 ? (
                               <div className="flex items-center gap-2">
-                                <span className="text-[12px] font-medium text-[var(--color-accent)]">Split ({r.splits.length})</span>
+                                <span className="inline-flex items-center gap-1">
+                                  <span className="inline-flex" style={{ gap: 0 }}>
+                                    {getSplitColors(r.splits).map((color, ci) => (
+                                      <span key={ci} style={{
+                                        width: 8, height: 8, borderRadius: '50%',
+                                        background: color,
+                                        border: '1.5px solid var(--bg-card)',
+                                        marginLeft: ci > 0 ? -3 : 0,
+                                        zIndex: r.splits!.length - ci,
+                                        display: 'inline-block',
+                                      }} />
+                                    ))}
+                                  </span>
+                                  <span className="text-[11px] font-semibold text-[var(--text-secondary)]">Split ({r.splits.length})</span>
+                                </span>
                                 <button onClick={() => setSplitEditingIdx(i)}
                                   className="text-[11px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-0 hover:underline">Edit</button>
                               </div>
@@ -948,8 +971,22 @@ export default function ImportPage() {
                       </td>
                       <td className="px-2.5 py-1.5">
                         {r.splits && r.splits.length >= 2 ? (
-                          <div>
-                            <span className="text-[11px] font-medium text-[var(--color-accent)]">Split ({r.splits.length})</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="inline-flex" style={{ gap: 0 }}>
+                                {getSplitColors(r.splits).map((color, ci) => (
+                                  <span key={ci} style={{
+                                    width: 10, height: 10, borderRadius: '50%',
+                                    background: color,
+                                    border: '1.5px solid var(--bg-card)',
+                                    marginLeft: ci > 0 ? -3 : 0,
+                                    zIndex: r.splits!.length - ci,
+                                    display: 'inline-block',
+                                  }} />
+                                ))}
+                              </span>
+                              <span className="text-[10px] font-semibold text-[var(--text-secondary)] px-1.5 py-0.5 rounded bg-[var(--bg-hover)] whitespace-nowrap">Split ({r.splits.length})</span>
+                            </span>
                             <button onClick={() => setSplitEditingIdx(i)}
                               className="ml-1 text-[10px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-0 hover:underline">Edit</button>
                           </div>

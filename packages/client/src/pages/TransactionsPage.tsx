@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtTransaction } from '../lib/formatters';
+import { getCategoryColor } from '../lib/categoryColors';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
@@ -9,6 +10,7 @@ import CurrencyInput from '../components/CurrencyInput';
 import PermissionGate from '../components/PermissionGate';
 import SortableHeader from '../components/SortableHeader';
 import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge, SplitBadge } from '../components/badges';
+import InlineNotification from '../components/InlineNotification';
 import ResponsiveModal from '../components/ResponsiveModal';
 import SplitEditor from '../components/SplitEditor';
 import type { SplitRow } from '../components/SplitEditor';
@@ -144,6 +146,7 @@ function TransactionForm({
   });
   const [showErrors, setShowErrors] = useState(false);
   const [dupeExpanded, setDupeExpanded] = useState(false);
+  const [splitNotification, setSplitNotification] = useState<string | null>(null);
 
   // Refs for focusing first invalid field
   const dateRef = useRef<HTMLInputElement>(null);
@@ -257,13 +260,15 @@ function TransactionForm({
   };
 
   const handleSplitApply = (appliedSplits: SplitRow[]) => {
-    // Store absolute amounts in the editor
-    setSplits(appliedSplits.map(s => ({ categoryId: s.categoryId, amount: Math.abs(s.amount) })));
+    const stored = appliedSplits.map(s => ({ categoryId: s.categoryId, amount: Math.abs(s.amount) }));
+    setSplits(stored);
+    setSplitNotification(`Split applied across ${stored.length} categories`);
   };
 
   const handleCancelSplit = () => {
     setSplitMode(false);
     setSplits(null);
+    setSplitNotification(null);
     // Restore category if we had one before
     if (transaction?.category?.id) {
       setCategoryId(transaction.category.id);
@@ -400,6 +405,14 @@ function TransactionForm({
             onCancel={handleCancelSplit}
           />
         )}
+        {splitNotification && (
+          <InlineNotification
+            type="success"
+            message={splitNotification}
+            dismissible
+            onDismiss={() => setSplitNotification(null)}
+          />
+        )}
       </div>
 
       {/* Duplicate Warning */}
@@ -478,6 +491,7 @@ export default function TransactionsPage() {
   const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const allGroupNames = useMemo(() => [...new Set(categories.map(c => c.group_name))], [categories]);
   const [pendingSave, setPendingSave] = useState<Record<string, unknown> | null>(null);
   const [duplicateMatch, setDuplicateMatch] = useState<DuplicateMatch | null>(null);
 
@@ -947,7 +961,11 @@ export default function TransactionsPage() {
                     <span className="font-mono text-[10px] text-[var(--text-muted)]">{t.date}</span>
                     <span className="text-[var(--text-muted)]">·</span>
                     {t.splits && t.splits.length > 0 ? (
-                      <SplitBadge count={t.splits.length} />
+                      <SplitBadge
+                        colors={t.splits.map(s => getCategoryColor(s.groupName, allGroupNames))}
+                        count={t.splits.length}
+                        compact
+                      />
                     ) : t.category ? (
                       <CategoryBadge name={t.category.subName} />
                     ) : null}
@@ -1012,7 +1030,10 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-2.5 py-2">
                       {isSplit ? (
-                        <SplitBadge count={t.splits!.length} />
+                        <SplitBadge
+                          colors={t.splits!.map(s => getCategoryColor(s.groupName, allGroupNames))}
+                          count={t.splits!.length}
+                        />
                       ) : (
                         <span className="text-[11px] text-[var(--text-secondary)]">{t.category?.groupName ?? '—'}</span>
                       )}
