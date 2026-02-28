@@ -967,7 +967,7 @@ export default function TransactionsPage() {
                         compact
                       />
                     ) : t.category ? (
-                      <CategoryBadge name={t.category.subName} />
+                      <CategoryBadge name={t.category.subName} color={getCategoryColor(t.category.groupName, allGroupNames)} />
                     ) : null}
                   </div>
                 </div>
@@ -1030,21 +1030,39 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-2.5 py-2">
                       {isSplit ? (
-                        <SplitBadge
-                          colors={t.splits!.map(s => getCategoryColor(s.groupName, allGroupNames))}
-                          count={t.splits!.length}
-                        />
+                        <div className="flex flex-col gap-0.5">
+                          {[...new Map(t.splits!.map(s => [s.groupName, s])).values()].map((s, gi) => (
+                            <div key={gi} className="flex items-center gap-1.5">
+                              <span style={{
+                                width: 7, height: 7, borderRadius: '50%',
+                                background: getCategoryColor(s.groupName, allGroupNames),
+                                display: 'inline-block', flexShrink: 0,
+                              }} />
+                              <span className="text-[11px] text-[var(--text-secondary)]">{s.groupName}</span>
+                            </div>
+                          ))}
+                        </div>
                       ) : (
-                        <span className="text-[11px] text-[var(--text-secondary)]">{t.category?.groupName ?? '—'}</span>
+                        <div className="flex items-center gap-1.5">
+                          {t.category && (
+                            <span style={{
+                              width: 7, height: 7, borderRadius: '50%',
+                              background: getCategoryColor(t.category.groupName, allGroupNames),
+                              display: 'inline-block', flexShrink: 0,
+                            }} />
+                          )}
+                          <span className="text-[11px] text-[var(--text-secondary)]">{t.category?.groupName ?? '—'}</span>
+                        </div>
                       )}
                     </td>
                     <td className="px-2.5 py-2">
                       {isSplit ? (
-                        <span className="text-[10px] text-[var(--text-muted)]">
-                          {t.splits!.map(s => s.subName).join(', ')}
-                        </span>
+                        <SplitBadge
+                          colors={t.splits!.map(s => getCategoryColor(s.groupName, allGroupNames))}
+                          count={t.splits!.length}
+                        />
                       ) : t.category ? (
-                        <CategoryBadge name={t.category.subName} />
+                        <CategoryBadge name={t.category.subName} color={getCategoryColor(t.category.groupName, allGroupNames)} />
                       ) : (
                         <span className="text-[11px] text-[var(--text-muted)]">—</span>
                       )}

@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [spending, setSpending] = useState<SpendingGroup[]>([]);
   const [monthlyChart, setMonthlyChart] = useState<MonthlyData[]>([]);
   const [recentTxns, setRecentTxns] = useState<Transaction[]>([]);
+  const allGroupNames = useMemo(() => spending.map(s => s.groupName), [spending]);
 
   const loadData = useCallback(async () => {
     const [sumRes, spendRes, chartRes, txnRes] = await Promise.all([
@@ -228,7 +229,7 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[var(--text-muted)]">
                       <span className="font-mono text-[10px]">{t.date}</span>
                       <span>·</span>
-                      <CategoryBadge name={t.category.subName} />
+                      <CategoryBadge name={t.category.subName} color={getCategoryColor(t.category.groupName, allGroupNames)} />
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -281,10 +282,17 @@ export default function DashboardPage() {
                       </span>
                     </td>
                     <td className="px-2.5 py-2">
-                      <span className="text-[11px] text-[var(--text-secondary)]">{t.category.groupName}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span style={{
+                          width: 7, height: 7, borderRadius: '50%',
+                          background: getCategoryColor(t.category.groupName, allGroupNames),
+                          display: 'inline-block', flexShrink: 0,
+                        }} />
+                        <span className="text-[11px] text-[var(--text-secondary)]">{t.category.groupName}</span>
+                      </div>
                     </td>
                     <td className="px-2.5 py-2">
-                      <CategoryBadge name={t.category.subName} />
+                      <CategoryBadge name={t.category.subName} color={getCategoryColor(t.category.groupName, allGroupNames)} />
                     </td>
                     <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>{amtText}</td>
                   </tr>

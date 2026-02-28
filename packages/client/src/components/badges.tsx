@@ -10,7 +10,20 @@ export function AccountBadge({ name }: { name: string }) {
 }
 
 /* ------ CategoryBadge ------ */
-export function CategoryBadge({ name }: { name: string }) {
+export function CategoryBadge({ name, color }: { name: string; color?: string }) {
+  if (color) {
+    return (
+      <span
+        className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-md"
+        style={{
+          backgroundColor: `${color}18`,
+          color: color,
+        }}
+      >
+        {name}
+      </span>
+    );
+  }
   return (
     <span className="inline-block text-[11px] bg-[var(--badge-category-bg)] text-[var(--badge-category-text)] px-2 py-0.5 rounded-md">
       {name}
