@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
 import { transactions, accounts, categories, budgets, balanceSnapshots, assets } from '../db/schema.js';
-import { eq, and, gte, lte, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { calculateCurrentValue } from '../utils/depreciation.js';
 
 const router = Router();

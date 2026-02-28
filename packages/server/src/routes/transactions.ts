@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
 import { transactions, accounts, categories, transactionSplits } from '../db/schema.js';
-import { eq, and, gte, lte, like, or, sql, desc, asc, inArray, isNull } from 'drizzle-orm';
+import { eq, and, gte, lte, like, or, sql, desc, asc, inArray } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
@@ -52,7 +52,7 @@ function getSplitsForTransactions(transactionIds: number[]): Map<number, { id: n
     id: number; transaction_id: number; category_id: number; amount: number;
     group_name: string; sub_name: string; display_name: string; type: string;
   }[];
-  const map = new Map<number, typeof rows extends (infer R)[] ? { id: number; categoryId: number; groupName: string; subName: string; displayName: string; type: string; amount: number }[] : never>();
+  const map = new Map<number, { id: number; categoryId: number; groupName: string; subName: string; displayName: string; type: string; amount: number }[]>();
   for (const r of rows) {
     if (!map.has(r.transaction_id)) map.set(r.transaction_id, []);
     map.get(r.transaction_id)!.push({
