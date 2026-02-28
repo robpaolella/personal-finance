@@ -7,6 +7,7 @@ const TRANSFER_KEYWORDS = [
   /\btransfer\b/i,
   /\bthank you\b/i,
   /\bach pmt\b/i,
+  /\bauthorized\s+pmt\b/i,
   /\bmobile payment\b/i,
   /\bonline.*transfer\b/i,
   /\bautopay\b/i,
