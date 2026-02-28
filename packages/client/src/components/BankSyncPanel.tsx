@@ -539,6 +539,9 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                                 {t.amount < 0 ? '+' : ''}{fmt(Math.abs(t.amount))}
                               </span>
                             </div>
+                            {t.rawDescription && t.rawDescription !== t.description && (
+                              <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{t.rawDescription}</div>
+                            )}
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               <span className="text-[11px] font-mono text-[var(--text-muted)]">{t.date}</span>
                               <span className="text-[var(--text-muted)]">·</span>
@@ -599,13 +602,14 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
               <table className="w-full border-collapse text-[13px]" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
                   <col style={{ width: '40px' }} />
-                  <col style={{ width: '95px' }} />
+                  <col style={{ width: '90px' }} />
                   <col />
-                  <col style={{ width: '130px' }} />
-                  <col style={{ width: '100px' }} />
-                  <col style={{ width: '155px' }} />
-                  <col style={{ width: '120px' }} />
-                  <col style={{ width: '55px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '95px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '50px' }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -621,6 +625,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                     <SortableHeader label="Date" sortKey="date" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
                     <SortableHeader label="Payee" sortKey="payee" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
                     <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Note</th>
                     <SortableHeader label="Amount" sortKey="amount" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} align="right" />
                     <SortableHeader label="Category" sortKey="category" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
                     <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
@@ -649,9 +654,12 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                           {t.description}
                         </td>
                         <td className="px-2.5 py-2">
-                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)] font-mono inline-block max-w-full truncate">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)] font-mono inline-block max-w-full truncate" title={t.accountName}>
                             {t.accountName}
                           </span>
+                        </td>
+                        <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] truncate" title={t.rawDescription !== t.description ? t.rawDescription : undefined}>
+                          {t.rawDescription !== t.description ? t.rawDescription : ''}
                         </td>
                         <td className={`px-2.5 py-2 text-right font-mono font-semibold ${t.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
                           {t.amount < 0 ? '+' : ''}{fmt(Math.abs(t.amount))}
@@ -692,7 +700,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                       </tr>
                       {expandedDupeRow === i && t.duplicateMatchId && (
                         <tr>
-                          <td colSpan={8} className="px-2.5 py-1">
+                          <td colSpan={9} className="px-2.5 py-1">
                             <DuplicateComparison
                               incoming={{ date: t.date, description: t.description, amount: t.amount, accountName: t.accountName }}
                               existing={{ date: t.duplicateMatchDate || t.date, description: t.duplicateMatchDescription || '', amount: t.duplicateMatchAmount ?? t.amount, accountName: t.duplicateMatchAccountName || null }}
