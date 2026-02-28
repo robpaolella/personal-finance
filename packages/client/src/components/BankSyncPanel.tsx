@@ -9,6 +9,9 @@ import DuplicateComparison from '../components/DuplicateComparison';
 import TransferBadge from '../components/TransferBadge';
 import SortableHeader from '../components/SortableHeader';
 import InlineNotification from '../components/InlineNotification';
+import ResponsiveModal from '../components/ResponsiveModal';
+import SplitEditor from '../components/SplitEditor';
+import type { SplitRow } from '../components/SplitEditor';
 
 interface Category {
   id: number;
@@ -55,6 +58,8 @@ interface SyncTransaction {
   categoryId: number | null;
   groupName: string | null;
   subName: string | null;
+  // Split support
+  splits: SplitRow[] | null;
 }
 
 interface SyncBalanceUpdate {
@@ -206,6 +211,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
         categoryId: t.suggestedCategoryId,
         groupName: t.suggestedGroupName,
         subName: t.suggestedSubName,
+        splits: null,
       }));
 
       setSyncTxns(txns);
@@ -239,7 +245,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
   };
 
   const handleImport = async () => {
-    const selectedTxns = syncTxns.filter((_, i) => selectedTxnRows.has(i) && syncTxns[i].categoryId != null);
+    const selectedTxns = syncTxns.filter((_, i) => selectedTxnRows.has(i) && (syncTxns[i].categoryId != null || (syncTxns[i].splits && syncTxns[i].splits!.length >= 2)));
     const selectedBalances = balanceUpdates.filter((b) => b.selected);
     const selectedHoldings = holdingsUpdates.filter((h) => h.selected);
 
@@ -259,7 +265,8 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
               description: t.description,
               rawDescription: t.rawDescription,
               amount: t.amount,
-              categoryId: t.categoryId,
+              categoryId: t.splits ? null : t.categoryId,
+              ...(t.splits ? { splits: t.splits } : {}),
             })),
             balanceUpdates: selectedBalances.map((b) => ({
               accountId: b.accountId,
@@ -288,6 +295,29 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
     }
   };
 
+  // Split editor modal state
+  const [splitEditingIdx, setSplitEditingIdx] = useState<number | null>(null);
+
+  const handleSplitApply = (idx: number, appliedSplits: SplitRow[]) => {
+    setSyncTxns((prev) => prev.map((t, i) => i === idx ? {
+      ...t,
+      categoryId: null,
+      groupName: null,
+      subName: null,
+      splits: appliedSplits,
+    } : t));
+    setSelectedTxnRows(prev => { const next = new Set(prev); next.add(idx); return next; });
+    setSplitEditingIdx(null);
+  };
+
+  const handleSplitCancel = (idx: number) => {
+    setSplitEditingIdx(null);
+    const row = syncTxns[idx];
+    if (!row.categoryId && (!row.splits || row.splits.length < 2)) {
+      setSelectedTxnRows(prev => { const next = new Set(prev); next.delete(idx); return next; });
+    }
+  };
+
   if (loading) return null;
 
   // No linked accounts — not configured
@@ -312,11 +342,12 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
     );
   }
 
-  const validTxnCount = syncTxns.filter((t, i) => selectedTxnRows.has(i) && t.categoryId != null).length;
+  const validTxnCount = syncTxns.filter((t, i) => selectedTxnRows.has(i) && (t.categoryId != null || (t.splits && t.splits.length >= 2))).length;
   const selectedBalanceCount = balanceUpdates.filter((b) => b.selected).length;
   const selectedHoldingsCount = holdingsUpdates.filter((h) => h.selected).length;
 
   return (
+    <>
     <div>
       {/* Step Indicator */}
       <div className="flex gap-1 mb-6">
@@ -559,23 +590,43 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                               </span>
                             </div>
                             <div className="mt-2">
-                              {t.groupName && t.categoryId && (
-                                <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{t.groupName}</div>
+                              {t.splits && t.splits.length >= 2 ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[12px] font-medium text-[var(--color-accent)]">Split ({t.splits.length})</span>
+                                  <button onClick={() => setSplitEditingIdx(i)}
+                                    className="text-[11px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-0 hover:underline">Edit</button>
+                                </div>
+                              ) : (
+                                <>
+                                  {t.groupName && t.categoryId && (
+                                    <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{t.groupName}</div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <select
+                                      className="flex-1 text-[12px] border border-[var(--table-border)] rounded-md px-2 py-1.5 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                                      value={t.categoryId || ''}
+                                      onChange={(e) => updateTxnCategory(i, parseInt(e.target.value))}>
+                                      <option value="">Select category...</option>
+                                      {Array.from(catGroups.entries()).map(([group, cats]) => (
+                                        <optgroup key={group} label={group}>
+                                          {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                        </optgroup>
+                                      ))}
+                                      <optgroup label="Income">
+                                        {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                      </optgroup>
+                                    </select>
+                                    <button onClick={() => setSplitEditingIdx(i)}
+                                      title="Split"
+                                      className="flex-shrink-0 w-8 h-8 rounded flex items-center justify-center border-none bg-transparent text-[var(--text-muted)] cursor-pointer hover:text-[var(--color-accent)]">
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="12" y1="5" x2="12" y2="19" /><polyline points="5 12 12 5 19 12" />
+                                        <line x1="5" y1="19" x2="19" y2="19" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </>
                               )}
-                              <select
-                                className="w-full text-[12px] border border-[var(--table-border)] rounded-md px-2 py-1.5 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
-                                value={t.categoryId || ''}
-                                onChange={(e) => updateTxnCategory(i, parseInt(e.target.value))}>
-                                <option value="">Select category...</option>
-                                {Array.from(catGroups.entries()).map(([group, cats]) => (
-                                  <optgroup key={group} label={group}>
-                                    {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                                  </optgroup>
-                                ))}
-                                <optgroup label="Income">
-                                  {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                                </optgroup>
-                              </select>
                             </div>
                           </div>
                         </div>
@@ -666,23 +717,43 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                           {t.amount < 0 ? '+' : ''}{fmt(Math.abs(t.amount))}
                         </td>
                         <td className="px-2.5 py-1.5">
-                          {t.groupName && t.categoryId && (
-                            <div className="text-[10px] text-[var(--text-muted)] mb-0.5 truncate">{t.groupName}</div>
+                          {t.splits && t.splits.length >= 2 ? (
+                            <div>
+                              <span className="text-[11px] font-medium text-[var(--color-accent)]">Split ({t.splits.length})</span>
+                              <button onClick={() => setSplitEditingIdx(i)}
+                                className="ml-1 text-[10px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-0 hover:underline">Edit</button>
+                            </div>
+                          ) : (
+                            <>
+                              {t.groupName && t.categoryId && (
+                                <div className="text-[10px] text-[var(--text-muted)] mb-0.5 truncate">{t.groupName}</div>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <select
+                                  className="flex-1 text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                                  value={t.categoryId || ''}
+                                  onChange={(e) => updateTxnCategory(i, parseInt(e.target.value))}>
+                                  <option value="">Select...</option>
+                                  {Array.from(catGroups.entries()).map(([group, cats]) => (
+                                    <optgroup key={group} label={group}>
+                                      {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                    </optgroup>
+                                  ))}
+                                  <optgroup label="Income">
+                                    {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                  </optgroup>
+                                </select>
+                                <button onClick={() => setSplitEditingIdx(i)}
+                                  title="Split across categories"
+                                  className="flex-shrink-0 w-6 h-6 rounded flex items-center justify-center border-none bg-transparent text-[var(--text-muted)] cursor-pointer hover:text-[var(--color-accent)] hover:bg-[var(--bg-hover)]">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19" /><polyline points="5 12 12 5 19 12" />
+                                    <line x1="5" y1="19" x2="19" y2="19" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </>
                           )}
-                          <select
-                            className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
-                            value={t.categoryId || ''}
-                            onChange={(e) => updateTxnCategory(i, parseInt(e.target.value))}>
-                            <option value="">Select...</option>
-                            {Array.from(catGroups.entries()).map(([group, cats]) => (
-                              <optgroup key={group} label={group}>
-                                {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                              </optgroup>
-                            ))}
-                            <optgroup label="Income">
-                              {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                            </optgroup>
-                          </select>
                         </td>
                         <td className="px-2.5 py-1.5">
                           <div className="flex flex-wrap gap-1">
@@ -894,5 +965,24 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
         </div>
       )}
     </div>
+
+    {/* Split Editor Modal */}
+    {splitEditingIdx !== null && (
+      <ResponsiveModal isOpen={true} onClose={() => handleSplitCancel(splitEditingIdx)} maxWidth="32rem">
+        <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-3">Split Transaction</h3>
+        <div className="text-[12px] text-[var(--text-muted)] mb-3 font-mono">
+          {syncTxns[splitEditingIdx].description} — {fmt(Math.abs(syncTxns[splitEditingIdx].amount))}
+        </div>
+        <SplitEditor
+          totalAmount={syncTxns[splitEditingIdx].amount}
+          initialSplits={syncTxns[splitEditingIdx].splits ?? undefined}
+          categories={categories}
+          onApply={(splits) => handleSplitApply(splitEditingIdx, splits)}
+          onCancel={() => handleSplitCancel(splitEditingIdx)}
+          compact
+        />
+      </ResponsiveModal>
+    )}
+    </>
   );
 }

@@ -11,6 +11,8 @@ import BankSyncPanel from '../components/BankSyncPanel';
 import SortableHeader from '../components/SortableHeader';
 import InlineNotification from '../components/InlineNotification';
 import ResponsiveModal from '../components/ResponsiveModal';
+import SplitEditor from '../components/SplitEditor';
+import type { SplitRow } from '../components/SplitEditor';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 interface Account {
@@ -51,6 +53,8 @@ interface CategorizedRow {
   categoryId: number | null;
   groupName: string | null;
   subName: string | null;
+  // Split support
+  splits: SplitRow[] | null;
   // Duplicate detection
   duplicateStatus: 'exact' | 'possible' | 'none';
   duplicateMatch: {
@@ -307,6 +311,7 @@ export default function ImportPage() {
         duplicateStatus: 'none' as CategorizedRow['duplicateStatus'],
         duplicateMatch: null as CategorizedRow['duplicateMatch'],
         isLikelyTransfer: false,
+        splits: null,
       };
     });
 
@@ -362,7 +367,7 @@ export default function ImportPage() {
 
   const handleImport = async () => {
     if (!selectedAccountId) return;
-    const validRows = categorizedRows.filter((r, i) => selectedImportRows.has(i) && r.categoryId != null);
+    const validRows = categorizedRows.filter((r, i) => selectedImportRows.has(i) && (r.categoryId != null || (r.splits && r.splits.length >= 2)));
     if (validRows.length === 0) { setNotification({ type: 'error', message: 'No transactions with assigned categories to import.' }); return; }
 
     setImporting(true);
@@ -375,8 +380,9 @@ export default function ImportPage() {
           transactions: validRows.map((r) => ({
             date: r.date,
             description: r.description,
-            categoryId: r.categoryId,
+            categoryId: r.splits ? null : r.categoryId,
             amount: r.amount,
+            ...(r.splits ? { splits: r.splits } : {}),
           })),
         }),
       });
@@ -412,7 +418,32 @@ export default function ImportPage() {
     catGroups.get(c.group_name)!.push(c);
   }
 
-  const validImportCount = categorizedRows.filter((r, i) => selectedImportRows.has(i) && r.categoryId != null).length;
+  const validImportCount = categorizedRows.filter((r, i) => selectedImportRows.has(i) && (r.categoryId != null || (r.splits && r.splits.length >= 2))).length;
+
+  // Split editor modal state for import rows
+  const [splitEditingIdx, setSplitEditingIdx] = useState<number | null>(null);
+
+  const handleSplitApply = (idx: number, appliedSplits: SplitRow[]) => {
+    setCategorizedRows((prev) => prev.map((r, i) => i === idx ? {
+      ...r,
+      categoryId: null,
+      groupName: null,
+      subName: null,
+      splits: appliedSplits,
+    } : r));
+    setSelectedImportRows(prev => { const next = new Set(prev); next.add(idx); return next; });
+    setSplitEditingIdx(null);
+  };
+
+  const handleSplitCancel = (idx: number) => {
+    // If there were already splits, keep them; otherwise just close modal
+    setSplitEditingIdx(null);
+    // If row has no category and no splits, keep it unchecked
+    const row = categorizedRows[idx];
+    if (!row.categoryId && (!row.splits || row.splits.length < 2)) {
+      setSelectedImportRows(prev => { const next = new Set(prev); next.delete(idx); return next; });
+    }
+  };
 
   const switchTab = (tab: 'csv' | 'sync') => {
     setActiveTab(tab);
@@ -790,24 +821,44 @@ export default function ImportPage() {
                           </div>
                           {/* Category dropdown */}
                           <div className="mt-2">
-                            {r.groupName && r.categoryId && (
-                              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                            {r.splits && r.splits.length >= 2 ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[12px] font-medium text-[var(--color-accent)]">Split ({r.splits.length})</span>
+                                <button onClick={() => setSplitEditingIdx(i)}
+                                  className="text-[11px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-0 hover:underline">Edit</button>
+                              </div>
+                            ) : (
+                              <>
+                                {r.groupName && r.categoryId && (
+                                  <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                                )}
+                                <div className="flex items-center gap-1">
+                                  <select
+                                    className="flex-1 text-[12px] border border-[var(--table-border)] rounded-md px-2 py-1.5 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                                    value={r.categoryId || ''}
+                                    onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
+                                  >
+                                    <option value="">Select category...</option>
+                                    {Array.from(catGroups.entries()).map(([group, cats]) => (
+                                      <optgroup key={group} label={group}>
+                                        {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                      </optgroup>
+                                    ))}
+                                    <optgroup label="Income">
+                                      {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                    </optgroup>
+                                  </select>
+                                  <button onClick={() => setSplitEditingIdx(i)}
+                                    title="Split"
+                                    className="flex-shrink-0 w-8 h-8 rounded flex items-center justify-center border-none bg-transparent text-[var(--text-muted)] cursor-pointer hover:text-[var(--color-accent)]">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <line x1="12" y1="5" x2="12" y2="19" /><polyline points="5 12 12 5 19 12" />
+                                      <line x1="5" y1="19" x2="19" y2="19" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </>
                             )}
-                            <select
-                              className="w-full text-[12px] border border-[var(--table-border)] rounded-md px-2 py-1.5 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
-                              value={r.categoryId || ''}
-                              onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
-                            >
-                              <option value="">Select category...</option>
-                              {Array.from(catGroups.entries()).map(([group, cats]) => (
-                                <optgroup key={group} label={group}>
-                                  {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                                </optgroup>
-                              ))}
-                              <optgroup label="Income">
-                                {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                              </optgroup>
-                            </select>
                           </div>
                         </div>
                       </div>
@@ -896,24 +947,44 @@ export default function ImportPage() {
                         </div>
                       </td>
                       <td className="px-2.5 py-1.5">
-                        {r.groupName && r.categoryId && (
-                          <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                        {r.splits && r.splits.length >= 2 ? (
+                          <div>
+                            <span className="text-[11px] font-medium text-[var(--color-accent)]">Split ({r.splits.length})</span>
+                            <button onClick={() => setSplitEditingIdx(i)}
+                              className="ml-1 text-[10px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-0 hover:underline">Edit</button>
+                          </div>
+                        ) : (
+                          <>
+                            {r.groupName && r.categoryId && (
+                              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">{r.groupName}</div>
+                            )}
+                            <div className="flex items-center gap-1">
+                              <select
+                                className="flex-1 text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
+                                value={r.categoryId || ''}
+                                onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
+                              >
+                                <option value="">Select...</option>
+                                {Array.from(catGroups.entries()).map(([group, cats]) => (
+                                  <optgroup key={group} label={group}>
+                                    {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                  </optgroup>
+                                ))}
+                                <optgroup label="Income">
+                                  {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                                </optgroup>
+                              </select>
+                              <button onClick={() => setSplitEditingIdx(i)}
+                                title="Split across categories"
+                                className="flex-shrink-0 w-6 h-6 rounded flex items-center justify-center border-none bg-transparent text-[var(--text-muted)] cursor-pointer hover:text-[var(--color-accent)] hover:bg-[var(--bg-hover)]">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="12" y1="5" x2="12" y2="19" /><polyline points="5 12 12 5 19 12" />
+                                  <line x1="5" y1="19" x2="19" y2="19" />
+                                </svg>
+                              </button>
+                            </div>
+                          </>
                         )}
-                        <select
-                          className="w-full text-[11px] border border-[var(--table-border)] rounded-md px-1.5 py-1 outline-none bg-[var(--bg-card)] text-[var(--text-body)]"
-                          value={r.categoryId || ''}
-                          onChange={(e) => updateRowCategory(i, parseInt(e.target.value))}
-                        >
-                          <option value="">Select...</option>
-                          {Array.from(catGroups.entries()).map(([group, cats]) => (
-                            <optgroup key={group} label={group}>
-                              {cats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                            </optgroup>
-                          ))}
-                          <optgroup label="Income">
-                            {incomeCats.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
-                          </optgroup>
-                        </select>
                       </td>
                       <td className="px-2.5 py-2 text-center">
                         <span className={`text-[11px] font-semibold font-mono ${
@@ -983,6 +1054,24 @@ export default function ImportPage() {
             </div>
       </ResponsiveModal>
       </>
+      )}
+
+      {/* Split Editor Modal */}
+      {splitEditingIdx !== null && (
+        <ResponsiveModal isOpen={true} onClose={() => handleSplitCancel(splitEditingIdx)} maxWidth="32rem">
+          <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-3">Split Transaction</h3>
+          <div className="text-[12px] text-[var(--text-muted)] mb-3 font-mono">
+            {categorizedRows[splitEditingIdx].description} — {fmt(Math.abs(categorizedRows[splitEditingIdx].amount))}
+          </div>
+          <SplitEditor
+            totalAmount={categorizedRows[splitEditingIdx].amount}
+            initialSplits={categorizedRows[splitEditingIdx].splits ?? undefined}
+            categories={categories}
+            onApply={(splits) => handleSplitApply(splitEditingIdx, splits)}
+            onCancel={() => handleSplitCancel(splitEditingIdx)}
+            compact
+          />
+        </ResponsiveModal>
       )}
     </div>
     )}
