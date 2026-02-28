@@ -625,8 +625,8 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                     </th>
                     <SortableHeader label="Date" sortKey="date" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
                     <SortableHeader label="Payee" sortKey="payee" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
                     <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Note</th>
+                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
                     <SortableHeader label="Amount" sortKey="amount" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} align="right" />
                     <SortableHeader label="Category" sortKey="category" activeSortKey={reviewSortBy} sortDir={reviewSortDir} onSort={handleReviewSort} />
                     <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Status</th>
@@ -654,13 +654,13 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                         <td className="px-2.5 py-2 font-medium text-[var(--text-primary)] truncate" title={t.rawDescription !== t.description ? t.rawDescription : undefined}>
                           {t.description}
                         </td>
+                        <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] truncate" title={t.rawDescription !== t.description ? t.rawDescription : undefined}>
+                          {t.rawDescription !== t.description ? t.rawDescription : ''}
+                        </td>
                         <td className="px-2.5 py-2">
                           <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--badge-account-bg)] text-[var(--badge-account-text)] font-mono inline-block max-w-full truncate" title={t.accountName}>
                             {t.accountName}
                           </span>
-                        </td>
-                        <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] truncate" title={t.rawDescription !== t.description ? t.rawDescription : undefined}>
-                          {t.rawDescription !== t.description ? t.rawDescription : ''}
                         </td>
                         <td className={`px-2.5 py-2 text-right font-mono font-semibold ${t.amount < 0 ? 'text-[#10b981]' : 'text-[var(--text-primary)]'}`}>
                           {t.amount < 0 ? '+' : ''}{fmt(Math.abs(t.amount))}
