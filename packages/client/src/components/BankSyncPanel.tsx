@@ -604,8 +604,8 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
                 <colgroup>
                   <col style={{ width: '40px' }} />
                   <col style={{ width: '90px' }} />
+                  <col style={{ width: '140px' }} />
                   <col />
-                  <col style={{ width: '150px' }} />
                   <col style={{ width: '150px' }} />
                   <col style={{ width: '95px' }} />
                   <col style={{ width: '150px' }} />
