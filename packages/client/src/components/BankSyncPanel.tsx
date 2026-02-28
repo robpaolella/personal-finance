@@ -214,7 +214,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
 
       // Auto-select: uncheck exact duplicates
       const selected = new Set(txns.map((_, i) => i));
-      txns.forEach((t, i) => { if (t.duplicateStatus === 'exact') selected.delete(i); });
+      txns.forEach((t, i) => { if (t.duplicateStatus === 'exact' || !t.categoryId) selected.delete(i); });
       setSelectedTxnRows(selected);
 
       setStep(1);
@@ -235,6 +235,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
       subName: cat.sub_name,
       confidence: 1.0,
     } : t));
+    setSelectedTxnRows(prev => { const next = new Set(prev); next.add(idx); return next; });
   };
 
   const handleImport = async () => {
