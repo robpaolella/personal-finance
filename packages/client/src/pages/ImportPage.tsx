@@ -355,7 +355,7 @@ export default function ImportPage() {
     setCategorizedRows(merged);
     // Auto-uncheck exact duplicates
     const selected = new Set(merged.map((_, i) => i));
-    merged.forEach((r, i) => { if (r.duplicateStatus === 'exact') selected.delete(i); });
+    merged.forEach((r, i) => { if (r.duplicateStatus === 'exact' || !r.categoryId) selected.delete(i); });
     setSelectedImportRows(selected);
     setStep(2);
   };
@@ -399,6 +399,7 @@ export default function ImportPage() {
       subName: cat.sub_name,
       confidence: 1.0,
     } : r));
+    setSelectedImportRows(prev => { const next = new Set(prev); next.add(idx); return next; });
   };
 
 
