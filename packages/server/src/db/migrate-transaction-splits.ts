@@ -56,7 +56,11 @@ export function migrateTransactionSplits(sqlite: Database.Database): void {
           simplefin_transaction_id TEXT UNIQUE,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
-        INSERT INTO transactions_new SELECT * FROM transactions;
+        INSERT INTO transactions_new
+          SELECT id, account_id, date, description, note, category_id, amount,
+                 CASE WHEN simplefin_transaction_id = '' THEN NULL ELSE simplefin_transaction_id END,
+                 created_at
+          FROM transactions;
         DROP TABLE transactions;
         ALTER TABLE transactions_new RENAME TO transactions;
       `);
