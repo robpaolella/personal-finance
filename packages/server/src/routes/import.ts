@@ -115,20 +115,51 @@ router.post('/categorize', requirePermission('import.csv'), (req: Request, res: 
       .innerJoin(categories, eq(transactions.category_id, categories.id))
       .all();
 
-    // Build frequency map: description pattern → most common category
-    const descCatMap = new Map<string, { categoryId: number; groupName: string; subName: string; type: string; count: number }>();
+    // Build category distribution map: description → { categoryId → info + count }
+    type CatInfo = { groupName: string; subName: string; type: string; count: number };
+    const descCatDist = new Map<string, Map<number, CatInfo>>();
     for (const h of history) {
       const key = h.description.toLowerCase().trim();
-      const existing = descCatMap.get(key);
-      if (!existing || existing.count < 1) {
-        descCatMap.set(key, {
-          categoryId: h.category_id,
+      if (!descCatDist.has(key)) descCatDist.set(key, new Map());
+      const catMap = descCatDist.get(key)!;
+      const existing = catMap.get(h.category_id);
+      if (existing) {
+        existing.count++;
+      } else {
+        catMap.set(h.category_id, {
           groupName: h.group_name,
           subName: h.sub_name,
           type: h.type,
-          count: (existing?.count || 0) + 1,
+          count: 1,
         });
       }
+    }
+
+    // Returns the dominant category if one exists with sufficient consistency.
+    // With < 3 data points, always returns the most common (not enough data to measure variance).
+    // With >= 3 data points, requires >= 75% dominance to suggest.
+    const DOMINANCE_THRESHOLD = 0.75;
+    const MIN_HISTORY_FOR_VARIANCE = 3;
+
+    function getDominantCategory(catMap: Map<number, CatInfo>): { categoryId: number; groupName: string; subName: string; type: string } | null {
+      let total = 0;
+      let best: { categoryId: number; groupName: string; subName: string; type: string; count: number } | null = null;
+      for (const [catId, info] of catMap) {
+        total += info.count;
+        if (!best || info.count > best.count) {
+          best = { categoryId: catId, groupName: info.groupName, subName: info.subName, type: info.type, count: info.count };
+        }
+      }
+      if (!best) return null;
+      if (total < MIN_HISTORY_FOR_VARIANCE) return best;
+      if (best.count / total >= DOMINANCE_THRESHOLD) return best;
+      return null;
+    }
+
+    function getTotalCount(catMap: Map<number, CatInfo>): number {
+      let total = 0;
+      for (const info of catMap.values()) total += info.count;
+      return total;
     }
 
     // Keyword rules for common merchants
@@ -165,64 +196,7 @@ router.post('/categorize', requirePermission('import.csv'), (req: Request, res: 
       const primaryLower = primaryText.toLowerCase().trim();
       const descLower = item.description.toLowerCase().trim();
 
-      // 1. Exact match from history — check payee first, then description
-      const exactPayee = descCatMap.get(primaryLower);
-      if (exactPayee) {
-        return {
-          description: item.description,
-          payee: item.payee,
-          suggestedCategoryId: exactPayee.categoryId,
-          suggestedGroupName: exactPayee.groupName,
-          suggestedSubName: exactPayee.subName,
-          confidence: 1.0,
-        };
-      }
-      if (item.payee) {
-        const exactDesc = descCatMap.get(descLower);
-        if (exactDesc) {
-          return {
-            description: item.description,
-            payee: item.payee,
-            suggestedCategoryId: exactDesc.categoryId,
-            suggestedGroupName: exactDesc.groupName,
-            suggestedSubName: exactDesc.subName,
-            confidence: 0.9,
-          };
-        }
-      }
-
-      // 2. Partial match from history — check both payee and description
-      for (const [key, val] of descCatMap.entries()) {
-        if (primaryLower.includes(key) || key.includes(primaryLower) ||
-            (item.payee && (descLower.includes(key) || key.includes(descLower)))) {
-          return {
-            description: item.description,
-            payee: item.payee,
-            suggestedCategoryId: val.categoryId,
-            suggestedGroupName: val.groupName,
-            suggestedSubName: val.subName,
-            confidence: 0.7,
-          };
-        }
-      }
-
-      // 3. Rule-based matching — check payee first, then description
-      for (const rule of RULES) {
-        if (rule.pattern.test(primaryText) || (item.payee && rule.pattern.test(item.description))) {
-          const catId = catLookup.get(`${rule.groupName}:${rule.subName}`);
-          return {
-            description: item.description,
-            payee: item.payee,
-            suggestedCategoryId: catId || null,
-            suggestedGroupName: rule.groupName,
-            suggestedSubName: rule.subName,
-            confidence: 0.7,
-          };
-        }
-      }
-
-      // 4. No match
-      return {
+      const noSuggestion = {
         description: item.description,
         payee: item.payee,
         suggestedCategoryId: null,
@@ -230,6 +204,87 @@ router.post('/categorize', requirePermission('import.csv'), (req: Request, res: 
         suggestedSubName: null,
         confidence: 0.0,
       };
+
+      let highVarianceVendor = false;
+
+      // 1. Exact match from history — check payee first, then description
+      const exactPayeeDist = descCatDist.get(primaryLower);
+      if (exactPayeeDist) {
+        const dominant = getDominantCategory(exactPayeeDist);
+        if (dominant) {
+          return {
+            description: item.description,
+            payee: item.payee,
+            suggestedCategoryId: dominant.categoryId,
+            suggestedGroupName: dominant.groupName,
+            suggestedSubName: dominant.subName,
+            confidence: 1.0,
+          };
+        }
+        if (getTotalCount(exactPayeeDist) >= MIN_HISTORY_FOR_VARIANCE) highVarianceVendor = true;
+      }
+
+      if (!highVarianceVendor && item.payee) {
+        const exactDescDist = descCatDist.get(descLower);
+        if (exactDescDist) {
+          const dominant = getDominantCategory(exactDescDist);
+          if (dominant) {
+            return {
+              description: item.description,
+              payee: item.payee,
+              suggestedCategoryId: dominant.categoryId,
+              suggestedGroupName: dominant.groupName,
+              suggestedSubName: dominant.subName,
+              confidence: 0.9,
+            };
+          }
+          if (getTotalCount(exactDescDist) >= MIN_HISTORY_FOR_VARIANCE) highVarianceVendor = true;
+        }
+      }
+
+      // 2. Partial match from history — check both payee and description
+      if (!highVarianceVendor) {
+        for (const [key, dist] of descCatDist.entries()) {
+          if (primaryLower.includes(key) || key.includes(primaryLower) ||
+              (item.payee && (descLower.includes(key) || key.includes(descLower)))) {
+            const dominant = getDominantCategory(dist);
+            if (dominant) {
+              return {
+                description: item.description,
+                payee: item.payee,
+                suggestedCategoryId: dominant.categoryId,
+                suggestedGroupName: dominant.groupName,
+                suggestedSubName: dominant.subName,
+                confidence: 0.7,
+              };
+            }
+            if (getTotalCount(dist) >= MIN_HISTORY_FOR_VARIANCE) {
+              highVarianceVendor = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. Rule-based matching — skip if vendor has varied history
+      if (!highVarianceVendor) {
+        for (const rule of RULES) {
+          if (rule.pattern.test(primaryText) || (item.payee && rule.pattern.test(item.description))) {
+            const catId = catLookup.get(`${rule.groupName}:${rule.subName}`);
+            return {
+              description: item.description,
+              payee: item.payee,
+              suggestedCategoryId: catId || null,
+              suggestedGroupName: rule.groupName,
+              suggestedSubName: rule.subName,
+              confidence: 0.7,
+            };
+          }
+        }
+      }
+
+      // 4. No match (or high-variance vendor)
+      return noSuggestion;
     });
 
     res.json({ data: results });
