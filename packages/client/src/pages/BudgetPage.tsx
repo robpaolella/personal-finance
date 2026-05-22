@@ -458,7 +458,7 @@ export default function BudgetPage() {
                       <div className="flex items-center mb-0.5">
                         <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{sub.subName}</span>
                         <div className="flex items-center flex-shrink-0 ml-2">
-                          <span className="text-[11px] font-mono text-[var(--text-muted)]">
+                          <span className={overBudget ? "text-[11px] font-mono text-[#ef4444]" : "text-[11px] font-mono text-[var(--text-muted)]"}>
                             {sub.actual !== 0 ? fmt(sub.actual) : '—'} /
                           </span>
                           <div className="w-[55px] flex-shrink-0 ml-1">
@@ -480,7 +480,7 @@ export default function BudgetPage() {
                                   onBlur={() => handleBudgetBlur(sub.categoryId)}
                                 />
                               ) : (
-                                <span className={`flex-1 text-right text-[11px] font-mono py-0.5 pr-0.5 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-body)]'}`}>
+                                <span className="flex-1 text-right text-[11px] font-mono py-0.5 pr-0.5 text-[var(--text-body)]">
                                   {sub.budgeted > 0 ? sub.budgeted.toLocaleString('en-US') : '0'}
                                 </span>
                               )}
@@ -599,8 +599,12 @@ export default function BudgetPage() {
                       <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
                       {g.groupName}
                     </span>
-                    <span className={`font-semibold text-[12px] font-mono ${gBudgeted > 0 && gActual > gBudgeted ? 'text-[#ef4444]' : 'text-[var(--text-secondary)]'}`}>
-                      {gActual !== 0 ? fmt(gActual) : '—'} / {gBudgeted > 0 ? fmt(gBudgeted) : '—'}
+                    <span className="font-semibold text-[12px] font-mono text-[var(--text-secondary)]">
+                      <span className={gBudgeted > 0 && gActual > gBudgeted ? 'text-[#ef4444]' : undefined}>
+                        {gActual !== 0 ? fmt(gActual) : '—'}
+                      </span>
+                      {' / '}
+                      <span>{gBudgeted > 0 ? fmt(gBudgeted) : '—'}</span>
                     </span>
                   </div>
                   {/* Sub-category rows */}
@@ -617,7 +621,7 @@ export default function BudgetPage() {
                             background: sub.budgeted > 0 && sub.actual > sub.budgeted ? '#ef4444' : color,
                           }} />
                         </div>
-                        <span className="w-[80px] text-right text-[11px] font-mono text-[var(--text-secondary)]">
+                        <span className={overBudget ? "w-[80px] text-right text-[11px] font-mono text-[#ef4444]" : "w-[80px] text-right text-[11px] font-mono text-[var(--text-secondary)]"}>
                           {sub.actual !== 0 ? fmt(sub.actual) : '—'}
                         </span>
                         <div className="w-[80px] flex-shrink-0">
@@ -642,7 +646,7 @@ export default function BudgetPage() {
                                 onBlur={() => handleBudgetBlur(sub.categoryId)}
                               />
                             ) : (
-                              <span className={`flex-1 text-right text-[11px] font-mono py-0.5 pr-1 ${overBudget ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'}`}>
+                              <span className="flex-1 text-right text-[11px] font-mono py-0.5 pr-1 text-[var(--text-muted)]">
                                 {sub.budgeted > 0 ? sub.budgeted.toLocaleString('en-US') : '0'}
                               </span>
                             )}
