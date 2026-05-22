@@ -791,6 +791,12 @@ Form Input → Storage → Display:
 **Resolution:** Venmo descriptions are derived from the row's type and amount direction, not an inferred owner name. Payment rows use positive = `From <From>` and negative = `To <To>`. Charge rows invert the counterparty columns: positive = `From <To>` and negative = `To <From>`. Funding/add-funds/transfer rows are skipped. Venmo column mapping prefers `Note` as the description source instead of falling back to `ID`.
 **Rule going forward:** Never infer Venmo counterparty descriptions from an account-owner guess. Use Venmo row type plus amount direction, skip funding/transfer rows that are not person-to-person transactions, and default Venmo description mapping to the `Note` column.
 
+### Budget Overrun Color Applies Only to Actuals (2026-05-22)
+**Context:** Budget page over-budget state for expense category groups and sub-categories.
+**Problem:** The over-budget red treatment was applied to combined actual/budget text or to the budget value itself, making the planned budget look like the problem instead of the actual spend.
+**Resolution:** Split actual and budget display spans where necessary. Apply negative/red styling only to the actual amount when actual exceeds budget; keep budget amounts in their normal muted/body color.
+**Rule going forward:** On the Budget page, red over-budget styling belongs only on actual spend values and progress indicators, never on budgeted amounts.
+
 ## Development Workflow
 
 ### Environments
