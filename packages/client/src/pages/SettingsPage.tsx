@@ -1151,7 +1151,7 @@ function DeleteUserModal({ userId, onClose, onDeleted }: { userId: number; onClo
     summaryLines.push(`${preview.personalConnections} personal SimpleFIN connection${preview.personalConnections !== 1 ? 's' : ''} will be deleted.`);
   }
   if (preview.payCyclesOwned > 0) {
-    summaryLines.push(`${preview.payCyclesOwned} pay cycle${preview.payCyclesOwned !== 1 ? 's' : ''} will be unassigned (kept in budget projections).`);
+    summaryLines.push(`${preview.payCyclesOwned} pay cycle${preview.payCyclesOwned !== 1 ? 's' : ''} will be unassigned (not deleted).`);
   }
 
   const handleDelete = async () => {

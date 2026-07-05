@@ -113,5 +113,16 @@ const countsForYear = (c: PayCycleForMath, year: number) =>
   check('August hasExtraPaycheck = false', thpAug.hasExtraPaycheck === false);
 }
 
+// 9. A partial boundary month (mid-year effective_start) must NOT deflate the
+//    baseline and wrongly flag ordinary months as extra (review regression).
+{
+  const c = base({ frequency: 'biweekly', amount: 1750, anchor_date: '2026-01-02', effective_start: '2026-01-17' });
+  console.log('Mid-year start (effective_start 2026-01-17):');
+  check('yearlyBaseline = 2 (not deflated to 1)', yearlyBaseline(c, 2026) === 2);
+  check('Jan (partial, 1 check) NOT flagged extra', projectPayCycles([c], '2026-01').categoryTotals[0].hasExtraPaycheck === false);
+  check('Feb (normal, 2 checks) NOT flagged extra', projectPayCycles([c], '2026-02').categoryTotals[0].hasExtraPaycheck === false);
+  check('Jul (3 checks) IS flagged extra', projectPayCycles([c], '2026-07').categoryTotals[0].hasExtraPaycheck === true);
+}
+
 console.log(failures === 0 ? '\nALL PASSED' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

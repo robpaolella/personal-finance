@@ -9,8 +9,16 @@ import type { PayFrequency } from '@ledger/shared/src/types.js';
 const router = Router();
 
 const FREQUENCIES: PayFrequency[] = ['weekly', 'biweekly', 'semi_monthly', 'monthly'];
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const MONTH_RE = /^\d{4}-\d{2}$/;
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** True only for a real calendar date in 'YYYY-MM-DD' form (rejects e.g. 2026-02-31). */
+function isValidYmd(s: unknown): boolean {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
 
 /** Enriched select used by list, projection, and single-row fetch. */
 function baseSelect() {
@@ -98,15 +106,16 @@ function validate(body: Record<string, unknown>): { error: string } | { value: V
   let day_of_month: number | null = null;
 
   if (frequency === 'weekly' || frequency === 'biweekly') {
-    if (typeof body.anchorDate !== 'string' || !DATE_RE.test(body.anchorDate)) {
-      return { error: 'anchorDate (YYYY-MM-DD) is required for weekly/biweekly cycles' };
+    if (!isValidYmd(body.anchorDate)) {
+      return { error: 'anchorDate (a valid YYYY-MM-DD date) is required for weekly/biweekly cycles' };
     }
-    anchor_date = body.anchorDate;
+    anchor_date = body.anchorDate as string;
   } else if (frequency === 'semi_monthly') {
     day_of_month_1 = Number(body.dayOfMonth1);
     day_of_month_2 = Number(body.dayOfMonth2);
     if (!Number.isInteger(day_of_month_1) || day_of_month_1 < 0 || day_of_month_1 > 31) return { error: 'dayOfMonth1 must be 0-31 (0 = last day)' };
     if (!Number.isInteger(day_of_month_2) || day_of_month_2 < 0 || day_of_month_2 > 31) return { error: 'dayOfMonth2 must be 0-31 (0 = last day)' };
+    if (day_of_month_1 === day_of_month_2) return { error: 'The two semi-monthly paydays must be different' };
   } else {
     day_of_month = Number(body.dayOfMonth);
     if (!Number.isInteger(day_of_month) || day_of_month < 0 || day_of_month > 31) return { error: 'dayOfMonth must be 0-31 (0 = last day)' };
@@ -114,8 +123,8 @@ function validate(body: Record<string, unknown>): { error: string } | { value: V
 
   const effective_start = body.effectiveStart ? String(body.effectiveStart) : null;
   const effective_end = body.effectiveEnd ? String(body.effectiveEnd) : null;
-  if (effective_start && !DATE_RE.test(effective_start)) return { error: 'effectiveStart must be YYYY-MM-DD' };
-  if (effective_end && !DATE_RE.test(effective_end)) return { error: 'effectiveEnd must be YYYY-MM-DD' };
+  if (effective_start && !isValidYmd(effective_start)) return { error: 'effectiveStart must be a valid YYYY-MM-DD date' };
+  if (effective_end && !isValidYmd(effective_end)) return { error: 'effectiveEnd must be a valid YYYY-MM-DD date' };
   if (effective_start && effective_end && effective_start > effective_end) return { error: 'effectiveStart must be on or before effectiveEnd' };
 
   const is_active = body.isActive === undefined ? 1 : (body.isActive ? 1 : 0);

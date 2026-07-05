@@ -156,7 +156,7 @@ export default function PayCyclesModal({ isOpen, onClose, users, incomeCategorie
       onChange?.();
       setView('list');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save pay cycle');
+      addToast(e instanceof Error ? e.message : 'Failed to save pay cycle', 'error');
     } finally {
       setSaving(false);
     }
@@ -190,6 +190,12 @@ export default function PayCyclesModal({ isOpen, onClose, users, incomeCategorie
     if (!g) { g = { owner, list: [] }; grouped.push(g); }
     g.list.push(c);
   }
+  // Owners alphabetical, with the "Unassigned" group pinned last.
+  grouped.sort((a, b) => {
+    if (a.owner === 'Unassigned') return 1;
+    if (b.owner === 'Unassigned') return -1;
+    return a.owner.localeCompare(b.owner);
+  });
 
   return (
     <ResponsiveModal title={view === 'form' ? (form?.id ? 'Edit Pay Cycle' : 'Add Pay Cycle') : 'Pay Cycles'} isOpen={isOpen} onClose={onClose} maxWidth="560px">

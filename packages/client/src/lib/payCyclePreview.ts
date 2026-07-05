@@ -67,8 +67,12 @@ export interface YearPreview {
 
 export function computeYearPreview(cycle: PreviewCycle, year: number): YearPreview {
   const perMonth = Array.from({ length: 12 }, (_, i) => paydayCountInMonth(cycle, year, i + 1));
-  const positive = perMonth.filter((c) => c > 0);
-  const baseline = positive.length ? Math.min(...positive) : 0;
+  // Baseline is the typical full-month count from the UNBOUNDED schedule, so a
+  // partial boundary month (from effective_start/end) doesn't deflate it and
+  // wrongly highlight ordinary months as extra. Mirrors server yearlyBaseline.
+  const canonical: PreviewCycle = { ...cycle, effective_start: null, effective_end: null };
+  const canonCounts = Array.from({ length: 12 }, (_, i) => paydayCountInMonth(canonical, year, i + 1)).filter((c) => c > 0);
+  const baseline = canonCounts.length ? Math.min(...canonCounts) : 0;
   const totalChecks = perMonth.reduce((a, b) => a + b, 0);
   const extraMonths = perMonth.map((c, i) => ({ c, m: i + 1 })).filter((x) => x.c > baseline).map((x) => x.m);
   return { perMonth, baseline, totalChecks, extraMonths, annual: totalChecks * (cycle.amount || 0) };

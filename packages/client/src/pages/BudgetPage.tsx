@@ -857,7 +857,7 @@ export default function BudgetPage() {
               </button>
               <button
                 onClick={() => setImportStep(1)}
-                disabled={templateRows.length === 0}
+                disabled={templateRows.length === 0 && recurringRows.length === 0 && payCycleRows.length === 0}
                 className="text-[12px] text-[var(--btn-primary-text)] bg-[var(--btn-primary-bg)] border-none rounded-lg px-4 py-2 cursor-pointer font-semibold btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next →
@@ -1076,7 +1076,7 @@ export default function BudgetPage() {
                 <div ref={wizardScrollRef} onScroll={checkWizardScroll} className="overflow-y-auto overflow-x-hidden hide-scrollbar" style={{ maxHeight: '60vh' }}>
               {incomeCollisions.length > 0 && (
                 <div className="bg-[var(--bg-inline-warning)] border border-[var(--bg-inline-warning-border)] rounded-lg px-3 py-2 mb-3 text-[12px] text-[var(--text-primary)]">
-                  {incomeCollisions.map(r => r.subName).join(', ')} {incomeCollisions.length === 1 ? 'is' : 'are'} set by both the template and pay cycles. Pay cycles are applied last and win — set the template row to <b>Skip</b> to avoid overwriting.
+                  {incomeCollisions.map(r => r.subName).join(', ')} {incomeCollisions.length === 1 ? 'is' : 'are'} set by both the template and pay cycles. The <b>pay cycle amount will be used</b> (applied last).
                 </div>
               )}
               {/* Summary */}

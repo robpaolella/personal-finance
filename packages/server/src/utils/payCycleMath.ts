@@ -104,14 +104,18 @@ export function computePaydaysInMonth(cycle: PayCycleForMath, year: number, mon:
 }
 
 /**
- * The minimum non-zero paycheck count across all 12 months of `year` for a cycle.
- * Used to flag "this month has an extra paycheck" (count > baseline). Returns 0 if
- * the cycle never pays in that year.
+ * The typical full-month paycheck count for a cycle in `year` (2 for biweekly,
+ * 4 for weekly, 2 for semi_monthly, 1 for monthly). Used to flag "this month has
+ * an extra paycheck" (count > baseline). Computed against the UNBOUNDED schedule
+ * so a partial boundary month created by effective_start/effective_end does not
+ * deflate the baseline and wrongly flag ordinary months as extra. Returns 0 if
+ * the cycle never pays.
  */
 export function yearlyBaseline(cycle: PayCycleForMath, year: number): number {
+  const canonical: PayCycleForMath = { ...cycle, effective_start: null, effective_end: null };
   let min = Infinity;
   for (let m = 1; m <= 12; m++) {
-    const c = computePaydaysInMonth(cycle, year, m).length;
+    const c = computePaydaysInMonth(canonical, year, m).length;
     if (c > 0 && c < min) min = c;
   }
   return min === Infinity ? 0 : min;
