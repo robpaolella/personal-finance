@@ -8,6 +8,8 @@ import InlineNotification from '../components/InlineNotification';
 import ResponsiveModal from '../components/ResponsiveModal';
 import PermissionGate from '../components/PermissionGate';
 import BudgetTemplateModal from '../components/BudgetTemplateModal';
+import ActionMenu, { type ActionMenuItem } from '../components/ActionMenu';
+import PayCyclesModal from '../components/PayCyclesModal';
 import { getCategoryColor } from '../lib/categoryColors';
 import ScrollableList from '../components/ScrollableList';
 import { useAuth } from '../context/AuthContext';
@@ -108,6 +110,7 @@ export default function BudgetPage() {
   const [recurringRows, setRecurringRows] = useState<RecurringImportRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [payCyclesModalOpen, setPayCyclesModalOpen] = useState(false);
   const wizardScrollRef = useRef<HTMLDivElement>(null);
   const [wizardScrollable, setWizardScrollable] = useState(false);
 
@@ -267,6 +270,11 @@ export default function BudgetPage() {
   const { income, expenseGroups, totals } = data;
   const incDiff = totals.actualIncome - totals.budgetedIncome;
   const expRemaining = totals.budgetedExpenses - totals.actualExpenses;
+  const incomeCategories = income.map((r) => ({ id: r.categoryId, subName: r.subName }));
+  const manageItems: ActionMenuItem[] = [
+    { key: 'template', label: 'Budget Template', description: 'Monthly template & recurring items', icon: '📋', onClick: () => setTemplateModalOpen(true) },
+    { key: 'paycycles', label: 'Pay Cycles', description: 'Biweekly & recurring paychecks', icon: '💸', onClick: () => setPayCyclesModalOpen(true) },
+  ];
 
   return (
     <div className={isMobile ? '' : 'flex flex-col'} style={isMobile ? undefined : { height: 'calc(100vh - 56px)' }}>
@@ -290,16 +298,17 @@ export default function BudgetPage() {
           {/* Action buttons */}
           <div className="flex gap-2 mb-2">
             <PermissionGate permission="budgets.edit" fallback="disabled">
-              <button onClick={() => setTemplateModalOpen(true)}
-                className="flex-1 text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-lg px-3 py-2 cursor-pointer font-semibold btn-secondary min-h-[44px]">
-                Budget Template
+              <button onClick={openImportWizard}
+                className="flex-1 text-[12px] text-[var(--btn-primary-text)] bg-[var(--btn-primary-bg)] border-none rounded-lg px-3 py-2 cursor-pointer font-semibold btn-primary min-h-[44px]">
+                Import Budget
               </button>
             </PermissionGate>
             <PermissionGate permission="budgets.edit" fallback="disabled">
-              <button onClick={openImportWizard}
-                className="flex-1 text-[12px] text-[var(--btn-primary-text)] bg-[var(--btn-primary-bg)] border-none rounded-lg px-3 py-2 cursor-pointer font-semibold btn-primary min-h-[44px]">
-                Import from Template
-              </button>
+              <ActionMenu
+                label="Manage"
+                items={manageItems}
+                buttonClassName="flex-1 text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-lg px-3 py-2 cursor-pointer font-semibold btn-secondary min-h-[44px]"
+              />
             </PermissionGate>
           </div>
           {/* Scrollable owner chip row */}
@@ -327,19 +336,18 @@ export default function BudgetPage() {
         <div className="flex gap-3 items-center">
           <PermissionGate permission="budgets.edit" fallback="disabled">
             <button
-              onClick={() => setTemplateModalOpen(true)}
-              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-lg px-3 py-1.5 cursor-pointer font-semibold btn-secondary"
-            >
-              Budget Template
-            </button>
-          </PermissionGate>
-          <PermissionGate permission="budgets.edit" fallback="disabled">
-            <button
               onClick={openImportWizard}
               className="text-[12px] text-[var(--btn-primary-text)] bg-[var(--btn-primary-bg)] border-none rounded-lg px-3 py-1.5 cursor-pointer font-semibold btn-primary"
             >
-              Import from Template
+              Import Budget
             </button>
+          </PermissionGate>
+          <PermissionGate permission="budgets.edit" fallback="disabled">
+            <ActionMenu
+              label="Manage"
+              items={manageItems}
+              buttonClassName="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-lg px-3 py-1.5 cursor-pointer font-semibold btn-secondary"
+            />
           </PermissionGate>
           <OwnerFilter value={owner} onChange={setOwner} users={users} />
           <div className="flex gap-2 items-center">
@@ -986,6 +994,12 @@ export default function BudgetPage() {
         })()}
       </ResponsiveModal>
       <BudgetTemplateModal isOpen={templateModalOpen} onClose={() => setTemplateModalOpen(false)} />
+      <PayCyclesModal
+        isOpen={payCyclesModalOpen}
+        onClose={() => setPayCyclesModalOpen(false)}
+        users={users}
+        incomeCategories={incomeCategories}
+      />
     </div>
   );
 }
