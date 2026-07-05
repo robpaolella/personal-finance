@@ -104,8 +104,9 @@ export default function PayCyclesModal({ isOpen, onClose, users, incomeCategorie
     if (isOpen) { setView('list'); setError(''); load().catch(() => addToast('Failed to load pay cycles', 'error')); }
   }, [isOpen, load, addToast]);
 
+  const defaultCategoryId = (incomeCategories.find((c) => c.subName === 'Take Home Pay') ?? incomeCategories[0])?.id ?? 0;
   const newForm = (): FormState => ({
-    id: null, label: '', userId: users[0]?.id ?? null, categoryId: incomeCategories[0]?.id ?? 0,
+    id: null, label: '', userId: users[0]?.id ?? null, categoryId: defaultCategoryId,
     frequency: 'biweekly', amount: '', anchorDate: '', dayOfMonth1: 15, dayOfMonth2: 0, dayOfMonth: 1,
     effectiveStart: '', effectiveEnd: '', isActive: true,
   });
