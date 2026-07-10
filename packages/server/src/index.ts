@@ -16,6 +16,7 @@ import { migrateTransactionSplits } from './db/migrate-transaction-splits.js';
 import { migrateBudgetTemplatesRecurring } from './db/migrate-budget-templates-recurring.js';
 import { migrateDismissedTransfers } from './db/migrate-dismissed-transfers.js';
 import { migratePayCycles } from './db/migrate-pay-cycles.js';
+import { migrateSavingsCategories } from './db/migrate-savings-categories.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -59,6 +60,7 @@ migrateTransactionSplits(sqlite);
 migrateBudgetTemplatesRecurring(sqlite);
 migrateDismissedTransfers(sqlite);
 migratePayCycles(sqlite);
+migrateSavingsCategories(sqlite);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));

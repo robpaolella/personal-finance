@@ -65,7 +65,7 @@ export const categories = sqliteTable('categories', {
   group_name: text('group_name').notNull(),
   sub_name: text('sub_name').notNull(),
   display_name: text('display_name').notNull(),
-  type: text('type').notNull(), // income, expense
+  type: text('type').notNull(), // income, expense, savings
   is_deductible: integer('is_deductible').default(0),
   sort_order: integer('sort_order').default(0),
 });

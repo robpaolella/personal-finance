@@ -60,10 +60,13 @@ const RAW: Array<{ names: string[]; meta: CategoryMeta }> = [
   { names: ['loan', 'loans'], meta: { emoji: '🏦', token: 'c-rose' } },
   { names: ['tax not withheld', 'taxes', 'tax'], meta: { emoji: '🧾', token: 'c-amber' } },
 
-  // ── Savings ──
+  // ── Savings (category/group level) ──
+  { names: ['savings account'], meta: { emoji: '💰', token: 'c-green' } },
+  { names: ['investment account'], meta: { emoji: '📊', token: 'c-indigo' } },
+  // Savings sub-category / alias hints (color falls back to the group's hue)
   { names: ['retirement'], meta: { emoji: '📈', token: 'c-indigo' } },
   { names: ['brokerage'], meta: { emoji: '📊', token: 'c-blue' } },
-  { names: ['savings'], meta: { emoji: '💰', token: 'c-green' } },
+  { names: ['savings', 'traditional savings', 'high yield savings'], meta: { emoji: '💰', token: 'c-green' } },
   { names: ['education'], meta: { emoji: '🎓', token: 'c-teal' } },
   { names: ['emergency fund', 'emergency'], meta: { emoji: '🚨', token: 'c-rose' } },
 ];

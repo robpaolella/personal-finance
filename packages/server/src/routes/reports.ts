@@ -66,6 +66,7 @@ router.get('/annual', (req: Request, res: Response) => {
     // Income is stored as negative, so we take abs
     const incomeByCategory: Record<string, number[]> = {};
     const expensesByGroup: Record<string, Record<string, number[]>> = {};
+    const savingsByGroup: Record<string, Record<string, number[]>> = {};
 
     for (const row of rows) {
       const monthIdx = row.month - 1;
@@ -74,6 +75,16 @@ router.get('/annual', (req: Request, res: Response) => {
           incomeByCategory[row.sub_name] = new Array(12).fill(0);
         }
         incomeByCategory[row.sub_name][monthIdx] += Math.abs(row.total);
+      } else if (row.type === 'savings') {
+        // Savings contributions are outflows (positive), like expenses, but roll
+        // up in their own section so Income − Expenses − Savings reconciles.
+        if (!savingsByGroup[row.group_name]) {
+          savingsByGroup[row.group_name] = {};
+        }
+        if (!savingsByGroup[row.group_name][row.sub_name]) {
+          savingsByGroup[row.group_name][row.sub_name] = new Array(12).fill(0);
+        }
+        savingsByGroup[row.group_name][row.sub_name][monthIdx] += row.total;
       } else {
         if (!expensesByGroup[row.group_name]) {
           expensesByGroup[row.group_name] = {};
@@ -99,14 +110,23 @@ router.get('/annual', (req: Request, res: Response) => {
       }
     }
 
+    const monthlySavingsTotals = new Array(12).fill(0);
+    for (const group of Object.values(savingsByGroup)) {
+      for (const vals of Object.values(group)) {
+        for (let i = 0; i < 12; i++) monthlySavingsTotals[i] += vals[i];
+      }
+    }
+
     const monthlyNetTotals = monthlyIncomeTotals.map((inc, i) => inc - monthlyExpenseTotals[i]);
 
     res.json({
       data: {
         incomeByCategory,
         expensesByGroup,
+        savingsByGroup,
         monthlyIncomeTotals,
         monthlyExpenseTotals,
+        monthlySavingsTotals,
         monthlyNetTotals,
       },
     });

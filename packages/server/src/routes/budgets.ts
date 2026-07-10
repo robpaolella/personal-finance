@@ -215,6 +215,31 @@ router.get('/summary', (req: Request, res: Response) => {
       a.groupName.localeCompare(b.groupName)
     );
 
+    // Build savings summary grouped by parent. Savings contributions are
+    // outflows (positive), same sign/handling as expenses, but their own section.
+    const savingsCategories = allCategories.filter((c) => c.type === 'savings');
+    const savingsGroupMap = new Map<string, {
+      groupName: string;
+      subs: { categoryId: number; subName: string; budgeted: number; budgetId: number | null; actual: number }[];
+    }>();
+    for (const c of savingsCategories) {
+      if (!savingsGroupMap.has(c.group_name)) {
+        savingsGroupMap.set(c.group_name, { groupName: c.group_name, subs: [] });
+      }
+      const budget = budgetMap.get(c.id);
+      const actual = actualMap.get(c.id) ?? 0;
+      savingsGroupMap.get(c.group_name)!.subs.push({
+        categoryId: c.id,
+        subName: c.sub_name,
+        budgeted: budget?.amount ?? 0,
+        budgetId: budget?.id ?? null,
+        actual,
+      });
+    }
+    const savingsGroups = Array.from(savingsGroupMap.values()).sort((a, b) =>
+      a.groupName.localeCompare(b.groupName)
+    );
+
     // Totals
     const totalBudgetedIncome = incomeRows.reduce((s, r) => s + r.budgeted, 0);
     const totalActualIncome = incomeRows.reduce((s, r) => s + r.actual, 0);
@@ -224,16 +249,28 @@ router.get('/summary', (req: Request, res: Response) => {
     const totalActualExpenses = expenseGroups.reduce(
       (s, g) => s + g.subs.reduce((s2, sub) => s2 + sub.actual, 0), 0
     );
+    const totalBudgetedSavings = savingsGroups.reduce(
+      (s, g) => s + g.subs.reduce((s2, sub) => s2 + sub.budgeted, 0), 0
+    );
+    const totalActualSavings = savingsGroups.reduce(
+      (s, g) => s + g.subs.reduce((s2, sub) => s2 + sub.actual, 0), 0
+    );
+    // Left to budget: planned income not yet allocated to expenses or savings.
+    const leftToBudget = totalBudgetedIncome - totalBudgetedExpenses - totalBudgetedSavings;
 
     res.json({
       data: {
         income: incomeRows,
         expenseGroups,
+        savingsGroups,
         totals: {
           budgetedIncome: totalBudgetedIncome,
           actualIncome: totalActualIncome,
           budgetedExpenses: totalBudgetedExpenses,
           actualExpenses: totalActualExpenses,
+          budgetedSavings: totalBudgetedSavings,
+          actualSavings: totalActualSavings,
+          leftToBudget,
         },
       },
     });
