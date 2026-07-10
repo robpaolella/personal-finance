@@ -31,6 +31,7 @@ export interface Account {
   last_four: string | null;
   type: AccountType;
   classification: AccountClassification;
+  institution: string | null;
   owner: string; // legacy — first owner display_name for backward compat
   owners: AccountOwner[];
   isShared: boolean;

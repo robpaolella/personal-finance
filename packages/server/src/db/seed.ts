@@ -67,6 +67,7 @@ async function seed() {
       last_four TEXT,
       type TEXT NOT NULL,
       classification TEXT NOT NULL,
+      institution TEXT,
       owner TEXT NOT NULL,
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP

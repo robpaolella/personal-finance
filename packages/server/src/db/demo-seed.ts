@@ -556,7 +556,7 @@ const assetDefs: Array<{
     lifespan_years: 8,
     salvage_value: 6000,
     depreciation_method: 'declining_balance',
-    declining_rate: 0.20,
+    declining_rate: 20, // percent/yr (runtime + create route treat rate as 1–99)
   },
   {
     name: 'MacBook Pro 14"',
@@ -589,7 +589,7 @@ const assetDefs: Array<{
     lifespan_years: 4,
     salvage_value: 150,
     depreciation_method: 'declining_balance',
-    declining_rate: 0.30,
+    declining_rate: 30, // percent/yr
   },
 ];
 

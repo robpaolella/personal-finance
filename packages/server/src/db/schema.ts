@@ -46,6 +46,7 @@ export const accounts = sqliteTable('accounts', {
   last_four: text('last_four'),
   type: text('type').notNull(), // checking, savings, credit, investment, retirement, venmo, cash
   classification: text('classification').notNull(), // liquid, investment, liability
+  institution: text('institution'), // bank/brokerage name (backfilled from simplefin_links.simplefin_org_name)
   owner: text('owner').notNull(), // legacy — kept for backward compat; use account_owners instead
   is_active: integer('is_active').default(1),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),

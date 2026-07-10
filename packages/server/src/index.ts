@@ -18,6 +18,7 @@ import { migrateDismissedTransfers } from './db/migrate-dismissed-transfers.js';
 import { migratePayCycles } from './db/migrate-pay-cycles.js';
 import { migrateSavingsCategories } from './db/migrate-savings-categories.js';
 import { migrateMerchants } from './db/migrate-merchants.js';
+import { migrateAccountInstitution } from './db/migrate-account-institution.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -64,6 +65,7 @@ migrateDismissedTransfers(sqlite);
 migratePayCycles(sqlite);
 migrateSavingsCategories(sqlite);
 migrateMerchants(sqlite); // after splits — splits rebuilds the transactions table
+migrateAccountInstitution(sqlite);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
