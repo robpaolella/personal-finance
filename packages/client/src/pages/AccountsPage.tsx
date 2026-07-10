@@ -133,18 +133,22 @@ export default function AccountsPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', lastFour: '', type: 'checking', classification: 'liquid', ownerId: 0 });
+  // manual balance entry (restores the capability the old Net Worth page had)
+  const [balanceEdit, setBalanceEdit] = useState<Account | null>(null);
+  const [balanceInput, setBalanceInput] = useState('');
 
   const loadData = useCallback(async () => {
     const res = await apiFetch<{ data: NetWorthData }>('/networth/summary');
     setData(res.data);
   }, []);
-  const loadHistory = useCallback(async (r: string) => {
-    const res = await apiFetch<{ data: { points: HistoryPoint[] } }>(`/networth/history?range=${r}`);
+  const loadHistory = useCallback(async (r: string, sel: Set<number> | null) => {
+    const q = sel ? `&accountIds=${Array.from(sel).join(',')}` : '';
+    const res = await apiFetch<{ data: { points: HistoryPoint[] } }>(`/networth/history?range=${r}${q}`);
     setHistory(res.data.points);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { loadHistory(range); }, [range, loadHistory]);
+  useEffect(() => { loadHistory(range, selected); }, [range, selected, loadHistory]);
   useEffect(() => {
     apiFetch<{ data: { id: number }[] }>('/simplefin/connections').then((r) => setHasSimplefin(r.data.length > 0)).catch(() => {});
     apiFetch<{ data: { id: number; display_name?: string; displayName?: string }[] }>('/users').then((r) => {
@@ -191,6 +195,7 @@ export default function AccountsPage() {
   const applyFilter = () => { setSelected(filterDraft.size === data.accounts.length ? null : new Set(filterDraft)); setFilterOpen(false); };
   const clearFilter = () => { setFilterDraft(new Set(data.accounts.map((a) => a.accountId))); };
   const toggleDraft = (id: number) => setFilterDraft((d) => { const n = new Set(d); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const filterActive = selected != null; // any subset (even empty) is an active filter
   const filterCount = selected ? selected.size : 0;
 
   // ---- asset modal ----
@@ -210,12 +215,12 @@ export default function AccountsPage() {
     try {
       if (assetModal === 'new') await apiFetch('/assets', { method: 'POST', body: JSON.stringify(body) });
       else if (assetModal) await apiFetch(`/assets/${assetModal.id}`, { method: 'PUT', body: JSON.stringify(body) });
-      setAssetModal(null); addToast('Asset saved'); await loadData(); loadHistory(range);
+      setAssetModal(null); addToast('Asset saved'); await loadData(); loadHistory(range, selected);
     } catch { addToast('Failed to save asset', 'error'); }
   };
   const deleteAsset = async () => {
     if (assetModal === 'new' || !assetModal) return;
-    try { await apiFetch(`/assets/${assetModal.id}`, { method: 'DELETE' }); setAssetModal(null); addToast('Asset deleted'); await loadData(); loadHistory(range); }
+    try { await apiFetch(`/assets/${assetModal.id}`, { method: 'DELETE' }); setAssetModal(null); addToast('Asset deleted'); await loadData(); loadHistory(range, selected); }
     catch { addToast('Failed to delete asset', 'error'); }
   };
 
@@ -231,7 +236,7 @@ export default function AccountsPage() {
   const applyRefresh = async () => {
     const sel = syncBalances.filter((b) => syncSel.has(b.accountId));
     await apiFetch('/simplefin/commit', { method: 'POST', body: JSON.stringify({ transactions: [], balanceUpdates: sel.map((b) => ({ accountId: b.accountId, balance: b.simplefinBalance, date: b.balanceDate })), holdingsUpdates: [] }) });
-    addToast(`Updated ${sel.length} balance${sel.length !== 1 ? 's' : ''}`); setShowRefresh(false); await loadData(); loadHistory(range);
+    addToast(`Updated ${sel.length} balance${sel.length !== 1 ? 's' : ''}`); setShowRefresh(false); await loadData(); loadHistory(range, selected);
   };
 
   // ---- add account ----
@@ -244,6 +249,17 @@ export default function AccountsPage() {
   };
 
   const canEdit = hasPermission('accounts.edit');
+  const canBalance = hasPermission('balances.update');
+  const openBalance = (a: Account) => { setBalanceEdit(a); setBalanceInput(a.balance ? String(a.balance) : ''); };
+  const saveBalance = async () => {
+    if (!balanceEdit) return;
+    const balance = parseFloat(balanceInput);
+    if (isNaN(balance)) { addToast('Enter a valid balance', 'error'); return; }
+    try {
+      await apiFetch('/balances', { method: 'POST', body: JSON.stringify({ accountId: balanceEdit.accountId, date: new Date().toISOString().slice(0, 10), balance }) });
+      setBalanceEdit(null); addToast('Balance updated'); await loadData(); loadHistory(range, selected);
+    } catch { addToast('Failed to update balance', 'error'); }
+  };
   const acctColor = (cls: string) => cls === 'liability' ? 'var(--negative)' : cls === 'investment' ? 'var(--c-teal)' : 'var(--c-blue)';
 
   const ChangeText = ({ v }: { v: number }) => (
@@ -264,10 +280,10 @@ export default function AccountsPage() {
           <div className="relative">
             <button onClick={openFilter}
               className="flex items-center gap-2 h-10 px-4 rounded-[11px] bg-surface-2 border-2 text-sm font-semibold text-content"
-              style={{ borderColor: filterOpen || filterCount ? 'var(--primary)' : 'var(--line-strong)' }}>
+              style={{ borderColor: filterOpen || filterActive ? 'var(--primary)' : 'var(--line-strong)' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
               Filters
-              {filterCount > 0 && <span className="min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-primary text-on-primary text-[11px] font-bold">{filterCount}</span>}
+              {filterActive && <span className="min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-primary text-on-primary text-[11px] font-bold">{filterCount}</span>}
             </button>
             {filterOpen && (
               <>
@@ -337,7 +353,8 @@ export default function AccountsPage() {
             if (rows.length === 0) return null;
             const isCollapsed = collapsed.has(g.key);
             const total = groupTotals[g.key];
-            const chg = g.key === 'liquid' ? change.liquid : g.key === 'investment' ? change.investment : change.liability;
+            // For liabilities, paying down debt (magnitude ↓) is the "good" direction, so negate.
+            const chg = g.key === 'liquid' ? change.liquid : g.key === 'investment' ? change.investment : -change.liability;
             return (
               <div key={g.key} className="bg-surface border border-line rounded-card shadow-sm overflow-hidden">
                 <button onClick={() => setCollapsed((c) => { const n = new Set(c); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
@@ -348,7 +365,8 @@ export default function AccountsPage() {
                   <span className="ml-auto text-[17px] font-extrabold tabular-nums">{money(total)}</span>
                 </button>
                 {!isCollapsed && rows.map((a) => (
-                  <div key={a.accountId} className="flex items-center gap-3.5 px-5 h-[74px] border-t border-line">
+                  <div key={a.accountId} onClick={canBalance ? () => openBalance(a) : undefined}
+                    className={`flex items-center gap-3.5 px-5 h-[74px] border-t border-line ${canBalance ? 'cursor-pointer hover:bg-surface-2/40' : ''}`}>
                     <VendorAvatar name={a.institution || a.name} color={acctColor(a.classification)} size={40} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -522,6 +540,23 @@ export default function AccountsPage() {
               </div>
             </div>
           )}
+        </ResponsiveModal>
+      )}
+
+      {/* manual balance modal */}
+      {balanceEdit && (
+        <ResponsiveModal isOpen onClose={() => setBalanceEdit(null)} title={`Update balance — ${balanceEdit.name}`}>
+          <div className="flex flex-col gap-4 p-1">
+            <div>
+              <label className="block text-[13px] font-semibold text-content-2 mb-1.5">New balance (as of today)</label>
+              <CurrencyInput value={balanceInput} onChange={setBalanceInput} autoFocus allowNegative />
+              <p className="text-[12px] text-content-3 mt-1.5">Records a balance snapshot dated today. For liabilities, enter the amount owed as a positive number.</p>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setBalanceEdit(null)} className="h-11 px-4 rounded-[11px] bg-surface-2 border border-line-strong font-semibold text-sm">Cancel</button>
+              <button onClick={saveBalance} className="h-11 px-5 rounded-[11px] bg-primary text-on-primary font-bold text-sm">Save balance</button>
+            </div>
+          </div>
         </ResponsiveModal>
       )}
 

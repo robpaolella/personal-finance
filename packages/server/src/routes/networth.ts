@@ -91,6 +91,9 @@ router.get('/summary', (_req: Request, res: Response) => {
         cost: a.cost, salvageValue: a.salvage_value, lifespanYears: a.lifespan_years,
         purchaseDate: a.purchase_date, depreciationMethod: a.depreciation_method as 'straight_line' | 'declining_balance',
         decliningRate: a.declining_rate,
+        // Value at today's date (same basis as /history's last point) so the
+        // headline reconciles exactly with the chart's ending value.
+        asOf: fmtDate(new Date()),
       }),
     }));
 
@@ -154,9 +157,16 @@ router.get('/history', (req: Request, res: Response) => {
   try {
     const range = (req.query.range as string) || '1m';
     const rangeDays = range in RANGE_DAYS ? RANGE_DAYS[range] : 30;
+    // Optional account filter — keeps the chart/change consistent with the
+    // page's filtered headline/summary. Physical assets are never filtered.
+    // `!== undefined` (not truthiness) so an explicit empty `accountIds=` means
+    // "no accounts selected" (physical-only) rather than "no filter".
+    const idsParam = req.query.accountIds as string | undefined;
+    const filterIds = idsParam !== undefined ? new Set(idsParam.split(',').map(Number).filter((n) => !isNaN(n))) : null;
 
     const activeAccounts = db.select({ id: accounts.id, classification: accounts.classification })
-      .from(accounts).where(eq(accounts.is_active, 1)).all();
+      .from(accounts).where(eq(accounts.is_active, 1)).all()
+      .filter((a) => !filterIds || filterIds.has(a.id));
     const classOf = new Map<number, string>(activeAccounts.map((a) => [a.id, a.classification]));
 
     // All snapshots for active accounts, oldest → newest, grouped per account.
@@ -172,6 +182,7 @@ router.get('/history', (req: Request, res: Response) => {
 
     const perAccount = new Map<number, { date: string; balance: number }[]>();
     for (const s of snaps) {
+      if (filterIds && !filterIds.has(s.account_id)) continue;
       if (!perAccount.has(s.account_id)) perAccount.set(s.account_id, []);
       perAccount.get(s.account_id)!.push({ date: s.date, balance: s.balance });
     }
@@ -195,14 +206,13 @@ router.get('/history', (req: Request, res: Response) => {
       if (earliestSnapMs != null) startMs = Math.max(startMs, earliestSnapMs);
     }
 
-    // Sample up to ~90 evenly-spaced points across the window.
-    const spanDays = Math.max(1, Math.round((endMs - startMs) / 86400000));
-    const step = Math.max(1, Math.ceil(spanDays / 90));
+    // Sample up to ~90 evenly-spaced points across the window. Step by real ms
+    // and bound by endMs so a zero/short span never overshoots into the future.
+    const spanDays = Math.max(0, Math.round((endMs - startMs) / 86400000));
+    const step = Math.max(1, Math.ceil((spanDays || 1) / 90));
     const targets: string[] = [];
-    for (let k = 0; k * step <= spanDays; k++) {
-      targets.push(fmtDate(new Date(startMs + k * step * 86400000)));
-    }
-    if (targets[targets.length - 1] !== end) targets.push(end);
+    for (let ms = startMs; ms <= endMs; ms += step * 86400000) targets.push(fmtDate(new Date(ms)));
+    if (targets.length === 0 || targets[targets.length - 1] !== end) targets.push(end);
 
     // Carry-forward pointer per account as we walk targets forward.
     const ptr = new Map<number, number>();

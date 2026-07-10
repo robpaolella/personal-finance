@@ -13,8 +13,10 @@ export function calculateCurrentValue(params: DepreciationParams): number {
   const { cost, salvageValue, purchaseDate, depreciationMethod, decliningRate, asOf } = params;
   const now = asOf ? new Date(asOf) : new Date();
   const purchased = new Date(purchaseDate);
-  // Clamp so a date before acquisition yields full cost (callers exclude not-yet-owned assets).
-  const yearsOwned = Math.max(0, (now.getTime() - purchased.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  // Not yet owned as of the valuation date → contributes nothing (keeps /summary
+  // and /history consistent for future-dated assets).
+  if (now.getTime() < purchased.getTime()) return 0;
+  const yearsOwned = (now.getTime() - purchased.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
 
   if (depreciationMethod === 'declining_balance' && decliningRate != null) {
     const currentValue = cost * Math.pow(1 - decliningRate / 100, yearsOwned);

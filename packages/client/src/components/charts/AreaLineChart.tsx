@@ -31,13 +31,15 @@ const defaultValue = (n: number) => {
  * and text aren't distorted. Theme-token colored.
  */
 export default function AreaLineChart({
-  points,
+  points: rawPoints,
   height = 240,
   color = 'var(--primary)',
   formatValue = defaultValue,
   formatDate = defaultDate,
   yTicks = 5,
 }: Props) {
+  // Guard against non-finite values (NaN/Infinity) breaking SVG coordinates.
+  const points = useMemo(() => rawPoints.filter((p) => Number.isFinite(p.value)), [rawPoints]);
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
   const [hover, setHover] = useState<number | null>(null);
