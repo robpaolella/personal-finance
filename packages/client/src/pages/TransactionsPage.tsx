@@ -526,37 +526,14 @@ export default function TransactionsPage() {
   const [filterAccount, setFilterAccount] = useState('All');
   const [filterType, setFilterType] = useState('All');
   const [filterCategory, setFilterCategory] = useState<string[]>([]);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
   const toggleCategoryFilter = (value: string) => {
     setFilterCategory(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
   };
 
-  const categoryFilterLabel = useMemo(() => {
-    if (filterCategory.length === 0) return 'All Categories';
-    if (filterCategory.length === 1) {
-      const v = filterCategory[0];
-      if (v.startsWith('group:')) return v.slice(6);
-      const cat = categories.find(c => c.id === parseInt(v.slice(4), 10));
-      return cat?.sub_name ?? v;
-    }
-    return `${filterCategory.length} categories`;
-  }, [filterCategory, categories]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
-        setShowCategoryDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
   const [datePreset, setDatePreset] = useState('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState('date');
@@ -567,6 +544,9 @@ export default function TransactionsPage() {
   });
   const [sortOpen, setSortOpen] = useState(false);
   const [sortTouched, setSortTouched] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [editCell, setEditCell] = useState<{ id: number; field: 'vendor' | 'category' } | null>(null);
   const [cellSearch, setCellSearch] = useState('');
   const [detail, setDetail] = useState<Transaction | null>(null);
@@ -889,18 +869,6 @@ export default function TransactionsPage() {
     catGroupsForBulk.get(c.group_name)!.push(c);
   }
 
-  const hasActiveFilters = search !== '' || filterAccount !== 'All' || filterType !== 'All' || filterCategory.length > 0 || datePreset !== 'all';
-
-  const resetFilters = () => {
-    setSearch('');
-    setFilterAccount('All');
-    setFilterType('All');
-    setFilterCategory([]);
-    setDatePreset('all');
-    setCustomStart('');
-    setCustomEnd('');
-  };
-
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const showFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const showTo = Math.min(page * pageSize, total);
@@ -909,6 +877,14 @@ export default function TransactionsPage() {
   const formatDateHeader = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const vendorOptions = [...new Set(transactions.map((t) => t.description).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const sortLabel = !sortTouched ? 'Sort' : (SORT_OPTIONS.find((o) => o.by === sortBy && o.order === sortOrder)?.label ?? 'Sort');
+  const DATE_PRESETS: { value: string; label: string }[] = [
+    { value: 'all', label: 'All time' }, { value: 'this-month', label: 'This month' }, { value: 'last-month', label: 'Last month' },
+    { value: 'this-quarter', label: 'This quarter' }, { value: 'last-quarter', label: 'Last quarter' },
+    { value: 'this-year', label: 'This year' }, { value: 'last-year', label: 'Last year' }, { value: 'ytd', label: 'Year to date' },
+    { value: 'custom', label: 'Custom range…' },
+  ];
+  const dateLabel = datePreset === 'all' ? 'Date' : (DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Date');
+  const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length;
   const groupedAll = Array.from(
     categories.reduce((m, c) => { if (!m.has(c.group_name)) m.set(c.group_name, []); m.get(c.group_name)!.push(c); return m; }, new Map<string, Category[]>()).entries()
   );
@@ -999,7 +975,7 @@ export default function TransactionsPage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Header + consolidated top-right controls */}
       <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
         <div className="flex items-center gap-6">
           <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight m-0">Transactions</h1>
@@ -1009,181 +985,136 @@ export default function TransactionsPage() {
             <span className="text-content-3 cursor-not-allowed" title="Coming soon">Receipts</span>
           </div>
         </div>
-        <PermissionGate permission="transactions.create" fallback="disabled">
-          <button onClick={() => setEditing('new')}
-            className="flex items-center gap-2 h-10 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm hover:bg-primary-hover">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            Add
-          </button>
-        </PermissionGate>
-      </div>
-
-      {/* Filter Bar */}
-      <div className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] mb-5 px-4 py-3 ${isMobile ? 'flex flex-col gap-3' : 'flex gap-3 items-center'}`}>
-        <div className={`relative ${isMobile ? 'w-full' : 'flex-1'}`}>
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </span>
-          <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search transactions..." autoCapitalize="off"
-            className="w-full py-2 pl-[34px] pr-2 border border-[var(--table-border)] rounded-lg text-[13px] outline-none bg-[var(--bg-input)] text-[var(--text-secondary)]" />
-        </div>
-        {isMobile ? (
-          <>
-            <div className="flex gap-2 items-center">
-              <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}
-                className="flex-1 px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-                <option value="all">All Time</option>
-                <option value="this-month">This Month</option>
-                <option value="last-month">Last Month</option>
-                <option value="this-quarter">This Quarter</option>
-                <option value="last-quarter">Last Quarter</option>
-                <option value="this-year">This Year</option>
-                <option value="last-year">Last Year</option>
-                <option value="ytd">Year to Date</option>
-                <option value="custom">Custom Range...</option>
-              </select>
-              <button onClick={() => setShowMobileFilters(!showMobileFilters)}
-                className={`px-3 py-2 border rounded-lg text-[13px] font-medium cursor-pointer ${
-                  showMobileFilters || filterAccount !== 'All' || filterType !== 'All' || filterCategory.length > 0
-                    ? 'border-[#3b82f6] text-[#3b82f6] bg-[var(--bg-input)]'
-                    : 'border-[var(--table-border)] text-[var(--text-secondary)] bg-[var(--bg-input)]'
-                }`}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
-              </button>
-              {hasActiveFilters && (
-                <button onClick={resetFilters}
-                  className="px-2 py-2 text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer btn-ghost">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              )}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Search */}
+          {searchOpen ? (
+            <div className="flex items-center h-10 rounded-[11px] bg-surface border border-line-strong px-3 gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-content-3"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" autoCapitalize="off"
+                onKeyDown={(e) => { if (e.key === 'Escape') { setSearch(''); setSearchOpen(false); } }}
+                className="w-44 bg-transparent outline-none text-sm text-content" />
+              <button onClick={() => { setSearch(''); setSearchOpen(false); }} className="text-content-3 hover:text-content"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
-            {datePreset === 'custom' && (
-              <div className="flex items-center gap-2">
-                <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
-                  className="flex-1 px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
-                <span className="text-[var(--text-muted)] text-[11px]">to</span>
-                <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
-                  className="flex-1 px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
-              </div>
-            )}
-            {showMobileFilters && (
-              <div className="flex flex-col gap-2">
-                <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)}
-                  className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-                  <option value="All">All Accounts</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id.toString()}>{accountLabel(a)}</option>
+          ) : (
+            <button onClick={() => setSearchOpen(true)} title="Search"
+              className={`w-10 h-10 flex items-center justify-center rounded-[11px] bg-surface border ${search ? 'border-primary' : 'border-line-strong'} text-content-2 hover:bg-surface-2`}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            </button>
+          )}
+          {/* Date */}
+          <div className="relative">
+            <button onClick={() => { setDateOpen((o) => !o); setFilterOpen(false); setSortOpen(false); }}
+              className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border ${datePreset !== 'all' ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+              {dateLabel}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {dateOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setDateOpen(false)} />
+                <div className="absolute top-12 right-0 z-50 w-64 bg-elevated border border-line-strong rounded-[12px] shadow-md p-1.5">
+                  {DATE_PRESETS.map((p) => (
+                    <button key={p.value} onClick={() => { setDatePreset(p.value); if (p.value !== 'custom') setDateOpen(false); }}
+                      className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-content hover:bg-surface-2">
+                      <span className="w-4 flex justify-center">{datePreset === p.value && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
+                      {p.label}
+                    </button>
                   ))}
-                </select>
-                <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-                  <option value="All">All Types</option>
-                  <option value="Income">Income</option>
-                  <option value="Expense">Expense</option>
-                </select>
-                <div className="relative" ref={isMobile ? categoryDropdownRef : undefined}>
-                  <button type="button" onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                    className="w-full flex items-center justify-between px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)] cursor-pointer">
-                    <span className="truncate">{categoryFilterLabel}</span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`ml-2 flex-shrink-0 transition-transform ${showCategoryDropdown ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
-                  </button>
-                  {showCategoryDropdown && (
-                    <div className="absolute z-50 mt-1 left-0 right-0 bg-[var(--bg-card)] border border-[var(--table-border)] rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                      {categoryGroups.map((g) => (
-                        <div key={g.group}>
-                          <label className="flex items-center gap-2 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wide text-[var(--text-muted)] cursor-pointer hover:bg-[var(--bg-hover)]">
-                            <input type="checkbox" checked={filterCategory.includes(`group:${g.group}`)} onChange={() => toggleCategoryFilter(`group:${g.group}`)}
-                              className="accent-[var(--color-accent)]" />
-                            {g.group}
-                          </label>
-                          {g.subs.map((s) => (
-                            <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 pl-7 text-[13px] text-[var(--text-primary)] cursor-pointer hover:bg-[var(--bg-hover)]">
-                              <input type="checkbox" checked={filterCategory.includes(`sub:${s.id}`)} onChange={() => toggleCategoryFilter(`sub:${s.id}`)}
-                                className="accent-[var(--color-accent)]" />
-                              {s.sub}
-                            </label>
-                          ))}
-                        </div>
-                      ))}
+                  {datePreset === 'custom' && (
+                    <div className="flex flex-col gap-2 p-2 mt-1 border-t border-line">
+                      <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="h-9 px-2 rounded-lg bg-surface-2 border border-line text-content text-sm outline-none" />
+                      <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="h-9 px-2 rounded-lg bg-surface-2 border border-line text-content text-sm outline-none" />
                     </div>
                   )}
+                  {datePreset !== 'all' && (
+                    <button onClick={() => { setDatePreset('all'); setCustomStart(''); setCustomEnd(''); }} className="w-full mt-1 px-3 py-2 rounded-lg text-sm font-semibold text-content-2 hover:bg-surface-2 border-t border-line">Clear</button>
+                  )}
                 </div>
-              </div>
+              </>
             )}
-          </>
-        ) : (
-          <>
-            <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)}
-              className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-              <option value="All">All Accounts</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id.toString()}>{accountLabel(a)}</option>
-              ))}
-            </select>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
-              className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-              <option value="All">All</option>
-              <option value="Income">Income</option>
-              <option value="Expense">Expense</option>
-            </select>
-            <div className="relative" ref={!isMobile ? categoryDropdownRef : undefined}>
-              <button type="button" onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                className="flex items-center justify-between px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)] cursor-pointer min-w-[160px]">
-                <span className="truncate">{categoryFilterLabel}</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`ml-2 flex-shrink-0 transition-transform ${showCategoryDropdown ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
-              </button>
-              {showCategoryDropdown && (
-                <div className="absolute z-50 mt-1 left-0 bg-[var(--bg-card)] border border-[var(--table-border)] rounded-lg shadow-lg max-h-72 overflow-y-auto min-w-[220px]">
-                  {categoryGroups.map((g) => (
-                    <div key={g.group}>
-                      <label className="flex items-center gap-2 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wide text-[var(--text-muted)] cursor-pointer hover:bg-[var(--bg-hover)]">
-                        <input type="checkbox" checked={filterCategory.includes(`group:${g.group}`)} onChange={() => toggleCategoryFilter(`group:${g.group}`)}
-                          className="accent-[var(--color-accent)]" />
-                        {g.group}
-                      </label>
-                      {g.subs.map((s) => (
-                        <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 pl-7 text-[13px] text-[var(--text-primary)] cursor-pointer hover:bg-[var(--bg-hover)]">
-                          <input type="checkbox" checked={filterCategory.includes(`sub:${s.id}`)} onChange={() => toggleCategoryFilter(`sub:${s.id}`)}
-                            className="accent-[var(--color-accent)]" />
-                          {s.sub}
+          </div>
+          {/* Filters */}
+          <div className="relative">
+            <button onClick={() => { setFilterOpen((o) => !o); setDateOpen(false); setSortOpen(false); }}
+              className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border ${filterCount ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" strokeLinecap="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+              Filters
+              {filterCount > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-primary text-on-primary text-[11px] font-bold flex items-center justify-center">{filterCount}</span>}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {filterOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
+                <div className="absolute top-12 right-0 z-50 w-72 bg-elevated border border-line-strong rounded-[12px] shadow-md p-3">
+                  <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Type</div>
+                  <div className="flex gap-1 bg-surface-2 border border-line rounded-[10px] p-1 mb-3">
+                    {['All', 'Income', 'Expense'].map((tp) => (
+                      <button key={tp} onClick={() => setFilterType(tp)} className={`flex-1 py-1.5 rounded-lg text-sm font-semibold ${filterType === tp ? 'bg-elevated shadow-sm text-content' : 'text-content-2'}`}>{tp}</button>
+                    ))}
+                  </div>
+                  <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Account</div>
+                  <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)} className="w-full h-10 px-3 rounded-[10px] bg-surface-2 border border-line text-content text-sm outline-none mb-3">
+                    <option value="All">All accounts</option>
+                    {accounts.map((a) => <option key={a.id} value={a.id.toString()}>{accountLabel(a)}</option>)}
+                  </select>
+                  <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Category</div>
+                  <div className="rounded-[10px] border border-line max-h-56 overflow-y-auto">
+                    {categoryGroups.map((g) => (
+                      <div key={g.group}>
+                        <label className="flex items-center gap-2 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wide text-content-3 hover:bg-surface-2 cursor-pointer">
+                          <input type="checkbox" checked={filterCategory.includes(`group:${g.group}`)} onChange={() => toggleCategoryFilter(`group:${g.group}`)} className="accent-[var(--primary)]" />
+                          {g.group}
                         </label>
-                      ))}
-                    </div>
-                  ))}
+                        {g.subs.map((s) => (
+                          <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 pl-7 text-[13px] text-content hover:bg-surface-2 cursor-pointer">
+                            <input type="checkbox" checked={filterCategory.includes(`sub:${s.id}`)} onChange={() => toggleCategoryFilter(`sub:${s.id}`)} className="accent-[var(--primary)]" />
+                            {s.sub}
+                          </label>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  {filterCount > 0 && (
+                    <button onClick={() => { setFilterAccount('All'); setFilterType('All'); setFilterCategory([]); }} className="w-full mt-3 px-3 py-2 rounded-lg text-sm font-semibold text-content-2 hover:bg-surface-2 border border-line">Clear filters</button>
+                  )}
                 </div>
-              )}
-            </div>
-            <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}
-              className="px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-              <option value="all">All Time</option>
-              <option value="this-month">This Month</option>
-              <option value="last-month">Last Month</option>
-              <option value="this-quarter">This Quarter</option>
-              <option value="last-quarter">Last Quarter</option>
-              <option value="this-year">This Year</option>
-              <option value="last-year">Last Year</option>
-              <option value="ytd">Year to Date</option>
-              <option value="custom">Custom Range...</option>
-            </select>
-            {datePreset === 'custom' && (
-              <div className="flex items-center gap-2">
-                <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
-                  className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
-                <span className="text-[var(--text-muted)] text-[11px]">to</span>
-                <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
-                  className="px-2 py-2 border border-[var(--table-border)] rounded-lg text-[12px] outline-none bg-[var(--bg-input)] font-mono text-[var(--text-secondary)]" />
-              </div>
+              </>
             )}
-            {hasActiveFilters && (
-              <button onClick={resetFilters}
-                className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer btn-ghost whitespace-nowrap flex items-center gap-1">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                Reset Filters
-              </button>
+          </div>
+          {/* Sort */}
+          <div className="relative">
+            <button onClick={() => { setSortOpen((o) => !o); setDateOpen(false); setFilterOpen(false); }}
+              className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border ${sortTouched ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l-3 3M17 4l3 3"/></svg>
+              {sortLabel}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {sortOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setSortOpen(false)} />
+                <div className="absolute top-12 right-0 z-50 w-60 bg-elevated border border-line-strong rounded-[12px] shadow-md p-1.5">
+                  {SORT_OPTIONS.map((o) => {
+                    const active = sortTouched && o.by === sortBy && o.order === sortOrder;
+                    return (
+                      <button key={o.label} onClick={() => applySort(o.by, o.order)} className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-content hover:bg-surface-2">
+                        <span className="w-4 flex justify-center">{active && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
-          </>
-        )}
+          </div>
+          {/* Add */}
+          <PermissionGate permission="transactions.create" fallback="disabled">
+            <button onClick={() => setEditing('new')}
+              className="flex items-center gap-2 h-10 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm hover:bg-primary-hover">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Add
+            </button>
+          </PermissionGate>
+        </div>
       </div>
 
       {/* Bulk Actions Toolbar */}
@@ -1302,29 +1233,6 @@ export default function TransactionsPage() {
                   Edit multiple
                 </button>
               </PermissionGate>
-              <div className="relative">
-                <button onClick={() => setSortOpen((o) => !o)} className={`flex items-center gap-2 h-10 px-4 rounded-[11px] bg-surface-2 border ${sortTouched ? 'border-primary' : 'border-line'} text-content font-semibold text-sm`}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l-3 3M17 4l3 3"/></svg>
-                  {sortLabel}
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-                {sortOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setSortOpen(false)} />
-                    <div className="absolute top-12 right-0 z-50 w-60 bg-elevated border border-line-strong rounded-[12px] shadow-md p-1.5">
-                      {SORT_OPTIONS.map((o) => {
-                        const active = sortTouched && o.by === sortBy && o.order === sortOrder;
-                        return (
-                          <button key={o.label} onClick={() => applySort(o.by, o.order)} className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-content hover:bg-surface-2">
-                            <span className="w-4 flex justify-center">{active && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
-                            {o.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
           </div>
         ) : (
