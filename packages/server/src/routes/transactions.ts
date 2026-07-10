@@ -482,7 +482,7 @@ router.post('/bulk-update', requirePermission('transactions.bulk_edit'), (req: R
   try {
     const { ids, updates } = req.body as {
       ids: number[];
-      updates: { date?: string; accountId?: number; categoryId?: number; description?: { find: string; replace: string } };
+      updates: { date?: string; accountId?: number; categoryId?: number; merchant?: string; description?: { find: string; replace: string } };
     };
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
@@ -515,6 +515,7 @@ router.post('/bulk-update', requirePermission('transactions.bulk_edit'), (req: R
     if (updates.date) setFields.date = updates.date;
     if (updates.accountId) setFields.account_id = updates.accountId;
     if (updates.categoryId) setFields.category_id = updates.categoryId;
+    if (updates.merchant) setFields.description = updates.merchant;
 
     if (Object.keys(setFields).length > 0) {
       // If changing category, clear any existing splits on these transactions
