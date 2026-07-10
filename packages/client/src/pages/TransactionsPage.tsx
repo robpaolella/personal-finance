@@ -3,13 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtTransaction } from '../lib/formatters';
 import { getCategoryColor } from '../lib/categoryColors';
+import { getCategoryColorHex, getCategoryEmoji } from '../lib/categoryMeta';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import CurrencyInput from '../components/CurrencyInput';
 import PermissionGate from '../components/PermissionGate';
-import SortableHeader from '../components/SortableHeader';
-import { AccountBadge, CategoryBadge, OwnerBadge, SharedBadge, SplitBadge, ReimbursementBadge } from '../components/badges';
+import { CategoryBadge, SplitBadge, ReimbursementBadge } from '../components/badges';
 import InlineNotification from '../components/InlineNotification';
 import ResponsiveModal from '../components/ResponsiveModal';
 import SplitEditor from '../components/SplitEditor';
@@ -565,6 +565,10 @@ export default function TransactionsPage() {
     const stored = localStorage.getItem('ledger-page-size');
     return stored ? parseInt(stored, 10) : 50;
   });
+  const [sortOpen, setSortOpen] = useState(false);
+  const [sortTouched, setSortTouched] = useState(false);
+  const [editCell, setEditCell] = useState<{ id: number; field: 'vendor' | 'category' } | null>(null);
+  const [cellSearch, setCellSearch] = useState('');
 
   const getDateRange = useCallback((): { startDate?: string; endDate?: string } => {
     const now = new Date();
@@ -657,19 +661,60 @@ export default function TransactionsPage() {
     setCategories(catRes.data);
   }, []);
 
-  const handleSort = (key: string) => {
-    if (key === sortBy) {
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  const SORT_OPTIONS: { by: string; order: 'asc' | 'desc'; label: string }[] = [
+    { by: 'date', order: 'desc', label: 'Date (new → old)' },
+    { by: 'date', order: 'asc', label: 'Date (old → new)' },
+    { by: 'amount', order: 'desc', label: 'Amount (high → low)' },
+    { by: 'amount', order: 'asc', label: 'Amount (low → high)' },
+  ];
+  const applySort = (by: string, order: 'asc' | 'desc') => {
+    setSortBy(by); setSortOrder(order); setSortTouched(true); setSortOpen(false); setPage(1);
+  };
+
+  // Inline vendor/category edit — rebuilds the txn body (preserving splits) and PUTs.
+  const updateTxnField = async (t: Transaction, changes: { description?: string; categoryId?: number }) => {
+    const isSplit = !!(t.splits && t.splits.length > 0);
+    const body: Record<string, unknown> = {
+      accountId: t.account.id,
+      date: t.date,
+      description: changes.description ?? t.description,
+      note: t.note,
+    };
+    if (isSplit) {
+      body.splits = t.splits!.map((s) => ({ categoryId: s.categoryId, amount: s.amount }));
+      body.amount = t.amount;
     } else {
-      setSortBy(key);
-      setSortOrder('asc');
+      const categoryId = changes.categoryId ?? t.category?.id ?? null;
+      let amount = t.amount;
+      if (changes.categoryId != null) {
+        const newCat = categories.find((c) => c.id === changes.categoryId);
+        if (newCat) amount = newCat.type === 'income' ? -Math.abs(t.amount) : Math.abs(t.amount);
+      }
+      body.categoryId = categoryId;
+      body.amount = amount;
     }
-    setPage(1);
+    try {
+      await apiFetch(`/transactions/${t.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      setEditCell(null); setCellSearch('');
+      await loadTransactions();
+    } catch {
+      addToast('Failed to update transaction', 'error');
+    }
   };
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
   useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory]);
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (editCell) { setEditCell(null); setCellSearch(''); }
+      else if (bulkMode) { setBulkMode(false); setSelectedIds(new Set()); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [editCell, bulkMode]);
 
   const handleSave = async (data: Record<string, unknown>) => {
     try {
@@ -799,36 +844,111 @@ export default function TransactionsPage() {
   const showFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const showTo = Math.min(page * pageSize, total);
 
+  const canEdit = hasPermission('transactions.edit');
+  const formatDateHeader = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const vendorOptions = [...new Set(transactions.map((t) => t.description).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const sortLabel = !sortTouched ? 'Sort' : (SORT_OPTIONS.find((o) => o.by === sortBy && o.order === sortOrder)?.label ?? 'Sort');
+  const dateGroups: { date: string; rows: Transaction[]; net: number }[] = [];
+  for (const t of transactions) {
+    const last = dateGroups[dateGroups.length - 1];
+    if (last && last.date === t.date) { last.rows.push(t); last.net += t.amount; }
+    else dateGroups.push({ date: t.date, rows: [t], net: t.amount });
+  }
+
+  const renderRow = (t: Transaction) => {
+    const catType = t.category?.type ?? t.splits?.[0]?.type ?? 'expense';
+    const { text: amtText, className: amtClass } = fmtTransaction(t.amount, catType);
+    const isSplit = !!(t.splits && t.splits.length > 0);
+    const emoji = isSplit ? '🔀' : getCategoryEmoji(t.category?.groupName);
+    const color = getCategoryColorHex(t.category?.groupName);
+    const initial = (t.description?.trim()?.[0] ?? '?').toUpperCase();
+    const checked = selectedIds.has(t.id);
+    const vendorEditing = editCell?.id === t.id && editCell.field === 'vendor';
+    const categoryEditing = editCell?.id === t.id && editCell.field === 'category';
+    const vendorMatches = vendorOptions.filter((v) => v.toLowerCase().includes(cellSearch.toLowerCase())).slice(0, 40);
+    const catMatches = categories.filter((c) => `${c.sub_name} ${c.group_name}`.toLowerCase().includes(cellSearch.toLowerCase())).slice(0, 60);
+    return (
+      <div key={t.id}
+        onClick={() => { if (bulkMode) toggleSelect(t.id); else if (canEdit) setEditing(t); }}
+        className="flex items-center gap-3.5 px-6 border-b border-line cursor-pointer hover:bg-surface-2/40"
+        style={{ height: 44, background: checked ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : undefined }}>
+        {bulkMode && (
+          <span className="w-5 h-5 shrink-0 rounded-md flex items-center justify-center border-[1.5px]" style={{ borderColor: checked ? 'var(--primary)' : 'var(--line-strong)', background: checked ? 'var(--primary)' : 'transparent' }}>
+            {checked && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}
+          </span>
+        )}
+        <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>{initial}</span>
+        {/* vendor cell (inline edit) */}
+        <div className="relative flex-[1.4] min-w-0" onClick={(e) => { if (!bulkMode && canEdit) { e.stopPropagation(); setEditCell({ id: t.id, field: 'vendor' }); setCellSearch(''); } }}>
+          <div className="flex items-center h-8 px-2 -ml-2 rounded-lg hover:bg-surface-2">
+            <span className="font-semibold text-[15px] truncate">{t.description}</span>
+          </div>
+          {vendorEditing && (
+            <div onClick={(e) => e.stopPropagation()} className="absolute top-9 left-0 z-[60] w-64 bg-elevated border border-line-strong rounded-[12px] shadow-md overflow-hidden">
+              <div className="p-2 border-b border-line"><input autoFocus value={cellSearch} onChange={(e) => setCellSearch(e.target.value)} placeholder="Search vendors…" className="w-full h-9 px-3 rounded-lg bg-surface-2 border border-line text-content text-sm outline-none" /></div>
+              <div className="max-h-60 overflow-y-auto p-1.5">
+                {cellSearch.trim() && !vendorMatches.some((v) => v.toLowerCase() === cellSearch.trim().toLowerCase()) && (
+                  <button onClick={() => updateTxnField(t, { description: cellSearch.trim() })} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-primary font-medium hover:bg-surface-2">Use “{cellSearch.trim()}”</button>
+                )}
+                {vendorMatches.map((v) => (
+                  <button key={v} onClick={() => updateTxnField(t, { description: v })} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-content hover:bg-surface-2 truncate">{v}</button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        {/* category cell (inline edit; disabled for splits) */}
+        <div className="relative flex-1 min-w-0" onClick={(e) => { if (!bulkMode && !isSplit && canEdit) { e.stopPropagation(); setEditCell({ id: t.id, field: 'category' }); setCellSearch(''); } }}>
+          <div className="flex items-center gap-2 h-8 px-2 -ml-2 rounded-lg hover:bg-surface-2 text-[13px] text-content-2">
+            <span className="text-[15px] leading-none">{emoji}</span>
+            <span className="truncate">{isSplit ? `Split (${t.splits!.length})` : (t.category?.subName ?? 'Uncategorized')}</span>
+          </div>
+          {categoryEditing && (
+            <div onClick={(e) => e.stopPropagation()} className="absolute top-9 left-0 z-[60] w-64 bg-elevated border border-line-strong rounded-[12px] shadow-md overflow-hidden">
+              <div className="p-2 border-b border-line"><input autoFocus value={cellSearch} onChange={(e) => setCellSearch(e.target.value)} placeholder="Search categories…" className="w-full h-9 px-3 rounded-lg bg-surface-2 border border-line text-content text-sm outline-none" /></div>
+              <div className="max-h-60 overflow-y-auto p-1.5">
+                {catMatches.map((c) => (
+                  <button key={c.id} onClick={() => updateTxnField(t, { categoryId: c.id })} className="flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-lg text-sm text-content hover:bg-surface-2">
+                    <span className="text-[15px] leading-none">{getCategoryEmoji(c.group_name)}</span>
+                    <span className="truncate">{c.sub_name}</span>
+                    <span className="ml-auto text-xs text-content-3 truncate">{c.group_name}</span>
+                  </button>
+                ))}
+                {catMatches.length === 0 && <div className="px-3 py-2 text-sm text-content-3">No matches</div>}
+              </div>
+            </div>
+          )}
+        </div>
+        {/* account */}
+        <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-content-3">
+          <span className="truncate">{accountLabel(t.account)}</span>
+        </div>
+        {/* amount */}
+        <div className={`w-[128px] shrink-0 text-right font-bold text-[15px] tabular-nums ${amtClass}`}>{amtText}</div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-content-3 shrink-0"><path d="m9 6 6 6-6 6"/></svg>
+      </div>
+    );
+  };
+
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Transactions</h1>
-          <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{total} transactions</p>
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+        <div className="flex items-center gap-6">
+          <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight m-0">Transactions</h1>
+          <div className="hidden md:flex items-center gap-5 text-[15px] font-semibold">
+            <span className="text-primary border-b-2 border-primary pb-0.5">All</span>
+            <span className="text-content-3 cursor-not-allowed" title="Coming soon">Recurring</span>
+            <span className="text-content-3 cursor-not-allowed" title="Coming soon">Receipts</span>
+          </div>
         </div>
-        <div className="flex gap-2 desktop-only">
-          {bulkMode ? (
-            <button onClick={exitBulkMode}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
-              Exit Bulk Edit
-            </button>
-          ) : (
-            <PermissionGate permission="transactions.bulk_edit" fallback="hidden">
-              <button onClick={() => setBulkMode(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
-                Bulk Edit
-              </button>
-            </PermissionGate>
-          )}
-          <PermissionGate permission="transactions.create" fallback="disabled">
-            <button onClick={() => setEditing('new')}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer btn-secondary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add Transaction
-            </button>
-          </PermissionGate>
-        </div>
+        <PermissionGate permission="transactions.create" fallback="disabled">
+          <button onClick={() => setEditing('new')}
+            className="flex items-center gap-2 h-10 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm hover:bg-primary-hover">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add
+          </button>
+        </PermissionGate>
       </div>
 
       {/* Filter Bar */}
@@ -1103,111 +1223,69 @@ export default function TransactionsPage() {
           )}
         </div>
       ) : (
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)]">
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr>
-                {bulkMode && (
-                  <th className="w-8 px-2 py-2 border-b-2 border-[var(--table-border)]">
-                    <input type="checkbox" checked={selectedIds.size === transactions.length && transactions.length > 0}
-                      onChange={toggleSelectAll} className="cursor-pointer" />
-                  </th>
+      <div className="bg-surface rounded-card border border-line shadow-sm">
+        {/* card toolbar */}
+        {!bulkMode ? (
+          <div className="flex items-center justify-between gap-4 px-6 py-4">
+            <span className="text-[15px] font-bold tabular-nums">{total.toLocaleString()} transactions</span>
+            <div className="flex items-center gap-2.5">
+              <PermissionGate permission="transactions.bulk_edit" fallback="hidden">
+                <button onClick={() => setBulkMode(true)} className="flex items-center gap-2 h-10 px-4 rounded-[11px] bg-surface-2 border border-line text-content font-semibold text-sm hover:bg-surface">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
+                  Edit multiple
+                </button>
+              </PermissionGate>
+              <div className="relative">
+                <button onClick={() => setSortOpen((o) => !o)} className={`flex items-center gap-2 h-10 px-4 rounded-[11px] bg-surface-2 border ${sortTouched ? 'border-primary' : 'border-line'} text-content font-semibold text-sm`}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l-3 3M17 4l3 3"/></svg>
+                  {sortLabel}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                {sortOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setSortOpen(false)} />
+                    <div className="absolute top-12 right-0 z-50 w-60 bg-elevated border border-line-strong rounded-[12px] shadow-md p-1.5">
+                      {SORT_OPTIONS.map((o) => {
+                        const active = sortTouched && o.by === sortBy && o.order === sortOrder;
+                        return (
+                          <button key={o.label} onClick={() => applySort(o.by, o.order)} className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-content hover:bg-surface-2">
+                            <span className="w-4 flex justify-center">{active && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
+                            {o.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
-                <SortableHeader label="Date" sortKey="date" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-                <SortableHeader label="Description" sortKey="description" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-                <SortableHeader label="Account" sortKey="account" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-                <SortableHeader label="Category" sortKey="category" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-                <SortableHeader label="Sub-Category" sortKey="subcategory" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} />
-                <SortableHeader label="Amount" sortKey="amount" activeSortKey={sortBy} sortDir={sortOrder} onSort={handleSort} align="right" />
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((t) => {
-                const catType = t.category?.type ?? t.splits?.[0]?.type ?? 'expense';
-                const { text: amtText, className: amtClass } = fmtTransaction(t.amount, catType);
-                const isSplit = t.splits && t.splits.length > 0;
-                const hasReimbursement = isSplit && t.splits!.some(s => s.type !== t.splits![0].type);
-                return (
-                  <tr key={t.id}
-                    onClick={() => { if (!bulkMode && hasPermission('transactions.edit')) { setEditing(t); } }}
-                    className={`border-b border-[var(--table-row-border)] transition-colors ${!bulkMode && hasPermission('transactions.edit') ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : 'hover:bg-[var(--bg-hover)]'}`}>
-                    {bulkMode && (
-                      <td className="w-8 px-2 py-2">
-                        <input type="checkbox" checked={selectedIds.has(t.id)}
-                          onChange={() => toggleSelect(t.id)} className="cursor-pointer" />
-                      </td>
-                    )}
-                    <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)]">{t.date}</td>
-                    <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
-                    <td className="px-2.5 py-2">
-                      <span className="inline-flex items-center gap-1.5 flex-wrap">
-                        <AccountBadge name={accountLabel(t.account)} />
-                        {t.account.isShared ? (
-                          <SharedBadge />
-                        ) : t.account.owners?.length === 1 ? (
-                          <OwnerBadge user={t.account.owners[0]} />
-                        ) : null}
-                      </span>
-                    </td>
-                    <td className="px-2.5 py-2">
-                      {isSplit ? (
-                        <div className="flex flex-col gap-0.5">
-                          {[...new Map(t.splits!.map(s => [s.groupName, s])).values()].map((s, gi) => (
-                            <div key={gi} className="flex items-center gap-1.5">
-                              <span style={{
-                                width: 7, height: 7, borderRadius: '50%',
-                                background: getCategoryColor(s.groupName, allGroupNames),
-                                display: 'inline-block', flexShrink: 0,
-                              }} />
-                              <span className="text-[11px] text-[var(--text-secondary)]">{s.groupName}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          {t.category && (
-                            <span style={{
-                              width: 7, height: 7, borderRadius: '50%',
-                              background: getCategoryColor(t.category.groupName, allGroupNames),
-                              display: 'inline-block', flexShrink: 0,
-                            }} />
-                          )}
-                          <span className="text-[11px] text-[var(--text-secondary)]">{t.category?.groupName ?? '—'}</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2.5 py-2">
-                      {isSplit ? (
-                        <span className="inline-flex items-center gap-1.5 flex-wrap">
-                          <SplitBadge
-                            colors={t.splits!.map(s => getCategoryColor(s.groupName, allGroupNames))}
-                            count={t.splits!.length}
-                          />
-                          {hasReimbursement && <ReimbursementBadge />}
-                        </span>
-                      ) : t.category ? (
-                        <CategoryBadge name={t.category.subName} color={getCategoryColor(t.category.groupName, allGroupNames)} />
-                      ) : (
-                        <span className="text-[11px] text-[var(--text-muted)]">—</span>
-                      )}
-                    </td>
-                    <td className={`px-2.5 py-2 text-right font-mono font-semibold ${amtClass}`}>
-                      {amtText}
-                    </td>
-                  </tr>
-                );
-              })}
-              {transactions.length === 0 && (
-                <tr>
-                  <td colSpan={bulkMode ? 7 : 6} className="text-center py-8 text-[var(--text-muted)] text-[13px]">
-                    No transactions found for this period
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-4 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <button onClick={toggleSelectAll} className="w-[26px] h-[26px] rounded-[7px] flex items-center justify-center border-[1.5px]" style={{ borderColor: selectedIds.size ? 'var(--primary)' : 'var(--line-strong)', background: selectedIds.size ? 'var(--primary)' : 'transparent' }}>
+                {selectedIds.size > 0 && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 12h14"/></svg>}
+              </button>
+              <span className="text-base font-bold">{selectedIds.size} selected</span>
+              <span className="text-[13px] text-content-3">(ESC)</span>
+            </div>
+            <button onClick={exitBulkMode} className="h-10 px-4 rounded-[11px] bg-surface-2 border border-line-strong text-content font-semibold text-sm">Cancel</button>
+          </div>
+        )}
+        {/* date-grouped rows */}
+        {dateGroups.map((g) => (
+          <div key={g.date}>
+            <div className="flex items-center justify-between px-6 py-2.5 bg-surface-2 border-t border-b border-line">
+              <span className="text-[13px] font-semibold text-content-2">{formatDateHeader(g.date)}</span>
+              <span className="font-mono text-xs tabular-nums" style={{ color: g.net < 0 ? 'var(--positive)' : 'var(--text-3)' }}>{g.net < 0 ? `+${fmt(Math.abs(g.net))}` : fmt(g.net)}</span>
+            </div>
+            {g.rows.map((t) => renderRow(t))}
+          </div>
+        ))}
+        {transactions.length === 0 && <div className="text-center py-10 text-content-3 text-sm">No transactions found for this period</div>}
       </div>
       )}
+      {editCell && <div className="fixed inset-0 z-[55]" onClick={() => { setEditCell(null); setCellSearch(''); }} />}
 
       {/* Pagination */}
       <div className={`mt-3 text-[13px] text-[var(--text-secondary)] ${isMobile ? 'flex flex-col items-center gap-2 pb-16' : 'flex justify-between items-center'}`}>
