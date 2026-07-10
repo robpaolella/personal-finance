@@ -871,30 +871,36 @@ export default function TransactionsPage() {
   };
   const openBulkEdit = () => { if (selectedIds.size > 0) setBulkEditOpen(true); };
 
-  const applyBulkAction = async (action: string) => {
+  // Apply all set fields (merchant / category / date) in a single bulk update.
+  const applyBulkEdit = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
+    const updates: Record<string, unknown> = {};
+    if (bulkMerchant.trim()) updates.merchant = bulkMerchant.trim();
+    if (bulkCategoryId) updates.categoryId = bulkCategoryId;
+    if (bulkDate) updates.date = bulkDate;
+    if (Object.keys(updates).length === 0) return;
     try {
-      if (action === 'date' && bulkDate) {
-        await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { date: bulkDate } }) });
-        setBulkDate(''); setBulkCalOpen(false);
-      } else if (action === 'category' && bulkCategoryId) {
-        await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { categoryId: bulkCategoryId } }) });
-        setBulkCategoryId('');
-      } else if (action === 'merchant' && bulkMerchant.trim()) {
-        await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { merchant: bulkMerchant.trim() } }) });
-        setBulkMerchant('');
-      } else if (action === 'delete') {
-        if (!bulkConfirmDelete) { setBulkConfirmDelete(true); setTimeout(() => setBulkConfirmDelete(false), 3000); return; }
-        await apiFetch('/transactions/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) });
-        setBulkConfirmDelete(false);
-        addToast(`Deleted ${ids.length} transactions`);
-        setSelectedIds(new Set()); setBulkMode(false); setBulkEditOpen(false);
-        loadTransactions();
-        return;
-      } else { return; }
+      await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates }) });
       addToast(`Updated ${ids.length} transactions`);
-      loadTransactions(); // keep selection + sidebar open so multiple fields can be applied
+      setBulkMerchant(''); setBulkCategoryId(''); setBulkDate(''); setBulkCalOpen(false);
+      setBulkEditOpen(false);
+      loadTransactions();
+    } catch (_err) {
+      addToast('Bulk operation failed', 'error');
+    }
+  };
+
+  const deleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!bulkConfirmDelete) { setBulkConfirmDelete(true); setTimeout(() => setBulkConfirmDelete(false), 3000); return; }
+    try {
+      await apiFetch('/transactions/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) });
+      setBulkConfirmDelete(false);
+      addToast(`Deleted ${ids.length} transactions`);
+      setSelectedIds(new Set()); setBulkMode(false); setBulkEditOpen(false);
+      loadTransactions();
     } catch (_err) {
       addToast('Bulk operation failed', 'error');
     }
@@ -1369,7 +1375,7 @@ export default function TransactionsPage() {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 Edit {selectedIds.size}
               </button>
-              <button onClick={() => applyBulkAction('delete')} disabled={selectedIds.size === 0}
+              <button onClick={deleteSelected} disabled={selectedIds.size === 0}
                 className="h-10 px-4 rounded-[11px] font-bold text-sm disabled:opacity-50"
                 style={bulkConfirmDelete
                   ? { background: 'var(--negative)', color: '#fff' }
@@ -1407,48 +1413,43 @@ export default function TransactionsPage() {
               <button onClick={() => setBulkEditOpen(false)} className="w-9 h-9 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
-              <p className="text-[13px] text-content-3 -mt-2">Set a field and apply it to all {selectedIds.size} selected transactions.</p>
+              <p className="text-[13px] text-content-3 -mt-2">Set any of the fields below. Changes apply to all {selectedIds.size} selected transactions.</p>
               {/* Merchant */}
               <div>
                 <div className="text-[13px] font-semibold text-content-2 mb-2">Merchant</div>
-                <div className="flex gap-2">
-                  <input value={bulkMerchant} onChange={(e) => setBulkMerchant(e.target.value)} placeholder="Set merchant name…" className="flex-1 min-w-0 h-11 px-3.5 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none" />
-                  <button onClick={() => applyBulkAction('merchant')} disabled={!bulkMerchant.trim()} className="h-11 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50 shrink-0">Apply</button>
-                </div>
+                <input value={bulkMerchant} onChange={(e) => setBulkMerchant(e.target.value)} placeholder="Set merchant name…" className="w-full h-11 px-3.5 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none" />
               </div>
               {/* Category */}
               <div>
                 <div className="text-[13px] font-semibold text-content-2 mb-2">Category</div>
-                <div className="flex gap-2">
-                  <div className="relative flex-1 min-w-0">
-                    <select value={bulkCategoryId} onChange={(e) => setBulkCategoryId(e.target.value ? parseInt(e.target.value) : '')} className="w-full h-11 pl-3.5 pr-9 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none appearance-none cursor-pointer">
-                      <option value="">Choose category…</option>
-                      {groupedAll.map(([group, subs]) => <optgroup key={group} label={group}>{subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}</optgroup>)}
-                    </select>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-3.5 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
-                  </div>
-                  <button onClick={() => applyBulkAction('category')} disabled={!bulkCategoryId} className="h-11 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50 shrink-0">Apply</button>
+                <div className="relative">
+                  <select value={bulkCategoryId} onChange={(e) => setBulkCategoryId(e.target.value ? parseInt(e.target.value) : '')} className="w-full h-11 pl-3.5 pr-9 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none appearance-none cursor-pointer">
+                    <option value="">Choose category…</option>
+                    {groupedAll.map(([group, subs]) => <optgroup key={group} label={group}>{subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}</optgroup>)}
+                  </select>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-3.5 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
               </div>
               {/* Date */}
               <div>
                 <div className="text-[13px] font-semibold text-content-2 mb-2">Date</div>
-                <div className="flex gap-2">
-                  <div className="relative flex-1 min-w-0">
-                    <button type="button" onClick={() => setBulkCalOpen((o) => !o)} className="w-full flex items-center justify-between h-11 px-3.5 rounded-[11px] bg-surface-2 border border-line text-sm"
-                      style={{ borderColor: bulkCalOpen ? 'var(--primary)' : 'var(--line)' }}>
-                      <span className={bulkDate ? 'text-content tabular-nums' : 'text-content-3'}>{bulkDate ? new Date(bulkDate + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'Choose date…'}</span>
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
-                    </button>
-                    {bulkCalOpen && (
-                      <div className="absolute top-12 left-0 z-[60] w-[320px] bg-elevated border border-line-strong rounded-[14px] shadow-md p-3">
-                        <Calendar value={bulkDate} onChange={(d) => { setBulkDate(d); setBulkCalOpen(false); }} />
-                      </div>
-                    )}
-                  </div>
-                  <button onClick={() => applyBulkAction('date')} disabled={!bulkDate} className="h-11 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50 shrink-0">Apply</button>
+                <div className="relative">
+                  <button type="button" onClick={() => setBulkCalOpen((o) => !o)} className="w-full flex items-center justify-between h-11 px-3.5 rounded-[11px] bg-surface-2 border border-line text-sm"
+                    style={{ borderColor: bulkCalOpen ? 'var(--primary)' : 'var(--line)' }}>
+                    <span className={bulkDate ? 'text-content tabular-nums' : 'text-content-3'}>{bulkDate ? new Date(bulkDate + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'Choose date…'}</span>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+                  </button>
+                  {bulkCalOpen && (
+                    <div className="absolute top-12 left-0 z-[60] w-[320px] bg-elevated border border-line-strong rounded-[14px] shadow-md p-3">
+                      <Calendar value={bulkDate} onChange={(d) => { setBulkDate(d); setBulkCalOpen(false); }} />
+                    </div>
+                  )}
                 </div>
               </div>
+            </div>
+            <div className="flex items-center gap-2.5 px-6 py-4 border-t border-line">
+              <button onClick={() => setBulkEditOpen(false)} className="flex-1 h-11 rounded-[11px] bg-surface-2 border border-line-strong text-content font-semibold text-sm">Cancel</button>
+              <button onClick={applyBulkEdit} disabled={!(bulkMerchant.trim() || bulkCategoryId || bulkDate)} className="flex-1 h-11 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50">Apply changes</button>
             </div>
           </div>
         </>
