@@ -1,513 +1,279 @@
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../lib/api';
-import { fmtShort, fmtWhole } from '../lib/formatters';
+import { fmtWhole } from '../lib/formatters';
 import KPICard from '../components/KPICard';
-import OwnerFilter from '../components/OwnerFilter';
-import Spinner from '../components/Spinner';
-import InlineNotification from '../components/InlineNotification';
-import { getCategoryColor } from '../lib/categoryColors';
-import { useIsMobile } from '../hooks/useIsMobile';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import { SegmentedControl } from '../components/primitives';
+import { getCategoryEmoji, getCategoryColorHex } from '../lib/categoryMeta';
+import MultiLineChart, { type Series } from '../components/charts/MultiLineChart';
 
 interface AnnualData {
   incomeByCategory: Record<string, number[]>;
   expensesByGroup: Record<string, Record<string, number[]>>;
+  savingsByGroup: Record<string, Record<string, number[]>>;
   monthlyIncomeTotals: number[];
   monthlyExpenseTotals: number[];
+  monthlySavingsTotals: number[];
   monthlyNetTotals: number[];
 }
 
-const sum = (arr: number[]) => arr.reduce((s, v) => s + v, 0);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
+const groupMonthly = (g: Record<string, number[]>) => { const out = new Array(12).fill(0); for (const v of Object.values(g)) for (let i = 0; i < 12; i++) out[i] += v[i] ?? 0; return out; };
+const cumulative = (a: number[]) => { const out: number[] = []; let run = 0; for (const v of a) { run += v; out.push(run); } return out; };
 
-const ChevronIcon = ({ open }: { open: boolean }) => (
-  <span className="flex transition-transform duration-200" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-  </span>
-);
+// Lightweight pill dropdown.
+function Pill({ label, options, onSelect }: { label: string; options: { key: string; label: string }[]; onSelect: (k: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2 h-10 px-4 rounded-[11px] bg-surface-2 border border-line-strong text-sm font-semibold text-content">
+        {label}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-11 right-0 z-50 min-w-[160px] py-1 rounded-[11px] bg-elevated border border-line-strong shadow-md max-h-72 overflow-auto">
+            {options.map((o) => (
+              <button key={o.key} onClick={() => { onSelect(o.key); setOpen(false); }} className="block w-full text-left px-3.5 py-2 text-sm hover:bg-surface-2 whitespace-nowrap">{o.label}</button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function ReportsPage() {
-  const isMobile = useIsMobile();
   const currentYear = new Date().getFullYear();
   const currentMonthIdx = new Date().getMonth();
   const [year, setYear] = useState(currentYear);
   const [owner, setOwner] = useState('All');
   const [years, setYears] = useState<number[]>([]);
-  const [data, setData] = useState<AnnualData | null>(null);
-  const [expandIncome, setExpandIncome] = useState(() => sessionStorage.getItem('reports-expand-income') === '1');
-  const [expandExpenses, setExpandExpenses] = useState(() => sessionStorage.getItem('reports-expand-expenses') === '1');
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(sessionStorage.getItem('reports-expanded-groups') || '{}'); } catch { return {}; }
-  });
   const [users, setUsers] = useState<{ id: number; displayName: string }[]>([]);
-  const [mobileView, setMobileView] = useState<'monthly' | 'annual'>('monthly');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [data, setData] = useState<AnnualData | null>(null);
+  const [view, setView] = useState<'breakdown' | 'trends'>('breakdown');
+  const [trendMetric, setTrendMetric] = useState<'expenses' | 'income'>('expenses');
+  const [chartMode, setChartMode] = useState<'cumulative' | 'monthly'>('cumulative');
+  const [catView, setCatView] = useState<'summary' | 'timeline'>('summary');
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<{ data: { id: number; display_name: string }[] }>('/users').then((res) =>
-      setUsers(res.data.map((u) => ({ id: u.id, displayName: u.display_name })))
-    );
-  }, []);
-
-  useEffect(() => { sessionStorage.setItem('reports-expand-income', expandIncome ? '1' : '0'); }, [expandIncome]);
-  useEffect(() => { sessionStorage.setItem('reports-expand-expenses', expandExpenses ? '1' : '0'); }, [expandExpenses]);
-  useEffect(() => { sessionStorage.setItem('reports-expanded-groups', JSON.stringify(expandedGroups)); }, [expandedGroups]);
-
-  const toggleGroup = (g: string) => setExpandedGroups((p) => ({ ...p, [g]: !p[g] }));
-
-  const isAnyExpanded = expandIncome || expandExpenses || Object.values(expandedGroups).some(Boolean);
-
-  const expandAll = () => {
-    setExpandIncome(true);
-    setExpandExpenses(true);
-    if (data) {
-      const allGroups: Record<string, boolean> = {};
-      for (const g of Object.keys(data.expensesByGroup)) { allGroups[g] = true; }
-      setExpandedGroups(allGroups);
-    }
-  };
-
-  const collapseAll = () => {
-    setExpandIncome(false);
-    setExpandExpenses(false);
-    setExpandedGroups({});
-  };
-
-  useEffect(() => {
-    apiFetch<{ data: number[] }>('/reports/available-years').then((res) => {
-      setYears(res.data);
-      if (res.data.length > 0 && !res.data.includes(year)) {
-        setYear(res.data[0]);
-      }
-    });
+    apiFetch<{ data: number[] }>('/reports/available-years').then((r) => { setYears(r.data.length ? r.data : [currentYear]); }).catch(() => setYears([currentYear]));
+    apiFetch<{ data: { id: number; display_name: string }[] }>('/users').then((r) => setUsers(r.data.map((u) => ({ id: u.id, displayName: u.display_name })))).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadData = useCallback(async () => {
-    const res = await apiFetch<{ data: AnnualData }>(
-      `/reports/annual?year=${year}&owner=${owner === 'All' ? 'all' : owner}`
-    );
-    setData(res.data);
+    const r = await apiFetch<{ data: AnnualData }>(`/reports/annual?year=${year}&owner=${owner === 'All' ? 'all' : owner}`);
+    setData(r.data);
   }, [year, owner]);
-
   useEffect(() => { loadData(); }, [loadData]);
 
-  const totalIncome = useMemo(() => data ? sum(data.monthlyIncomeTotals) : 0, [data]);
-  const totalExpenses = useMemo(() => data ? sum(data.monthlyExpenseTotals) : 0, [data]);
-  const totalNet = totalIncome - totalExpenses;
-  const monthsElapsed = year === currentYear ? currentMonthIdx + 1 : 12;
-  const avgSavings = monthsElapsed > 0 ? totalNet / monthsElapsed : 0;
-  const savingsRate = totalIncome > 0 ? Math.round((totalNet / totalIncome) * 100) : 0;
+  const months = year === currentYear ? currentMonthIdx + 1 : 12;
+  const slice = (a: number[]) => (a ?? []).slice(0, months);
 
-  const isYTD = year === currentYear;
+  const totals = useMemo(() => {
+    if (!data) return { income: 0, expenses: 0, savings: 0, net: 0, rate: 0 };
+    const income = sum(slice(data.monthlyIncomeTotals));
+    const expenses = sum(slice(data.monthlyExpenseTotals));
+    const savings = sum(slice(data.monthlySavingsTotals));
+    const net = income - expenses;
+    return { income, expenses, savings, net, rate: income > 0 ? (net / income) * 100 : 0 };
+  }, [data, months]);
 
-  if (!data) {
-    return <Spinner />;
-  }
+  // Flow proportion bar: allocate income into leftover + savings groups + expense groups.
+  const flow = useMemo(() => {
+    if (!data) return [] as { label: string; value: number; color: string; emoji: string }[];
+    const segs: { label: string; value: number; color: string; emoji: string }[] = [];
+    const leftover = Math.max(0, totals.income - totals.expenses - totals.savings);
+    if (leftover > 0) segs.push({ label: 'Left over', value: leftover, color: 'var(--positive)', emoji: '💚' });
+    for (const [g, subs] of Object.entries(data.savingsByGroup)) segs.push({ label: g, value: sum(slice(groupMonthly(subs))), color: getCategoryColorHex(g), emoji: getCategoryEmoji(g) });
+    for (const [g, subs] of Object.entries(data.expensesByGroup)) segs.push({ label: g, value: sum(slice(groupMonthly(subs))), color: getCategoryColorHex(g), emoji: getCategoryEmoji(g) });
+    return segs.filter((s) => s.value > 0).sort((a, b) => (a.label === 'Left over' ? -1 : b.label === 'Left over' ? 1 : b.value - a.value));
+  }, [data, totals, months]);
+  const flowTotal = flow.reduce((s, x) => s + x.value, 0) || 1;
 
-  const thCls = "text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-1.5 py-2 border-b-2 border-[var(--table-border)]";
-  const tdCls = `px-1.5 py-2 font-mono ${isMobile ? 'text-[10px]' : 'text-[11px]'}`;
-  const stickyCol = isMobile ? 'sticky left-0 bg-[var(--bg-card)] z-[1]' : '';
+  // Trends series.
+  const trend = useMemo(() => {
+    if (!data) return { series: [] as Series[], labels: [] as string[] };
+    const labels = MONTHS.slice(0, months);
+    const mk = (arr: number[]) => (chartMode === 'cumulative' ? cumulative(slice(arr)) : slice(arr));
+    if (trendMetric === 'income') {
+      const cats = Object.entries(data.incomeByCategory).map(([name, vals]) => ({ name, total: sum(slice(vals)), vals })).sort((a, b) => b.total - a.total).slice(0, 4);
+      return {
+        labels,
+        series: [
+          { label: 'Total income', color: 'var(--content)', values: mk(data.monthlyIncomeTotals), bold: true },
+          ...cats.map((c) => ({ label: c.name, color: getCategoryColorHex(c.name), values: mk(c.vals) })),
+        ],
+      };
+    }
+    const groups = Object.entries(data.expensesByGroup).map(([g, subs]) => ({ g, total: sum(slice(groupMonthly(subs))), vals: groupMonthly(subs) })).sort((a, b) => b.total - a.total).slice(0, 4);
+    return {
+      labels,
+      series: [
+        { label: 'Total expenses', color: 'var(--content)', values: mk(data.monthlyExpenseTotals), bold: true },
+        ...groups.map((c) => ({ label: c.g, color: getCategoryColorHex(c.g), values: mk(c.vals) })),
+      ],
+    };
+  }, [data, trendMetric, chartMode, months]);
+
+  const periodLabel = year === currentYear ? `${year} · Year to date` : `${year}`;
+
+  if (!data) return <div className="p-8 text-content-3">Loading…</div>;
+
+  // section builders for the category breakdown
+  const sections: { key: string; name: string; total: number; rows: { name: string; total: number; monthly: number[]; subs?: { name: string; total: number; monthly: number[] }[] }[] }[] = [
+    {
+      key: 'income', name: 'Income', total: totals.income,
+      rows: Object.entries(data.incomeByCategory).map(([name, vals]) => ({ name, total: sum(slice(vals)), monthly: slice(vals) })).sort((a, b) => b.total - a.total),
+    },
+    {
+      key: 'expenses', name: 'Expenses', total: totals.expenses,
+      rows: Object.entries(data.expensesByGroup).map(([g, subs]) => ({ name: g, total: sum(slice(groupMonthly(subs))), monthly: slice(groupMonthly(subs)), subs: Object.entries(subs).map(([s, v]) => ({ name: s, total: sum(slice(v)), monthly: slice(v) })).sort((a, b) => b.total - a.total) })).sort((a, b) => b.total - a.total),
+    },
+    {
+      key: 'savings', name: 'Savings', total: totals.savings,
+      rows: Object.entries(data.savingsByGroup).map(([g, subs]) => ({ name: g, total: sum(slice(groupMonthly(subs))), monthly: slice(groupMonthly(subs)), subs: Object.entries(subs).map(([s, v]) => ({ name: s, total: sum(slice(v)), monthly: slice(v) })).sort((a, b) => b.total - a.total) })).sort((a, b) => b.total - a.total),
+    },
+  ];
+  const monthLabels = MONTHS.slice(0, months);
 
   return (
-    <div>
-      {/* Header */}
-      {isMobile ? (
-        <div className="mb-4">
-          {/* Centered year nav */}
-          <div className="flex justify-center items-center gap-4 mb-3">
-            <button onClick={() => setYear(year - 1)}
-              className="text-[20px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
-              ←
-            </button>
-            <span className="text-[15px] font-bold text-[var(--text-primary)]">{year}</span>
-            <button onClick={() => setYear(year + 1)}
-              className="text-[20px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
-              →
-            </button>
-          </div>
-          {/* Scrollable owner chip row */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {[{ name: 'All', id: 0 }, ...users.map(u => ({ name: u.displayName, id: u.id }))].map((o) => (
-              <button key={o.id} onClick={() => setOwner(o.name === 'All' ? 'All' : o.name)}
-                className="flex-shrink-0 border-none cursor-pointer rounded-2xl text-[11px] px-3.5 py-1.5"
-                style={{
-                  background: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 'var(--color-accent)' : 'var(--bg-card)',
-                  color: (o.name === 'All' ? owner === 'All' : owner === o.name) ? '#fff' : 'var(--text-secondary)',
-                  fontWeight: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 600 : 400,
-                  boxShadow: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 'none' : 'inset 0 0 0 1px var(--bg-card-border)',
-                }}>
-                {o.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-      <div className="flex justify-between items-center mb-6">
+    <div className="max-w-[1200px] mx-auto px-4 md:px-8 pb-16">
+      {/* top bar */}
+      <div className="sticky top-0 z-20 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-4 flex items-center justify-between gap-3 bg-bg/80 backdrop-blur border-b border-line">
         <div>
-          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Annual Report</h1>
-          <p className="page-subtitle text-[var(--text-secondary)] text-[13px] mt-1">{year} {isYTD ? 'Year-to-Date' : 'Full Year'}</p>
+          <h1 className="text-xl font-extrabold tracking-tight">Reports</h1>
+          <div className="text-[13px] text-content-3">{periodLabel}{owner !== 'All' ? ` · ${owner}` : ''}</div>
         </div>
-        <div className="flex gap-3 items-center">
-          <OwnerFilter value={owner} onChange={setOwner} users={users} />
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="border border-[var(--table-border)] rounded-lg bg-[var(--bg-hover)] px-3 py-2 text-[13px] font-semibold text-[var(--text-primary)] outline-none cursor-pointer"
-          >
-            {years.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+        <div className="flex items-center gap-2.5">
+          <Pill label={String(year)} options={years.map((y) => ({ key: String(y), label: String(y) }))} onSelect={(k) => setYear(Number(k))} />
+          <Pill label={owner === 'All' ? 'All owners' : owner} options={[{ key: 'All', label: 'All owners' }, ...users.map((u) => ({ key: u.displayName, label: u.displayName }))]} onSelect={setOwner} />
         </div>
       </div>
-      )}
 
-      {/* Owner info bar */}
-      {owner !== 'All' && (
-        <InlineNotification type="info" message={`Showing data from ${owner}'s accounts (including shared accounts)`} className="mb-4" />
-      )}
-
-      {/* KPI Cards */}
-      <div className="kpi-grid grid grid-cols-4 gap-4 mb-6">
-        <KPICard label={`${isYTD ? 'YTD' : ''} Income`} value={fmtWhole(totalIncome)} />
-        <KPICard label={`${isYTD ? 'YTD' : ''} Expenses`} value={fmtWhole(totalExpenses)} />
-        <KPICard label={`${isYTD ? 'YTD' : ''} Net`} value={fmtWhole(totalNet)} />
-        <KPICard
-          label="Avg Monthly Savings"
-          value={fmtWhole(avgSavings)}
-          subtitle={totalIncome > 0 ? `Savings rate: ${savingsRate}%` : undefined}
-          trend="up"
-        />
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <KPICard label="Income" value={fmtWhole(totals.income)} subtitle={`${Object.keys(data.incomeByCategory).length} income sources`} />
+        <KPICard label="Expenses" value={fmtWhole(totals.expenses)} subtitle={`${fmtWhole(months > 0 ? totals.expenses / months : 0)} avg / mo`} />
+        <KPICard label="Net" value={fmtWhole(totals.net)} valueColor={totals.net >= 0 ? 'var(--positive)' : 'var(--negative)'} subtitle={totals.net >= 0 ? 'money kept' : 'overspent'} trend={totals.net >= 0 ? 'up' : 'down'} />
+        <KPICard label="Savings rate" value={`${Math.round(totals.rate)}%`} valueColor="var(--positive)" subtitle={`${fmtWhole(totals.savings)} to savings`} />
       </div>
 
-      {/* Mobile Reports Layout */}
-      {isMobile ? (
-        <div>
-          {/* View Toggle */}
-          <div className="flex rounded-lg p-0.5 mb-3.5" style={{ background: 'var(--toggle-bg)' }}>
-            {(['monthly', 'annual'] as const).map(v => (
-              <button key={v} onClick={() => setMobileView(v)}
-                className="flex-1 py-1.5 px-3 text-[11px] border-none cursor-pointer rounded-md capitalize"
-                style={{
-                  background: mobileView === v ? 'var(--toggle-active-bg)' : 'transparent',
-                  color: mobileView === v ? 'var(--toggle-active-text)' : 'var(--toggle-inactive-text)',
-                  fontWeight: mobileView === v ? 600 : 400,
-                  boxShadow: mobileView === v ? 'var(--toggle-shadow)' : 'none',
-                }}>
-                {v === 'monthly' ? 'Monthly Detail' : 'Annual Totals'}
-              </button>
+      {/* report area */}
+      <div className="bg-surface border border-line rounded-card shadow-sm p-5 mb-5">
+        <div className="flex flex-wrap items-center gap-4 mb-5">
+          <div className="flex items-center gap-4">
+            {(['breakdown', 'trends'] as const).map((v) => (
+              <button key={v} onClick={() => setView(v)} className={`text-[15px] font-bold capitalize pb-1 border-b-2 ${view === v ? 'text-content border-primary' : 'text-content-3 border-transparent'}`}>{v}</button>
             ))}
           </div>
-
-          {mobileView === 'monthly' && (
-            <>
-              {/* Month pill selector */}
-              <div className="flex gap-1.5 mb-4 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-                {MONTHS.map((m, i) => (
-                  <button key={m} onClick={() => setSelectedMonth(i)}
-                    className="flex-shrink-0 border-none cursor-pointer rounded-lg text-[12px] px-3.5 py-2"
-                    style={{
-                      minWidth: 44,
-                      background: selectedMonth === i ? 'var(--color-accent)' : 'var(--bg-card)',
-                      color: selectedMonth === i ? '#fff' : 'var(--text-secondary)',
-                      fontWeight: selectedMonth === i ? 700 : 400,
-                      boxShadow: selectedMonth === i ? 'none' : 'inset 0 0 0 1px var(--bg-card-border)',
-                    }}>
-                    {m}
-                  </button>
-                ))}
-              </div>
-
-              {/* Month Summary Card */}
-              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-3">
-                <div className="text-[14px] font-bold text-[var(--text-primary)] mb-2.5">
-                  {MONTHS[selectedMonth]} {year}
-                </div>
-                <div className="flex justify-between py-2 border-b border-[var(--bg-card-border)]">
-                  <span className="text-[13px] text-[#10b981] font-semibold">Income</span>
-                  <span className={`text-[14px] font-bold font-mono ${data.monthlyIncomeTotals[selectedMonth] > 0 ? 'text-[#10b981]' : 'text-[var(--text-muted)]'}`}>
-                    {data.monthlyIncomeTotals[selectedMonth] !== 0 ? fmtShort(data.monthlyIncomeTotals[selectedMonth]) : '—'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-[var(--bg-card-border)]">
-                  <span className="text-[13px] text-[#f59e0b] font-semibold">Expenses</span>
-                  <span className="text-[14px] font-bold font-mono text-[var(--text-primary)]">
-                    {data.monthlyExpenseTotals[selectedMonth] !== 0 ? fmtShort(data.monthlyExpenseTotals[selectedMonth]) : '—'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-[13px] font-bold text-[var(--text-primary)]">Net</span>
-                  <span className={`text-[14px] font-bold font-mono ${
-                    data.monthlyNetTotals[selectedMonth] > 0 ? 'text-[#10b981]' : data.monthlyNetTotals[selectedMonth] < 0 ? 'text-[#ef4444]' : 'text-[var(--text-muted)]'
-                  }`}>
-                    {data.monthlyNetTotals[selectedMonth] !== 0
-                      ? `${data.monthlyNetTotals[selectedMonth] > 0 ? '+' : ''}${fmtShort(data.monthlyNetTotals[selectedMonth])}`
-                      : '—'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Income Breakdown Card */}
-              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-2.5">
-                <div className="flex justify-between items-center cursor-pointer" onClick={() => setExpandIncome(!expandIncome)}>
-                  <span className="text-[13px] font-bold text-[#10b981]">Income</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[13px] font-bold font-mono ${data.monthlyIncomeTotals[selectedMonth] > 0 ? 'text-[#10b981]' : 'text-[var(--text-muted)]'}`}>
-                      {data.monthlyIncomeTotals[selectedMonth] !== 0 ? fmtShort(data.monthlyIncomeTotals[selectedMonth]) : '—'}
-                    </span>
-                    <span className="text-[10px] text-[var(--text-muted)] inline-block transition-transform duration-150"
-                      style={{ transform: expandIncome ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
-                  </div>
-                </div>
-                {expandIncome && (
-                  <div className="mt-2">
-                    {Object.entries(data.incomeByCategory).map(([cat, vals], i, arr) => (
-                      <div key={cat} className="flex justify-between py-1.5 pl-3"
-                        style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
-                        <span className="text-[12px] text-[var(--text-body)]">{cat}</span>
-                        <span className={`text-[12px] font-mono ${vals[selectedMonth] !== 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}>
-                          {vals[selectedMonth] !== 0 ? fmtShort(vals[selectedMonth]) : '—'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Expense Group Cards */}
-              {Object.entries(data.expensesByGroup).sort(([a], [b]) => a.localeCompare(b)).map(([group, subs]) => {
-                const allGroups = Object.keys(data.expensesByGroup);
-                const color = getCategoryColor(group, allGroups);
-                const groupMonthTotal = Object.values(subs).reduce((s, a) => s + a[selectedMonth], 0);
-                const isOpen = expandedGroups[group];
-                return (
-                  <div key={group} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-2.5">
-                    <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleGroup(group)}>
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
-                        <span className="text-[13px] font-bold text-[var(--text-primary)]">{group}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[13px] font-bold font-mono ${groupMonthTotal !== 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
-                          {groupMonthTotal !== 0 ? fmtShort(groupMonthTotal) : '—'}
-                        </span>
-                        <span className="text-[10px] text-[var(--text-muted)] inline-block transition-transform duration-150"
-                          style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
-                      </div>
-                    </div>
-                    {isOpen && (
-                      <div className="mt-2">
-                        {Object.entries(subs).map(([sub, vals], i, arr) => (
-                          <div key={sub} className="flex justify-between py-1.5 pl-3"
-                            style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
-                            <span className="text-[12px] text-[var(--text-body)]">{sub}</span>
-                            <span className={`text-[12px] font-mono ${
-                              vals[selectedMonth] > 0 ? 'text-[var(--text-secondary)]' : vals[selectedMonth] < 0 ? 'text-[#10b981]' : 'text-[var(--text-muted)]'
-                            }`}>
-                              {vals[selectedMonth] !== 0 ? fmtShort(vals[selectedMonth]) : '—'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
+          {view === 'trends' && (
+            <div className="flex items-center gap-2.5 ml-auto">
+              <SegmentedControl value={trendMetric} onChange={setTrendMetric} options={[{ value: 'expenses', label: 'Expenses' }, { value: 'income', label: 'Income' }]} />
+              <SegmentedControl value={chartMode} onChange={setChartMode} options={[{ value: 'cumulative', label: 'Cumulative' }, { value: 'monthly', label: 'Monthly' }]} />
+            </div>
           )}
-
-          {mobileView === 'annual' && (
-            <>
-              {/* Annual Income Card */}
-              <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-2.5">
-                <div className="text-[13px] font-bold text-[#10b981] mb-2">Annual Income</div>
-                {Object.entries(data.incomeByCategory).map(([cat, vals], i, arr) => {
-                  const catTotal = sum(vals);
-                  return (
-                    <div key={cat} className="flex justify-between py-1.5"
-                      style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
-                      <span className="text-[12px] text-[var(--text-body)]">{cat}</span>
-                      <span className={`text-[12px] font-mono ${catTotal !== 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
-                        {catTotal !== 0 ? fmtShort(catTotal) : '—'}
-                      </span>
-                    </div>
-                  );
-                })}
-                <div className="flex justify-between pt-2 mt-1 border-t-2 border-[var(--bg-card-border)]">
-                  <span className="text-[12px] font-bold text-[var(--text-primary)]">Total</span>
-                  <span className="text-[13px] font-bold font-mono text-[#10b981]">{fmtShort(totalIncome)}</span>
-                </div>
-              </div>
-
-              {/* Annual Expense Group Cards */}
-              {Object.entries(data.expensesByGroup).sort(([a], [b]) => a.localeCompare(b)).map(([group, subs]) => {
-                const allGroups = Object.keys(data.expensesByGroup);
-                const color = getCategoryColor(group, allGroups);
-                const groupTotal = Object.values(subs).reduce((s, a) => s + sum(a), 0);
-                return (
-                  <div key={group} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-3 mb-2.5">
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
-                        <span className="text-[13px] font-bold text-[var(--text-primary)]">{group}</span>
-                      </div>
-                      <span className="text-[13px] font-bold font-mono text-[var(--text-primary)]">{fmtShort(groupTotal)}</span>
-                    </div>
-                    {Object.entries(subs).map(([sub, vals], i, arr) => {
-                      const subTotal = sum(vals);
-                      return (
-                        <div key={sub} className="flex justify-between py-1.5 pl-3"
-                          style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
-                          <span className="text-[12px] text-[var(--text-body)]">{sub}</span>
-                          <span className={`text-[12px] font-mono ${
-                            subTotal > 0 ? 'text-[var(--text-secondary)]' : subTotal < 0 ? 'text-[#10b981]' : 'text-[var(--text-muted)]'
-                          }`}>
-                            {subTotal !== 0 ? fmtShort(subTotal) : '—'}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </>
-          )}
+          {view === 'breakdown' && <span className="ml-auto text-[13px] text-content-3">Income {fmtWhole(totals.income)} · {periodLabel}</span>}
         </div>
-      ) : (
-      /* Desktop Monthly Breakdown Table */
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] overflow-x-auto">
-        <div className="flex items-center justify-between">
+
+        {view === 'breakdown' ? (
+          <>
+            <div className="flex h-8 rounded-lg overflow-hidden mb-4">
+              {flow.map((s) => (
+                <div key={s.label} title={`${s.label} · ${fmtWhole(s.value)} · ${Math.round((s.value / flowTotal) * 100)}%`} style={{ width: `${(s.value / flowTotal) * 100}%`, background: s.color }} className="transition-all hover:brightness-110" />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
+              {flow.map((s) => (
+                <div key={s.label} className="flex items-center gap-2 text-sm">
+                  <span className="text-[15px] leading-none">{s.emoji}</span>
+                  <span className="font-semibold truncate">{s.label}</span>
+                  <span className="text-content-3 tabular-nums ml-auto">{fmtWhole(s.value)} · {((s.value / flowTotal) * 100).toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <MultiLineChart series={trend.series} labels={trend.labels} formatValue={(n) => (Math.abs(n) >= 1000 ? `$${(n / 1000).toFixed(0)}k` : `$${Math.round(n)}`)} />
+        )}
+      </div>
+
+      {/* category breakdown */}
+      <div className="bg-surface border border-line rounded-card shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div>
-            <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">Monthly Breakdown</h3>
-            <p className="text-[11px] text-[var(--text-muted)] mt-0.5 mb-3">Click rows to expand into categories → sub-categories</p>
+            <div className="text-[17px] font-extrabold">Category breakdown</div>
+            <div className="text-[13px] text-content-3">{catView === 'summary' ? 'Click a category to expand sub-categories' : 'Per-month totals'}</div>
           </div>
-          <button onClick={isAnyExpanded ? collapseAll : expandAll}
-            className="text-[12px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer hover:text-[var(--text-body)]">
-            {isAnyExpanded ? 'Collapse All' : 'Expand All'}
-          </button>
+          <SegmentedControl value={catView} onChange={setCatView} options={[{ value: 'summary', label: 'Summary' }, { value: 'timeline', label: 'Timeline' }]} />
         </div>
 
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className={`${thCls} text-left ${stickyCol}`} style={{ width: 200, minWidth: isMobile ? 120 : 180 }}>Category</th>
-              {MONTHS.map((m) => <th key={m} className={`${thCls} text-right`}>{m}</th>)}
-              <th className={`${thCls} text-right font-bold`}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* TOTAL INCOME */}
-            <tr
-              className="cursor-pointer"
-              style={{ borderBottom: '2px solid rgba(187, 247, 208, 0.25)' }}
-              onClick={() => setExpandIncome(!expandIncome)}
-            >
-              <td className={`px-2.5 py-2 font-bold text-[var(--color-positive)] text-[13px] ${stickyCol}`}>
-                <span className="flex items-center gap-1.5">
-                  <ChevronIcon open={expandIncome} />Total Income
-                </span>
-              </td>
-              {data.monthlyIncomeTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[var(--color-positive)]' : 'text-[var(--text-very-muted)]'}`}>
-                  {v !== 0 ? fmtShort(v) : '—'}
-                </td>
-              ))}
-              <td className={`${tdCls} text-right font-bold text-[var(--color-positive)]`}>{fmtShort(totalIncome)}</td>
-            </tr>
-
-            {/* Expanded income categories */}
-            {expandIncome && Object.entries(data.incomeByCategory).map(([cat, vals]) => (
-              <tr key={cat} className="border-b border-[var(--table-row-border)]">
-                <td className={`px-2.5 py-2 text-[12px] text-[var(--text-secondary)] ${stickyCol}`} style={{ paddingLeft: 36 }}>{cat}</td>
-                {vals.map((v, i) => (
-                  <td key={i} className={`${tdCls} text-right ${v !== 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--table-border)]'}`}>
-                    {v !== 0 ? fmtShort(v) : '—'}
-                  </td>
-                ))}
-                <td className={`${tdCls} text-right text-[12px] font-semibold text-[var(--text-body)]`}>{fmtShort(sum(vals))}</td>
-              </tr>
-            ))}
-
-            {/* TOTAL EXPENSES */}
-            <tr
-              className="cursor-pointer"
-              style={{ borderBottom: '2px solid rgba(254, 215, 170, 0.25)' }}
-              onClick={() => setExpandExpenses(!expandExpenses)}
-            >
-              <td className={`px-2.5 py-2 font-bold text-[var(--color-orange)] text-[13px] ${stickyCol}`}>
-                <span className="flex items-center gap-1.5">
-                  <ChevronIcon open={expandExpenses} />Total Expenses
-                </span>
-              </td>
-              {data.monthlyExpenseTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--color-orange)]' : v < 0 ? 'text-[#10b981]' : 'text-[var(--text-very-muted)]'}`}>
-                  {v !== 0 ? fmtShort(v) : '—'}
-                </td>
-              ))}
-              <td className={`${tdCls} text-right font-bold text-[var(--color-orange)]`}>{fmtShort(totalExpenses)}</td>
-            </tr>
-
-            {/* Expanded expense groups → sub-categories */}
-            {expandExpenses && Object.entries(data.expensesByGroup).sort(([a], [b]) => a.localeCompare(b)).map(([group, subs]) => {
-              const gMonthly = MONTHS.map((_, i) => Object.values(subs).reduce((s, a) => s + a[i], 0));
-              const isOpen = expandedGroups[group];
-              const allGroups = Object.keys(data.expensesByGroup);
-              const color = getCategoryColor(group, allGroups);
-              return (
-                <Fragment key={group}>
-                  <tr
-                    className="cursor-pointer"
-                    style={{ borderBottom: '1px solid var(--table-row-border)' }}
-                    onClick={() => toggleGroup(group)}
-                  >
-                    <td className={`px-2.5 py-2 font-semibold text-[12px] text-[var(--text-body)] ${stickyCol}`} style={{ paddingLeft: 28 }}>
-                      <span className="flex items-center gap-[5px]">
-                        <ChevronIcon open={!!isOpen} />
-                        <span className="w-1.5 h-1.5 rounded-sm inline-block" style={{ background: color }} />
-                        {group}
-                      </span>
-                    </td>
-                    {gMonthly.map((v, i) => (
-                      <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-body)]' : v < 0 ? 'text-[#10b981]' : 'text-[var(--table-border)]'}`}>
-                        {v !== 0 ? fmtShort(v) : '—'}
-                      </td>
-                    ))}
-                    <td className={`${tdCls} text-right text-[12px] font-semibold text-[var(--text-body)]`}>{fmtShort(sum(gMonthly))}</td>
-                  </tr>
-                  {isOpen && Object.entries(subs).map(([sub, vals]) => (
-                    <tr key={sub} className="border-b border-[var(--bg-hover)]">
-                      <td className={`px-2.5 py-2 text-[11px] text-[var(--text-muted)] ${stickyCol}`} style={{ paddingLeft: 52 }}>{sub}</td>
-                      {vals.map((v, i) => (
-                        <td key={i} className={`${tdCls} text-right ${v > 0 ? 'text-[var(--text-muted)]' : v < 0 ? 'text-[#10b981]' : 'text-[var(--table-border)]'}`}>
-                          {v !== 0 ? fmtShort(v) : '—'}
-                        </td>
-                      ))}
-                      <td className={`${tdCls} text-right text-[11px] text-[var(--text-secondary)]`}>{fmtShort(sum(vals))}</td>
-                    </tr>
+        {sections.map((sec) => {
+          const isCol = collapsed.has(sec.key);
+          return (
+            <div key={sec.key}>
+              <button onClick={() => setCollapsed((c) => { const n = new Set(c); if (n.has(sec.key)) n.delete(sec.key); else n.add(sec.key); return n; })}
+                className="w-full flex items-center gap-2.5 px-5 py-3 bg-surface-2/50 hover:bg-surface-2 text-left border-b border-line">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2.2" style={{ transform: isCol ? 'rotate(-90deg)' : 'none' }}><path d="m6 9 6 6 6-6" /></svg>
+                <span className="font-bold">{sec.name}</span>
+                <span className="ml-auto font-extrabold tabular-nums">{fmtWhole(sec.total)}</span>
+              </button>
+              {!isCol && catView === 'summary' && sec.rows.map((r) => (
+                <div key={r.name}>
+                  <div onClick={() => r.subs && setExpandedGroup(expandedGroup === `${sec.key}:${r.name}` ? null : `${sec.key}:${r.name}`)}
+                    className={`flex items-center gap-3 px-5 py-2.5 border-b border-line ${r.subs ? 'cursor-pointer hover:bg-surface-2/40' : ''}`}>
+                    <span className="text-[15px] leading-none">{getCategoryEmoji(r.name)}</span>
+                    <span className="font-semibold text-sm w-40 truncate">{r.name}</span>
+                    <div className="flex-1 h-2 rounded-full bg-surface-2 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${sec.total > 0 ? (r.total / sec.total) * 100 : 0}%`, background: getCategoryColorHex(r.name) }} />
+                    </div>
+                    <span className="text-content-3 text-[13px] tabular-nums w-12 text-right">{sec.total > 0 ? Math.round((r.total / sec.total) * 100) : 0}%</span>
+                    <span className="font-bold text-sm tabular-nums w-24 text-right">{fmtWhole(r.total)}</span>
+                    {r.subs && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" style={{ transform: expandedGroup === `${sec.key}:${r.name}` ? 'rotate(90deg)' : 'none' }}><path d="m9 18 6-6-6-6" /></svg>}
+                    {!r.subs && <span className="w-[15px]" />}
+                  </div>
+                  {r.subs && expandedGroup === `${sec.key}:${r.name}` && r.subs.map((s) => (
+                    <div key={s.name} className="flex items-center gap-3 pl-14 pr-5 py-2 border-b border-line bg-surface-2/30 text-sm">
+                      <span className="flex-1 truncate text-content-2">{s.name}</span>
+                      <span className="text-content-3 text-[13px] tabular-nums w-12 text-right">{r.total > 0 ? Math.round((s.total / r.total) * 100) : 0}%</span>
+                      <span className="font-semibold tabular-nums w-24 text-right">{fmtWhole(s.total)}</span>
+                    </div>
                   ))}
-                </Fragment>
-              );
-            })}
-
-            {/* NET Row */}
-            <tr style={{ background: 'var(--bg-hover)', borderTop: '2px solid var(--table-border)' }}>
-              <td className={`px-2.5 py-2 font-bold text-[13px] text-[var(--text-primary)] ${stickyCol}`} style={{ paddingLeft: 30 }}>NET</td>
-              {data.monthlyNetTotals.map((v, i) => (
-                <td key={i} className={`${tdCls} text-right font-semibold ${
-                  data.monthlyIncomeTotals[i] === 0 && data.monthlyExpenseTotals[i] === 0
-                    ? 'text-[var(--text-very-muted)]'
-                    : v > 0 ? 'text-[#10b981]' : v < 0 ? 'text-[#ef4444]' : 'text-[var(--text-very-muted)]'
-                }`}>
-                  {data.monthlyIncomeTotals[i] !== 0 || data.monthlyExpenseTotals[i] !== 0 ? fmtShort(v) : '—'}
-                </td>
+                </div>
               ))}
-              <td className={`${tdCls} text-right font-bold ${totalNet >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
-                {fmtShort(totalNet)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              {!isCol && catView === 'timeline' && (
+                <div className="overflow-x-auto border-b border-line">
+                  <table className="w-full text-[12px] tabular-nums">
+                    <thead>
+                      <tr className="text-content-3">
+                        <th className="text-left font-semibold px-5 py-2 sticky left-0 bg-surface">Category</th>
+                        {monthLabels.map((m) => <th key={m} className="text-right font-semibold px-2 py-2">{m}</th>)}
+                        <th className="text-right font-semibold px-4 py-2">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sec.rows.map((r) => {
+                        const peak = Math.max(...r.monthly);
+                        return (
+                          <tr key={r.name} className="border-t border-line">
+                            <td className="text-left px-5 py-1.5 font-medium sticky left-0 bg-surface truncate max-w-[160px]">{getCategoryEmoji(r.name)} {r.name}</td>
+                            {r.monthly.map((v, i) => <td key={i} className="text-right px-2 py-1.5" style={v === peak && peak > 0 ? { background: 'color-mix(in srgb, var(--primary) 12%, transparent)', fontWeight: 700 } : undefined}>{v > 0 ? fmtWhole(v) : '·'}</td>)}
+                            <td className="text-right px-4 py-1.5 font-bold">{fmtWhole(r.total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      )}
     </div>
   );
 }
