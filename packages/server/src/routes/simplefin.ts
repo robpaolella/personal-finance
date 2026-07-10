@@ -463,8 +463,11 @@ router.post('/sync', requirePermission('import.bank_sync'), async (req: Request,
 
         const classification = link.classification as AccountClassification;
 
-        // Process transactions
-        if (sfAccount.transactions.length > 0) {
+        // Process transactions — but NOT for investment accounts. Their activity
+        // is mostly the mirror side of transfers/contributions (already cataloged
+        // from the liquid source account) plus market moves; importing them would
+        // double-count. Investment accounts still contribute balances + holdings.
+        if (classification !== 'investment' && sfAccount.transactions.length > 0) {
           // Filter out already-imported transactions by SimpleFIN ID
           const sfTxnIds = sfAccount.transactions.map((t) => t.id);
           const existingIds = new Set<string>();
