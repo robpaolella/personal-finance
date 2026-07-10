@@ -8,7 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import BudgetPage from './pages/BudgetPage';
 import ReportsPage from './pages/ReportsPage';
-import NetWorthPage from './pages/NetWorthPage';
+import AccountsPage from './pages/AccountsPage';
 import ImportPage from './pages/ImportPage';
 import SettingsPage from './pages/SettingsPage';
 import MockupPage from './pages/MockupPage';
@@ -245,7 +245,7 @@ function AppShell() {
         <div className="flex-1 py-7 px-9 mobile-main-content">
           <Routes>
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/accounts" element={<NetWorthPage />} />
+            <Route path="/accounts" element={<AccountsPage />} />
             <Route path="/net-worth" element={<Navigate to="/accounts" replace />} />
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
