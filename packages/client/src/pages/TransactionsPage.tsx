@@ -678,6 +678,12 @@ export default function TransactionsPage() {
     setFilterOpen(false);
   };
   const toggleDraftCategory = (value: string) => setFilterDraft((d) => ({ ...d, category: d.category.includes(value) ? d.category.filter((v) => v !== value) : [...d.category, value] }));
+  // Selecting a category (group) toggles all of its sub-categories at once.
+  const toggleDraftGroup = (subs: { id: number }[]) => setFilterDraft((d) => {
+    const ids = subs.map((s) => `sub:${s.id}`);
+    const allSel = ids.length > 0 && ids.every((id) => d.category.includes(id));
+    return { ...d, category: allSel ? d.category.filter((c) => !ids.includes(c)) : Array.from(new Set([...d.category, ...ids])) };
+  });
   const clearDate = () => { setDateDraft({ preset: 'all', start: '', end: '' }); setDatePreset('all'); setCustomStart(''); setCustomEnd(''); };
   const clearFilters = () => {
     setFilterDraft({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' });
@@ -906,6 +912,12 @@ export default function TransactionsPage() {
   const showTo = Math.min(page * pageSize, total);
 
   const canEdit = hasPermission('transactions.edit');
+  // Rounded-square checkbox indicator (never a circle — circles read as radios).
+  const chkbox = (checked: boolean) => (
+    <span className="w-[19px] h-[19px] shrink-0 rounded-md border-[1.5px] flex items-center justify-center" style={{ borderColor: checked ? 'var(--primary)' : 'var(--line-strong)', background: checked ? 'var(--primary)' : 'transparent' }}>
+      {checked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}
+    </span>
+  );
   const formatDateHeader = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const vendorOptions = [...new Set(transactions.map((t) => t.description).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const sortLabel = !sortTouched ? 'Sort' : (SORT_OPTIONS.find((o) => o.by === sortBy && o.order === sortOrder)?.label ?? 'Sort');
@@ -922,6 +934,7 @@ export default function TransactionsPage() {
       ? (customStart && customEnd ? `${shortDate(customStart)} – ${shortDate(customEnd)}` : customStart ? `From ${shortDate(customStart)}` : customEnd ? `Until ${shortDate(customEnd)}` : 'Custom')
       : (DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Date');
   const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length + (amountOp ? 1 : 0);
+  const draftCount = filterDraft.category.filter((c) => c.startsWith('sub:')).length + (filterDraft.account !== 'All' ? 1 : 0) + (filterDraft.op ? 1 : 0) + (filterDraft.type !== 'All' ? 1 : 0);
   const anyActive = search !== '' || datePreset !== 'all' || filterCount > 0;
   const groupedAll = Array.from(
     categories.reduce((m, c) => { if (!m.has(c.group_name)) m.set(c.group_name, []); m.get(c.group_name)!.push(c); return m; }, new Map<string, Category[]>()).entries()
@@ -1123,16 +1136,19 @@ export default function TransactionsPage() {
             {filterOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
-                <div className="absolute top-12 right-0 z-50 w-[720px] max-w-[calc(100vw-64px)] bg-elevated border border-line-strong rounded-[16px] shadow-md overflow-hidden flex flex-col">
+                <div className="absolute top-12 right-0 z-50 w-[820px] max-w-[calc(100vw-64px)] bg-elevated border border-line-strong rounded-[16px] shadow-md overflow-hidden flex flex-col">
+                  {/* header */}
                   <div className="flex border-b border-line">
-                    <div className="w-[186px] shrink-0 px-5 py-[18px] text-base font-extrabold tracking-tight border-r border-line">Filters</div>
-                    <div className="flex-1 flex items-center gap-2.5 px-5">
+                    <div className="w-[170px] shrink-0 px-5 py-[18px] text-base font-extrabold tracking-tight border-r border-line">Filters</div>
+                    <div className="flex-1 flex items-center gap-2.5 px-5 border-r border-line">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                      <input value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} placeholder={`Search ${filterTab.toLowerCase()}…`} className="flex-1 h-11 bg-transparent outline-none text-sm text-content" />
+                      <input value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} placeholder={`Search ${filterTab.toLowerCase()}…`} className="flex-1 h-12 bg-transparent outline-none text-sm text-content" />
                     </div>
+                    <div className="w-[240px] shrink-0 px-5 flex items-center text-sm font-semibold text-content-2">{draftCount} filter{draftCount === 1 ? '' : 's'} selected</div>
                   </div>
-                  <div className="flex">
-                    <div className="w-[186px] shrink-0 p-3 border-r border-line flex flex-col gap-0.5">
+                  {/* body: nav · checklist · selected summary */}
+                  <div className="flex" style={{ minHeight: 380 }}>
+                    <div className="w-[170px] shrink-0 p-3 border-r border-line flex flex-col gap-0.5">
                       {['Categories', 'Merchants', 'Accounts', 'Tags', 'Amount', 'Other'].map((n) => {
                         const active = filterTab === n;
                         return (
@@ -1141,52 +1157,42 @@ export default function TransactionsPage() {
                         );
                       })}
                     </div>
-                    <div className="flex-1 p-4 overflow-auto" style={{ minHeight: 340, maxHeight: 440 }}>
+                    <div className="flex-1 p-3 border-r border-line overflow-auto" style={{ maxHeight: 440 }}>
                       {filterTab === 'Categories' && categoryGroups.map((g) => {
-                        const gChecked = filterDraft.category.includes(`group:${g.group}`);
+                        const gChecked = g.subs.length > 0 && g.subs.every((s) => filterDraft.category.includes(`sub:${s.id}`));
                         const subs = filterSearch ? g.subs.filter((s) => `${s.sub} ${g.group}`.toLowerCase().includes(filterSearch.toLowerCase())) : g.subs;
                         if (filterSearch && subs.length === 0 && !g.group.toLowerCase().includes(filterSearch.toLowerCase())) return null;
                         return (
                           <div key={g.group} className="mb-1">
-                            <div onClick={() => toggleDraftCategory(`group:${g.group}`)} className="flex items-center gap-3 py-2 text-sm font-semibold cursor-pointer">
-                              <span className="w-[19px] h-[19px] shrink-0 rounded-md border-[1.5px] flex items-center justify-center" style={{ borderColor: gChecked ? 'var(--primary)' : 'var(--line-strong)', background: gChecked ? 'var(--primary)' : 'transparent' }}>{gChecked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
-                              {g.group}
+                            <div onClick={() => toggleDraftGroup(g.subs)} className="flex items-center gap-3 px-1 py-2 rounded-lg hover:bg-surface-2 text-sm font-semibold cursor-pointer">
+                              {chkbox(gChecked)}{g.group}
                             </div>
-                            {subs.map((s) => {
-                              const sChecked = filterDraft.category.includes(`sub:${s.id}`);
-                              return (
-                                <div key={s.id} onClick={() => toggleDraftCategory(`sub:${s.id}`)} className="flex items-center gap-3 py-2 pl-7 text-[13px] cursor-pointer">
-                                  <span className="w-[19px] h-[19px] shrink-0 rounded-md border-[1.5px] flex items-center justify-center" style={{ borderColor: sChecked ? 'var(--primary)' : 'var(--line-strong)', background: sChecked ? 'var(--primary)' : 'transparent' }}>{sChecked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
-                                  {s.sub}
-                                </div>
-                              );
-                            })}
+                            {subs.map((s) => (
+                              <div key={s.id} onClick={() => toggleDraftCategory(`sub:${s.id}`)} className="flex items-center gap-3 pl-8 pr-1 py-2 rounded-lg hover:bg-surface-2 text-[13px] cursor-pointer">
+                                {chkbox(filterDraft.category.includes(`sub:${s.id}`))}{s.sub}
+                              </div>
+                            ))}
                           </div>
                         );
                       })}
-                      {filterTab === 'Accounts' && [{ id: 'All', label: 'All accounts' }, ...accounts.filter((a) => !filterSearch || accountLabel(a).toLowerCase().includes(filterSearch.toLowerCase())).map((a) => ({ id: a.id.toString(), label: accountLabel(a) }))].map((a) => {
-                        const checked = filterDraft.account === a.id;
-                        return (
-                          <div key={a.id} onClick={() => setFilterDraft((d) => ({ ...d, account: a.id }))} className="flex items-center gap-3.5 py-2 text-[15px] cursor-pointer">
-                            <span className="w-[22px] h-[22px] shrink-0 rounded-full border-2 flex items-center justify-center" style={{ borderColor: checked ? 'var(--primary)' : 'var(--line-strong)' }}>{checked && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}</span>
-                            {a.label}
-                          </div>
-                        );
-                      })}
+                      {filterTab === 'Accounts' && [{ id: 'All', label: 'All accounts' }, ...accounts.filter((a) => !filterSearch || accountLabel(a).toLowerCase().includes(filterSearch.toLowerCase())).map((a) => ({ id: a.id.toString(), label: accountLabel(a) }))].map((a) => (
+                        <div key={a.id} onClick={() => setFilterDraft((d) => ({ ...d, account: a.id }))} className="flex items-center gap-3 px-1 py-2 rounded-lg hover:bg-surface-2 text-[15px] cursor-pointer">
+                          {chkbox(filterDraft.account === a.id)}{a.label}
+                        </div>
+                      ))}
                       {filterTab === 'Amount' && (
-                        <div>
+                        <div className="px-1">
                           <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Amount</div>
                           {([['gt', 'Greater than…'], ['lt', 'Less than…'], ['eq', 'Equal to…'], ['bt', 'Between…']] as [string, string][]).map(([op, label]) => (
                             <div key={op}>
-                              <div onClick={() => setFilterDraft((d) => ({ ...d, op: d.op === op ? '' : op }))} className="flex items-center gap-3.5 py-2 cursor-pointer text-[15px]">
-                                <span className="w-[22px] h-[22px] shrink-0 rounded-full border-2 flex items-center justify-center" style={{ borderColor: filterDraft.op === op ? 'var(--primary)' : 'var(--line-strong)' }}>{filterDraft.op === op && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}</span>
-                                {label}
+                              <div onClick={() => setFilterDraft((d) => ({ ...d, op: d.op === op ? '' : op }))} className="flex items-center gap-3 py-2 cursor-pointer text-[15px]">
+                                {chkbox(filterDraft.op === op)}{label}
                               </div>
                               {filterDraft.op === op && op !== 'bt' && (
-                                <div className="pl-10 pb-2"><input value={filterDraft.val} onChange={(e) => setFilterDraft((d) => ({ ...d, val: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="$10" className="w-full h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" /></div>
+                                <div className="pl-8 pb-2"><input value={filterDraft.val} onChange={(e) => setFilterDraft((d) => ({ ...d, val: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="$10" className="w-full h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" /></div>
                               )}
                               {filterDraft.op === op && op === 'bt' && (
-                                <div className="flex items-center gap-2.5 pl-10 pb-2">
+                                <div className="flex items-center gap-2.5 pl-8 pb-2">
                                   <input value={filterDraft.min} onChange={(e) => setFilterDraft((d) => ({ ...d, min: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="Min" className="flex-1 min-w-0 h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" />
                                   <span className="text-content-3 text-sm">to</span>
                                   <input value={filterDraft.max} onChange={(e) => setFilterDraft((d) => ({ ...d, max: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="Max" className="flex-1 min-w-0 h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" />
@@ -1196,18 +1202,60 @@ export default function TransactionsPage() {
                           ))}
                           <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mt-3.5 mb-1.5">Type</div>
                           {([['Expense', 'Debits only'], ['Income', 'Credits only']] as [string, string][]).map(([val, label]) => (
-                            <div key={val} onClick={() => setFilterDraft((d) => ({ ...d, type: d.type === val ? 'All' : val }))} className="flex items-center gap-3.5 py-2 cursor-pointer text-[15px]">
-                              <span className="w-[22px] h-[22px] shrink-0 rounded-full border-2 flex items-center justify-center" style={{ borderColor: filterDraft.type === val ? 'var(--primary)' : 'var(--line-strong)' }}>{filterDraft.type === val && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}</span>
-                              {label}
+                            <div key={val} onClick={() => setFilterDraft((d) => ({ ...d, type: d.type === val ? 'All' : val }))} className="flex items-center gap-3 py-2 cursor-pointer text-[15px]">
+                              {chkbox(filterDraft.type === val)}{label}
                             </div>
                           ))}
                         </div>
                       )}
                       {(filterTab === 'Merchants' || filterTab === 'Tags' || filterTab === 'Other') && (
-                        <div className="flex items-center justify-center h-full min-h-[300px] text-content-3 text-sm">Coming soon</div>
+                        <div className="flex items-center justify-center h-full min-h-[320px] text-content-3 text-sm">Coming soon</div>
+                      )}
+                    </div>
+                    {/* selected filters — ALL dimensions */}
+                    <div className="w-[240px] shrink-0 p-4 overflow-auto" style={{ maxHeight: 440 }}>
+                      {draftCount === 0 ? (
+                        <div className="text-content-3 text-sm">No filters selected yet.</div>
+                      ) : (
+                        <div className="flex flex-col gap-4">
+                          {filterDraft.category.filter((c) => c.startsWith('sub:')).length > 0 && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Categories</span><button onClick={() => setFilterDraft((d) => ({ ...d, category: [] }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
+                              {filterDraft.category.filter((c) => c.startsWith('sub:')).map((c) => {
+                                const cat = categories.find((x) => x.id === Number(c.slice(4)));
+                                return (
+                                  <div key={c} className="flex items-center gap-2 py-1.5 text-sm">
+                                    <span className="text-[15px] leading-none">{getCategoryEmoji(cat?.group_name)}</span>
+                                    <span className="flex-1 truncate">{cat?.sub_name ?? c}</span>
+                                    <button onClick={() => toggleDraftCategory(c)} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {filterDraft.account !== 'All' && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Accounts</span><button onClick={() => setFilterDraft((d) => ({ ...d, account: 'All' }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
+                              <div className="flex items-center gap-2 py-1.5 text-sm"><span className="flex-1 truncate">{(() => { const a = accounts.find((x) => x.id.toString() === filterDraft.account); return a ? accountLabel(a) : filterDraft.account; })()}</span><button onClick={() => setFilterDraft((d) => ({ ...d, account: 'All' }))} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button></div>
+                            </div>
+                          )}
+                          {filterDraft.op && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Amount</span><button onClick={() => setFilterDraft((d) => ({ ...d, op: '', val: '', min: '', max: '' }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
+                              <div className="flex items-center gap-2 py-1.5 text-sm"><span className="flex-1 truncate">{filterDraft.op === 'gt' ? `Greater than $${filterDraft.val || '0'}` : filterDraft.op === 'lt' ? `Less than $${filterDraft.val || '0'}` : filterDraft.op === 'eq' ? `Equal to $${filterDraft.val || '0'}` : `$${filterDraft.min || '0'} – $${filterDraft.max || '0'}`}</span><button onClick={() => setFilterDraft((d) => ({ ...d, op: '', val: '', min: '', max: '' }))} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button></div>
+                            </div>
+                          )}
+                          {filterDraft.type !== 'All' && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Type</span><button onClick={() => setFilterDraft((d) => ({ ...d, type: 'All' }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
+                              <div className="flex items-center gap-2 py-1.5 text-sm"><span className="flex-1 truncate">{filterDraft.type === 'Expense' ? 'Debits only' : 'Credits only'}</span><button onClick={() => setFilterDraft((d) => ({ ...d, type: 'All' }))} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button></div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
+                  {/* footer */}
                   <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
                     <button onClick={clearFilters} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
                     <div className="flex gap-2.5">
