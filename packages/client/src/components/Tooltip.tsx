@@ -79,7 +79,7 @@ export default function Tooltip({ content, children }: TooltipProps) {
             borderRadius: 6,
             padding: '6px 12px',
             fontSize: 12,
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Hanken Grotesk', sans-serif",
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             width: 'max-content',
             maxWidth: 250,

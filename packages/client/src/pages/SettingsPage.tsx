@@ -1654,7 +1654,7 @@ function StickyAddButton({ permission, label, onClick }: { permission: string; l
             borderRadius: 20,
             fontSize: 13,
             fontWeight: 600,
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Hanken Grotesk', sans-serif",
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             whiteSpace: 'nowrap',
           }}>
