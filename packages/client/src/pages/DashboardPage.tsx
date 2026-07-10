@@ -59,15 +59,20 @@ export default function DashboardPage() {
   const [nwPoints, setNwPoints] = useState<HistoryPoint[]>([]);
   const [holdings, setHoldings] = useState<AccountHoldings[]>([]);
   const [cycles, setCycles] = useState<PayCycle[]>([]);
+  const [error, setError] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [sum, spend, chart, txn] = await Promise.all([
-      apiFetch<{ data: Summary }>(`/dashboard/summary?month=${currentMonth}`),
-      apiFetch<{ data: SpendingGroup[] }>(`/dashboard/spending-by-category?month=${currentMonth}`),
-      apiFetch<{ data: MonthlyData[] }>(`/dashboard/income-vs-expenses?year=${currentYear}`),
-      apiFetch<{ data: Transaction[] }>('/dashboard/recent-transactions?limit=6'),
-    ]);
-    setSummary(sum.data); setSpending(spend.data); setMonthly(chart.data); setRecent(txn.data);
+    try {
+      const [sum, spend, chart, txn] = await Promise.all([
+        apiFetch<{ data: Summary }>(`/dashboard/summary?month=${currentMonth}`),
+        apiFetch<{ data: SpendingGroup[] }>(`/dashboard/spending-by-category?month=${currentMonth}`),
+        apiFetch<{ data: MonthlyData[] }>(`/dashboard/income-vs-expenses?year=${currentYear}`),
+        apiFetch<{ data: Transaction[] }>('/dashboard/recent-transactions?limit=6'),
+      ]);
+      setSummary(sum.data); setSpending(spend.data); setMonthly(chart.data); setRecent(txn.data); setError(false);
+    } catch {
+      setError(true);
+    }
     apiFetch<{ data: { accountHoldings: AccountHoldings[] } }>('/simplefin/holdings').then((r) => setHoldings(r.data.accountHoldings)).catch(() => {});
     apiFetch<{ data: PayCycle[] }>('/pay-cycles').then((r) => setCycles(r.data)).catch(() => {});
   }, [currentMonth, currentYear]);
@@ -81,10 +86,22 @@ export default function DashboardPage() {
     const flat = holdings.flatMap((h) => h.holdings);
     const value = flat.reduce((s, h) => s + h.marketValue, 0);
     const cost = flat.reduce((s, h) => s + h.costBasis, 0);
-    const top = [...flat].sort((a, b) => b.marketValue - a.marketValue).slice(0, 3);
+    // Aggregate by symbol (same ticker can span accounts) before ranking.
+    const bySym = new Map<string, { symbol: string; description: string; marketValue: number }>();
+    for (const h of flat) { const e = bySym.get(h.symbol) ?? { symbol: h.symbol, description: h.description, marketValue: 0 }; e.marketValue += h.marketValue; bySym.set(h.symbol, e); }
+    const top = Array.from(bySym.values()).sort((a, b) => b.marketValue - a.marketValue).slice(0, 3);
     return { value, gain: value - cost, gainPct: cost > 0 ? ((value - cost) / cost) * 100 : 0, top, count: flat.length };
   }, [holdings]);
 
+  if (error && !summary) {
+    return (
+      <div className="max-w-md mx-auto mt-20 bg-surface border border-line rounded-card shadow-sm p-8 text-center">
+        <div className="text-[15px] font-semibold mb-1">Couldn’t load your dashboard</div>
+        <p className="text-content-3 text-sm mb-4">Something went wrong fetching your data.</p>
+        <button onClick={() => loadData()} className="h-10 px-5 rounded-[11px] bg-primary text-on-primary font-bold text-sm">Retry</button>
+      </div>
+    );
+  }
   if (!summary) return <Spinner />;
 
   const greeting = user?.displayName ? `Hello, ${user.displayName.split(' ')[0]}!` : 'Dashboard';
@@ -118,7 +135,7 @@ export default function DashboardPage() {
                 <div className="text-[13px] font-semibold text-content-2 mb-1">Expenses</div>
                 <div className="text-[22px] font-extrabold tabular-nums">{fmtWhole(summary.monthExpenses)}</div>
                 <div className="h-2 rounded-full bg-surface-2 overflow-hidden my-1.5"><div className="h-full rounded-full" style={{ width: `${expensePct}%`, background: expensePct >= 100 ? 'var(--negative)' : expensePct >= 80 ? 'var(--warning)' : green }} /></div>
-                <div className="text-[12px] text-content-3">{expenseRemaining >= 0 ? `${fmtWhole(expenseRemaining)} left of ${fmtWhole(summary.totalBudgetedExpenses)}` : `${fmtWhole(-expenseRemaining)} over budget`}</div>
+                <div className="text-[12px] text-content-3">{summary.totalBudgetedExpenses <= 0 ? 'No budget set' : expenseRemaining >= 0 ? `${fmtWhole(expenseRemaining)} left of ${fmtWhole(summary.totalBudgetedExpenses)}` : `${fmtWhole(-expenseRemaining)} over budget`}</div>
               </div>
             </div>
           </Card>

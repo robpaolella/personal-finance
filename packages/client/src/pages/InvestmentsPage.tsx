@@ -53,22 +53,33 @@ export default function InvestmentsPage() {
     return { value, cost, gain, gainPct: cost > 0 ? (gain / cost) * 100 : 0 };
   }, [flat]);
 
+  // Aggregate by symbol — the same ticker can appear in multiple accounts.
+  const bySymbol = useMemo(() => {
+    const m = new Map<string, { symbol: string; description: string; marketValue: number; costBasis: number }>();
+    for (const h of flat) {
+      const e = m.get(h.symbol) ?? { symbol: h.symbol, description: h.description, marketValue: 0, costBasis: 0 };
+      e.marketValue += h.marketValue; e.costBasis += h.costBasis;
+      m.set(h.symbol, e);
+    }
+    return Array.from(m.values());
+  }, [flat]);
+
   // Allocation donut: top holdings by value + an "Other" bucket.
   const allocation = useMemo<DonutSegment[]>(() => {
-    const sorted = [...flat].sort((a, b) => b.marketValue - a.marketValue);
+    const sorted = [...bySymbol].sort((a, b) => b.marketValue - a.marketValue);
     const top = sorted.slice(0, 8);
     const rest = sorted.slice(8);
     const segs: DonutSegment[] = top.map((h, i) => ({ label: h.symbol, value: h.marketValue, color: PALETTE[i % PALETTE.length] }));
     const otherVal = rest.reduce((s, h) => s + h.marketValue, 0);
     if (otherVal > 0) segs.push({ label: 'Other', value: otherVal, color: 'var(--content-3)' });
     return segs;
-  }, [flat]);
+  }, [bySymbol]);
 
   // Best / worst performers by since-cost return %.
   const movers = useMemo(() => {
-    const withRet = flat.filter((h) => h.costBasis > 0).map((h) => ({ ...h, ret: ((h.marketValue - h.costBasis) / h.costBasis) * 100 }));
+    const withRet = bySymbol.filter((h) => h.costBasis > 0).map((h) => ({ ...h, ret: ((h.marketValue - h.costBasis) / h.costBasis) * 100 }));
     return [...withRet].sort((a, b) => b.ret - a.ret);
-  }, [flat]);
+  }, [bySymbol]);
 
   if (accountHoldings === null) return <Spinner />;
 

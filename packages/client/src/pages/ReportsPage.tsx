@@ -105,8 +105,8 @@ export default function ReportsPage() {
       return {
         labels,
         series: [
-          { label: 'Total income', color: 'var(--content)', values: mk(data.monthlyIncomeTotals), bold: true },
-          ...cats.map((c) => ({ label: c.name, color: getCategoryColorHex(c.name), values: mk(c.vals) })),
+          { label: 'Total income', color: 'var(--content)', values: mk(data.monthlyIncomeTotals), bold: true, total: totals.income },
+          ...cats.map((c) => ({ label: c.name, color: getCategoryColorHex(c.name), values: mk(c.vals), total: c.total })),
         ],
       };
     }
@@ -114,8 +114,8 @@ export default function ReportsPage() {
     return {
       labels,
       series: [
-        { label: 'Total expenses', color: 'var(--content)', values: mk(data.monthlyExpenseTotals), bold: true },
-        ...groups.map((c) => ({ label: c.g, color: getCategoryColorHex(c.g), values: mk(c.vals) })),
+        { label: 'Total expenses', color: 'var(--content)', values: mk(data.monthlyExpenseTotals), bold: true, total: totals.expenses },
+        ...groups.map((c) => ({ label: c.g, color: getCategoryColorHex(c.g), values: mk(c.vals), total: c.total })),
       ],
     };
   }, [data, trendMetric, chartMode, months]);
@@ -160,7 +160,7 @@ export default function ReportsPage() {
         <KPICard label="Income" value={fmtWhole(totals.income)} subtitle={`${Object.keys(data.incomeByCategory).length} income sources`} />
         <KPICard label="Expenses" value={fmtWhole(totals.expenses)} subtitle={`${fmtWhole(months > 0 ? totals.expenses / months : 0)} avg / mo`} />
         <KPICard label="Net" value={fmtWhole(totals.net)} valueColor={totals.net >= 0 ? 'var(--positive)' : 'var(--negative)'} subtitle={totals.net >= 0 ? 'money kept' : 'overspent'} trend={totals.net >= 0 ? 'up' : 'down'} />
-        <KPICard label="Savings rate" value={`${Math.round(totals.rate)}%`} valueColor="var(--positive)" subtitle={`${fmtWhole(totals.savings)} to savings`} />
+        <KPICard label="Savings rate" value={`${Math.round(totals.rate)}%`} valueColor="var(--positive)" subtitle={`money kept${totals.savings > 0 ? ` · incl. ${fmtWhole(totals.savings)} to savings` : ''}`} />
       </div>
 
       {/* report area */}

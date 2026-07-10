@@ -1,10 +1,11 @@
-import { useLayoutEffect, useRef, useState, useMemo } from 'react';
+import { useLayoutEffect, useEffect, useRef, useState, useMemo } from 'react';
 
 export interface Series {
   label: string;
   color: string;
   values: number[];
   bold?: boolean;
+  total?: number; // true period total for the legend chip (values may be cumulative)
 }
 
 interface Props {
@@ -46,16 +47,21 @@ export default function MultiLineChart({ series, labels, height = 300, formatVal
   const plotH = Math.max(1, height - pad.top - pad.bottom);
   const n = labels.length;
 
+  // Reset an isolated line if it's no longer present (e.g. Expenses↔Income flip).
+  useEffect(() => {
+    if (isolated && !series.some((s) => s.label === isolated)) setIsolated(null);
+  }, [series, isolated]);
+
   const visible = isolated ? series.filter((s) => s.label === isolated) : series;
-  const max = useMemo(() => {
-    let hi = 0;
-    for (const s of visible) for (const v of s.values) if (v > hi) hi = v;
-    return hi > 0 ? hi * 1.1 : 1;
+  const { min, max } = useMemo(() => {
+    let lo = 0, hi = 0;
+    for (const s of visible) for (const v of s.values) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    return { min: lo, max: hi > lo ? hi * 1.1 : lo + 1 };
   }, [visible]);
 
   const xFor = (i: number) => pad.left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
-  const yFor = (v: number) => pad.top + (1 - v / max) * plotH;
-  const ticks = Array.from({ length: yTicks }, (_, i) => (i / (yTicks - 1)) * max);
+  const yFor = (v: number) => pad.top + (1 - (v - min) / (max - min)) * plotH;
+  const ticks = Array.from({ length: yTicks }, (_, i) => min + (i / (yTicks - 1)) * (max - min));
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (n === 0) return;
@@ -121,7 +127,7 @@ export default function MultiLineChart({ series, labels, height = 300, formatVal
       <div className="flex flex-wrap gap-1.5 mt-3">
         {series.map((s) => {
           const active = isolated === s.label;
-          const tot = s.values.reduce((a, b) => a + b, 0);
+          const tot = s.total ?? (s.values.length ? s.values[s.values.length - 1] : 0);
           return (
             <button key={s.label} onClick={() => setIsolated(active ? null : s.label)}
               className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[12px] font-semibold transition-opacity"
