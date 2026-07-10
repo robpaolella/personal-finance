@@ -614,7 +614,6 @@ export default function TransactionsPage() {
   const [bulkMerchant, setBulkMerchant] = useState('');
   const [bulkDate, setBulkDate] = useState('');
   const [bulkCalOpen, setBulkCalOpen] = useState(false);
-  const [bulkAccountId, setBulkAccountId] = useState<number | ''>('');
   const [bulkCategoryId, setBulkCategoryId] = useState<number | ''>('');
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
 
@@ -879,9 +878,6 @@ export default function TransactionsPage() {
       if (action === 'date' && bulkDate) {
         await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { date: bulkDate } }) });
         setBulkDate(''); setBulkCalOpen(false);
-      } else if (action === 'account' && bulkAccountId) {
-        await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { accountId: bulkAccountId } }) });
-        setBulkAccountId('');
       } else if (action === 'category' && bulkCategoryId) {
         await apiFetch('/transactions/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates: { categoryId: bulkCategoryId } }) });
         setBulkCategoryId('');
@@ -1432,20 +1428,6 @@ export default function TransactionsPage() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-3.5 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
                   </div>
                   <button onClick={() => applyBulkAction('category')} disabled={!bulkCategoryId} className="h-11 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50 shrink-0">Apply</button>
-                </div>
-              </div>
-              {/* Account */}
-              <div>
-                <div className="text-[13px] font-semibold text-content-2 mb-2">Account</div>
-                <div className="flex gap-2">
-                  <div className="relative flex-1 min-w-0">
-                    <select value={bulkAccountId} onChange={(e) => setBulkAccountId(e.target.value ? parseInt(e.target.value) : '')} className="w-full h-11 pl-3.5 pr-9 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none appearance-none cursor-pointer">
-                      <option value="">Choose account…</option>
-                      {accounts.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
-                    </select>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-3.5 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
-                  </div>
-                  <button onClick={() => applyBulkAction('account')} disabled={!bulkAccountId} className="h-11 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50 shrink-0">Apply</button>
                 </div>
               </div>
               {/* Date */}
