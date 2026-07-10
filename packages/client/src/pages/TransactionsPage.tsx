@@ -552,7 +552,7 @@ export default function TransactionsPage() {
   const [filterSearch, setFilterSearch] = useState('');
   const [dateDraft, setDateDraft] = useState<{ preset: string; start: string; end: string }>({ preset: 'all', start: '', end: '' });
   const [filterDraft, setFilterDraft] = useState<{ account: string; type: string; category: string[]; op: string; val: string; min: string; max: string }>({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' });
-  const [activeDateField, setActiveDateField] = useState<'start' | 'end'>('start');
+  const [calOpen, setCalOpen] = useState<'start' | 'end' | null>(null);
   const [editCell, setEditCell] = useState<{ id: number; field: 'vendor' | 'category' } | null>(null);
   const [cellSearch, setCellSearch] = useState('');
   const [detail, setDetail] = useState<Transaction | null>(null);
@@ -667,9 +667,10 @@ export default function TransactionsPage() {
   };
 
   // Date / Filters overlays — edits are staged in a draft, committed on Apply.
-  const openDatePopover = () => { setDateDraft({ preset: datePreset, start: customStart, end: customEnd }); setActiveDateField('start'); setSortOpen(false); setFilterOpen(false); setDateOpen(true); };
+  const openDatePopover = () => { setDateDraft({ preset: datePreset, start: customStart, end: customEnd }); setCalOpen(null); setSortOpen(false); setFilterOpen(false); setDateOpen(true); };
   const applyPreset = (value: string) => { setDatePreset(value); setCustomStart(''); setCustomEnd(''); setDateOpen(false); };
-  const applyDate = () => { setDatePreset(dateDraft.preset); setCustomStart(dateDraft.start); setCustomEnd(dateDraft.end); setDateOpen(false); };
+  const dateRangeInvalid = (s: string, e: string) => !!(s && e && e < s);
+  const applyDate = () => { if (dateRangeInvalid(dateDraft.start, dateDraft.end)) return; setDatePreset(dateDraft.preset); setCustomStart(dateDraft.start); setCustomEnd(dateDraft.end); setDateOpen(false); };
   const openFilterPopover = () => { setFilterDraft({ account: filterAccount, type: filterType, category: [...filterCategory], op: amountOp, val: amountValue, min: amountMin, max: amountMax }); setFilterTab('Categories'); setFilterSearch(''); setSortOpen(false); setDateOpen(false); setFilterOpen(true); };
   const applyFilters = () => {
     setFilterAccount(filterDraft.account); setFilterType(filterDraft.type); setFilterCategory(filterDraft.category);
@@ -914,6 +915,7 @@ export default function TransactionsPage() {
     { value: 'this-year', label: 'This year' }, { value: 'last-year', label: 'Last year' }, { value: 'ytd', label: 'Year to date' },
     { value: 'custom', label: 'Custom range…' },
   ];
+  const dateError = dateRangeInvalid(dateDraft.start, dateDraft.end) ? 'End date must be on or after the start date.' : '';
   const shortDate = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
   const dateLabel = datePreset === 'all' ? 'Date'
     : datePreset === 'custom'
@@ -1054,7 +1056,7 @@ export default function TransactionsPage() {
             {dateOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setDateOpen(false)} />
-                <div className="absolute top-12 right-0 z-50 w-[660px] max-w-[calc(100vw-64px)] bg-elevated border border-line-strong rounded-[16px] shadow-md overflow-hidden flex flex-col">
+                <div className="absolute top-12 right-0 z-50 w-[660px] max-w-[calc(100vw-64px)] bg-elevated border border-line-strong rounded-[16px] shadow-md flex flex-col">
                   <div className="flex">
                     <div className="w-[212px] shrink-0 border-r border-line">
                       <div className="px-5 pt-[18px] pb-3 text-base font-extrabold tracking-tight border-b border-line">Date Range</div>
@@ -1071,35 +1073,39 @@ export default function TransactionsPage() {
                         })}
                       </div>
                     </div>
-                    <div className="flex-1 p-5">
-                      <div className="flex gap-2 mb-4">
-                        {(['start', 'end'] as const).map((f) => {
-                          const activeF = activeDateField === f;
-                          const val = f === 'start' ? dateDraft.start : dateDraft.end;
-                          return (
-                            <button key={f} type="button" onClick={() => setActiveDateField(f)}
-                              className="flex-1 text-left px-3.5 py-2 rounded-[11px] border"
-                              style={{ borderColor: activeF ? 'var(--primary)' : 'var(--line)', background: activeF ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : 'var(--surface)' }}>
-                              <div className="text-[11px] font-semibold text-content-3">{f === 'start' ? 'Start date' : 'End date'}</div>
-                              <div className="text-sm font-semibold text-content">{val ? new Date(val + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Select'}</div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <Calendar
-                        value={activeDateField === 'start' ? dateDraft.start : dateDraft.end}
-                        onChange={(d) => {
-                          setDateDraft((prev) => ({ ...prev, preset: 'custom', [activeDateField]: d }));
-                          if (activeDateField === 'start') setActiveDateField('end');
-                        }}
-                      />
+                    <div className="flex-1 p-6">
+                      {(['start', 'end'] as const).map((f) => {
+                        const val = f === 'start' ? dateDraft.start : dateDraft.end;
+                        return (
+                          <div key={f} className={f === 'start' ? 'mb-[22px]' : ''}>
+                            <div className="flex items-center justify-between mb-2.5">
+                              <span className="text-[15px] font-bold">{f === 'start' ? 'Start date' : 'End date'}</span>
+                              {val && <button type="button" onClick={() => setDateDraft((d) => ({ ...d, [f]: '', preset: 'custom' }))} className="text-sm font-semibold text-primary">Clear</button>}
+                            </div>
+                            <div className="relative">
+                              <button type="button" onClick={() => setCalOpen((c) => (c === f ? null : f))}
+                                className="w-full flex items-center justify-between h-[50px] px-4 rounded-[12px] bg-surface text-[15px]"
+                                style={{ border: `1px solid ${calOpen === f ? 'var(--primary)' : (dateError && f === 'end' ? 'var(--negative)' : 'var(--line)')}` }}>
+                                <span className={val ? 'text-content tabular-nums' : 'text-content-3'}>{val ? new Date(val + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'MM/DD/YYYY'}</span>
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+                              </button>
+                              {calOpen === f && (
+                                <div className="absolute top-[54px] right-0 z-[60] w-[320px] bg-elevated border border-line-strong rounded-[14px] shadow-md p-3">
+                                  <Calendar value={val} onChange={(d) => { setDateDraft((prev) => ({ ...prev, preset: 'custom', [f]: d })); setCalOpen(null); }} />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {dateError && <div className="text-negative text-[13px] font-semibold mt-1">{dateError}</div>}
                     </div>
                   </div>
                   <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
                     <button onClick={clearDate} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
                     <div className="flex gap-2.5">
                       <button onClick={() => setDateOpen(false)} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
-                      <button onClick={applyDate} className="h-10 px-5 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Apply</button>
+                      <button onClick={applyDate} disabled={!!dateError} className="h-10 px-5 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50">Apply</button>
                     </div>
                   </div>
                 </div>
