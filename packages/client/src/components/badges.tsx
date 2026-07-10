@@ -9,23 +9,25 @@ export function AccountBadge({ name }: { name: string }) {
   );
 }
 
-/* ------ CategoryBadge ------ */
-export function CategoryBadge({ name, color }: { name: string; color?: string }) {
+/* ------ CategoryBadge (tinted sub-category pill) ------ */
+export function CategoryBadge({ name, color, emoji }: { name: string; color?: string; emoji?: string }) {
   if (color) {
     return (
       <span
-        className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-md"
+        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-lg"
         style={{
-          backgroundColor: `${color}18`,
+          backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`,
           color: color,
         }}
       >
+        {emoji && <span className="text-[11px] leading-none">{emoji}</span>}
         {name}
       </span>
     );
   }
   return (
-    <span className="inline-block text-[11px] bg-[var(--badge-category-bg)] text-[var(--badge-category-text)] px-2 py-0.5 rounded-md">
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-lg bg-surface-2 border border-line text-content-2">
+      {emoji && <span className="text-[11px] leading-none">{emoji}</span>}
       {name}
     </span>
   );
