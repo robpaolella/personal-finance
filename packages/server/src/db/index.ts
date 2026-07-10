@@ -90,6 +90,8 @@ sqlite.exec(`
     category_id INTEGER REFERENCES categories(id),
     merchant_id INTEGER REFERENCES merchants(id),
     amount REAL NOT NULL,
+    categorize_confidence REAL,
+    needs_review INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 

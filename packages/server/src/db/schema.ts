@@ -91,6 +91,10 @@ export const transactions = sqliteTable('transactions', {
   merchant_id: integer('merchant_id').references(() => merchants.id),
   amount: real('amount').notNull(),
   simplefin_transaction_id: text('simplefin_transaction_id').unique(),
+  // Auto-categorization: confidence of the assigned category (0–1, null = manual),
+  // and a flag for low-confidence rows queued for user review.
+  categorize_confidence: real('categorize_confidence'),
+  needs_review: integer('needs_review').default(0),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
 
@@ -141,6 +145,10 @@ export const simplefinLinks = sqliteTable('simplefin_links', {
   simplefin_account_name: text('simplefin_account_name').notNull(),
   simplefin_org_name: text('simplefin_org_name'),
   last_synced_at: text('last_synced_at'),
+  // Daily auto-pull status per account: 'ok' | 'error' (null = never attempted).
+  last_sync_status: text('last_sync_status'),
+  last_sync_error: text('last_sync_error'),
+  last_sync_attempt_at: text('last_sync_attempt_at'),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
 
@@ -203,6 +211,35 @@ export const dismissedTransfers = sqliteTable('dismissed_transfers', {
 }, (table) => [
   uniqueIndex('dismissed_transfers_acct_sig_idx').on(table.account_id, table.signature),
 ]);
+
+// === Notifications (per-user, persistent) ===
+// General-purpose in-app notification center. First driver: daily-sync failures.
+export const notifications = sqliteTable('notifications', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  user_id: integer('user_id').notNull().references(() => users.id),
+  type: text('type').notNull(),        // sync_failure | needs_review | ...
+  severity: text('severity').notNull().default('info'), // info | success | warning | error
+  title: text('title').notNull(),
+  body: text('body'),
+  action_label: text('action_label'),  // e.g. 'Retry'
+  action_target: text('action_target'),// e.g. '/settings?tab=banksync' or an account id
+  dedupe_key: text('dedupe_key'),       // collapse repeats (e.g. 'sync_failure:acct:12')
+  is_read: integer('is_read').notNull().default(0),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  uniqueIndex('notifications_user_dedupe_idx').on(table.user_id, table.dedupe_key),
+]);
+
+// === Category Rules (explicit merchant/description → category, user-managed) ===
+// Highest-priority layer of auto-categorization; overrides learned + heuristic.
+export const categoryRules = sqliteTable('category_rules', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  match_type: text('match_type').notNull().default('merchant'), // merchant | contains | regex
+  pattern: text('pattern').notNull(),                            // merchant_id (as text) or text pattern
+  category_id: integer('category_id').notNull().references(() => categories.id),
+  priority: integer('priority').notNull().default(0),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+});
 
 // === Pay Cycles (dynamic take-home income schedules) ===
 // Feeds the budget import wizard's "Expected Income" step. amount is the

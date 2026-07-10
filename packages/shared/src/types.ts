@@ -2,7 +2,7 @@
 
 export type AccountType = 'checking' | 'savings' | 'credit' | 'investment' | 'retirement' | 'venmo' | 'cash';
 export type AccountClassification = 'liquid' | 'investment' | 'liability';
-export type CategoryType = 'income' | 'expense' | 'savings';
+export type CategoryType = 'income' | 'expense' | 'savings' | 'transfer';
 
 // === Database Row Interfaces ===
 
@@ -65,6 +65,31 @@ export interface Transaction {
   merchant_id: number | null;
   amount: number;
   simplefin_transaction_id: string | null;
+  categorize_confidence: number | null;
+  needs_review: number;
+  created_at: string;
+}
+
+export interface Notification {
+  id: number;
+  user_id: number;
+  type: string;
+  severity: 'info' | 'success' | 'warning' | 'error';
+  title: string;
+  body: string | null;
+  action_label: string | null;
+  action_target: string | null;
+  dedupe_key: string | null;
+  is_read: number;
+  created_at: string;
+}
+
+export interface CategoryRule {
+  id: number;
+  match_type: 'merchant' | 'contains' | 'regex';
+  pattern: string;
+  category_id: number;
+  priority: number;
   created_at: string;
 }
 
