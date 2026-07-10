@@ -674,6 +674,12 @@ export default function TransactionsPage() {
     setFilterOpen(false);
   };
   const toggleDraftCategory = (value: string) => setFilterDraft((d) => ({ ...d, category: d.category.includes(value) ? d.category.filter((v) => v !== value) : [...d.category, value] }));
+  const clearDate = () => { setDateDraft({ preset: 'all', start: '', end: '' }); setDatePreset('all'); setCustomStart(''); setCustomEnd(''); };
+  const clearFilters = () => {
+    setFilterDraft({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' });
+    setFilterAccount('All'); setFilterType('All'); setFilterCategory([]);
+    setAmountOp(''); setAmountValue(''); setAmountMin(''); setAmountMax('');
+  };
 
   // Inline/panel edit — rebuilds the txn body (preserving splits) and PUTs.
   const updateTxnField = async (t: Transaction, changes: { description?: string; categoryId?: number; date?: string; note?: string | null }) => {
@@ -1057,7 +1063,7 @@ export default function TransactionsPage() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
-                    <button onClick={() => setDateDraft({ preset: 'all', start: '', end: '' })} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
+                    <button onClick={clearDate} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
                     <div className="flex gap-2.5">
                       <button onClick={() => setDateOpen(false)} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
                       <button onClick={applyDate} className="h-10 px-5 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Apply</button>
@@ -1164,7 +1170,7 @@ export default function TransactionsPage() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
-                    <button onClick={() => setFilterDraft({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' })} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
+                    <button onClick={clearFilters} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
                     <div className="flex gap-2.5">
                       <button onClick={() => setFilterOpen(false)} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
                       <button onClick={applyFilters} className="h-10 px-5 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Apply</button>
