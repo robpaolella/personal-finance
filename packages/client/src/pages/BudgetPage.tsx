@@ -1,20 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtWhole } from '../lib/formatters';
-import KPICard from '../components/KPICard';
-import OwnerFilter from '../components/OwnerFilter';
 import Spinner from '../components/Spinner';
-import InlineNotification from '../components/InlineNotification';
 import ResponsiveModal from '../components/ResponsiveModal';
 import PermissionGate from '../components/PermissionGate';
 import BudgetTemplateModal from '../components/BudgetTemplateModal';
 import ActionMenu, { type ActionMenuItem } from '../components/ActionMenu';
 import PayCyclesModal from '../components/PayCyclesModal';
-import { getCategoryColor } from '../lib/categoryColors';
-import ScrollableList from '../components/ScrollableList';
+import { getCategoryEmoji } from '../lib/categoryMeta';
+import { SegmentedControl, BudgetBar } from '../components/primitives';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { useIsMobile } from '../hooks/useIsMobile';
 
 interface IncomeRow {
   categoryId: number;
@@ -42,11 +38,15 @@ interface Totals {
   actualIncome: number;
   budgetedExpenses: number;
   actualExpenses: number;
+  budgetedSavings: number;
+  actualSavings: number;
+  leftToBudget: number;
 }
 
 interface BudgetSummary {
   income: IncomeRow[];
   expenseGroups: ExpenseGroup[];
+  savingsGroups: ExpenseGroup[];
   totals: Totals;
 }
 
@@ -116,14 +116,18 @@ function nextMonth(d: Date): Date {
 
 export default function BudgetPage() {
   const { hasPermission } = useAuth();
-  const isMobile = useIsMobile();
   const { addToast } = useToast();
   const canEditBudgets = hasPermission('budgets.edit');
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [owner, setOwner] = useState('All');
+  const [view, setView] = useState<'month' | 'year'>('month');
   const [data, setData] = useState<BudgetSummary | null>(null);
-  const [editingCell, setEditingCell] = useState<{ categoryId: number; value: string } | null>(null);
   const [users, setUsers] = useState<{ id: number; displayName: string }[]>([]);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [showUnbudgeted, setShowUnbudgeted] = useState<Record<string, boolean>>({});
+  const [editModal, setEditModal] = useState<{ categoryId: number; groupName: string; subName: string; emoji: string; planned: number } | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [applyFuture, setApplyFuture] = useState(false);
 
   const [importOpen, setImportOpen] = useState(false);
   const [importStep, setImportStep] = useState(0);
@@ -158,40 +162,41 @@ export default function BudgetPage() {
 
   const loadData = useCallback(async () => {
     const res = await apiFetch<{ data: BudgetSummary }>(
-      `/budgets/summary?month=${monthStr(month)}&owner=${owner === 'All' ? 'all' : owner}`
+      `/budgets/summary?month=${monthStr(month)}`
     );
     setData(res.data);
-  }, [month, owner]);
+  }, [month]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const saveBudget = async (categoryId: number, amount: number) => {
-    await apiFetch('/budgets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ categoryId, month: monthStr(month), amount }),
-    });
-    await loadData();
+  const openEdit = (categoryId: number, groupName: string, subName: string, planned: number) => {
+    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned });
+    setEditValue(planned ? String(planned) : '');
+    setApplyFuture(false);
   };
 
-  const handleBudgetKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, categoryId: number) => {
-    if (e.key === 'Enter') {
-      const val = parseFloat(editingCell?.value || '0');
-      if (!isNaN(val) && val >= 0) {
-        saveBudget(categoryId, val);
+  const closeEdit = () => setEditModal(null);
+
+  const saveEdit = async () => {
+    if (!editModal) return;
+    const val = parseFloat(editValue || '0');
+    if (isNaN(val) || val < 0) { closeEdit(); return; }
+    const months: string[] = [monthStr(month)];
+    if (applyFuture) {
+      // apply the amount through December of the selected year
+      for (let m = month.getMonth() + 1; m <= 11; m++) {
+        months.push(monthStr(new Date(month.getFullYear(), m, 1)));
       }
-      setEditingCell(null);
-    } else if (e.key === 'Escape') {
-      setEditingCell(null);
     }
-  };
-
-  const handleBudgetBlur = (categoryId: number) => {
-    const val = parseFloat(editingCell?.value || '0');
-    if (!isNaN(val) && val >= 0) {
-      saveBudget(categoryId, val);
-    }
-    setEditingCell(null);
+    await Promise.all(months.map((mo) =>
+      apiFetch('/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryId: editModal.categoryId, month: mo, amount: val }),
+      })
+    ));
+    closeEdit();
+    await loadData();
   };
 
   const openImportWizard = async () => {
@@ -336,241 +341,142 @@ export default function BudgetPage() {
     return <Spinner />;
   }
 
-  const { income, expenseGroups, totals } = data;
-  const incDiff = totals.actualIncome - totals.budgetedIncome;
-  const expRemaining = totals.budgetedExpenses - totals.actualExpenses;
+  const { income, expenseGroups, savingsGroups, totals } = data;
   const incomeCategories = income.map((r) => ({ id: r.categoryId, subName: r.subName }));
   const manageItems: ActionMenuItem[] = [
     { key: 'template', label: 'Budget Template', description: 'Monthly template & recurring items', icon: '📋', onClick: () => setTemplateModalOpen(true) },
     { key: 'paycycles', label: 'Pay Cycles', description: 'Biweekly & recurring paychecks', icon: '💸', onClick: () => setPayCyclesModalOpen(true) },
   ];
 
+  const isMonth = view === 'month';
+  const now = new Date();
+  const isTodayNow = isMonth
+    ? (month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth())
+    : (month.getFullYear() === now.getFullYear());
+  const periodLabel = isMonth ? `${shortMonth(month)} ${month.getFullYear()}` : String(month.getFullYear());
+  const subtitle = isMonth ? monthLabel(month) : String(month.getFullYear());
+  const goPrev = () => setMonth(isMonth ? prevMonth(month) : new Date(month.getFullYear() - 1, month.getMonth(), 1));
+  const goNext = () => setMonth(isMonth ? nextMonth(month) : new Date(month.getFullYear() + 1, month.getMonth(), 1));
+  const goToday = () => setMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+
+  // Three sections built from the summary (income is a single 'Income' group).
+  const sections = [
+    { key: 'income', label: 'Income', groups: [{ groupName: 'Income', subs: income }], planned: totals.budgetedIncome, actual: totals.actualIncome },
+    { key: 'expenses', label: 'Expenses', groups: expenseGroups, planned: totals.budgetedExpenses, actual: totals.actualExpenses },
+    { key: 'savings', label: 'Savings', groups: savingsGroups, planned: totals.budgetedSavings, actual: totals.actualSavings },
+  ];
+
   return (
-    <div className={isMobile ? '' : 'flex flex-col'} style={isMobile ? undefined : { height: 'calc(100vh - 56px)' }}>
-      {/* Header */}
-      {isMobile ? (
-        <div className="mb-4 flex-shrink-0">
-          {/* Centered month nav */}
-          <div className="flex justify-center items-center gap-4 mb-3">
-            <button onClick={() => setMonth(prevMonth(month))}
-              className="text-[20px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
-              ←
-            </button>
-            <span className="text-[15px] font-bold text-[var(--text-primary)]">
-              {monthLabel(month)}
-            </span>
-            <button onClick={() => setMonth(nextMonth(month))}
-              className="text-[20px] text-[var(--text-muted)] bg-transparent border-none cursor-pointer p-2 min-w-[44px] min-h-[44px] flex items-center justify-center">
-              →
-            </button>
-          </div>
-          {/* Action buttons */}
-          <div className="flex gap-2 mb-2">
-            <PermissionGate permission="budgets.edit" fallback="disabled">
-              <button onClick={openImportWizard}
-                className="flex-1 text-[12px] text-[var(--btn-primary-text)] bg-[var(--btn-primary-bg)] border-none rounded-lg px-3 py-2 cursor-pointer font-semibold btn-primary min-h-[44px]">
-                Import Budget
-              </button>
-            </PermissionGate>
-            <PermissionGate permission="budgets.edit" fallback="disabled">
-              <ActionMenu
-                label="Manage"
-                items={manageItems}
-                buttonClassName="flex-1 text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-lg px-3 py-2 cursor-pointer font-semibold btn-secondary min-h-[44px]"
-              />
-            </PermissionGate>
-          </div>
-          {/* Scrollable owner chip row */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {[{ name: 'All', id: 0 }, ...users.map(u => ({ name: u.displayName, id: u.id }))].map((o) => (
-              <button key={o.id} onClick={() => setOwner(o.name === 'All' ? 'All' : o.name)}
-                className="flex-shrink-0 border-none cursor-pointer rounded-2xl text-[11px] px-3.5 py-1.5"
-                style={{
-                  background: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 'var(--color-accent)' : 'var(--bg-card)',
-                  color: (o.name === 'All' ? owner === 'All' : owner === o.name) ? '#fff' : 'var(--text-secondary)',
-                  fontWeight: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 600 : 400,
-                  boxShadow: (o.name === 'All' ? owner === 'All' : owner === o.name) ? 'none' : 'inset 0 0 0 1px var(--bg-card-border)',
-                }}>
-                {o.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-      <div className="flex justify-between items-center mb-6 flex-shrink-0">
+    <div>
+      {/* Top bar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
         <div>
-          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)] m-0">Monthly Budget</h1>
-          <p className="page-subtitle text-[var(--text-secondary)] text-[13px] m-0 mt-1">{monthLabel(month)}</p>
+          <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight m-0">Budget</h1>
+          <p className="page-subtitle text-content-3 text-[13px] m-0 mt-0.5">{subtitle}</p>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <PermissionGate permission="budgets.edit" fallback="disabled">
-            <button
-              onClick={openImportWizard}
-              className="text-[12px] text-[var(--btn-primary-text)] bg-[var(--btn-primary-bg)] border-none rounded-lg px-3 py-1.5 cursor-pointer font-semibold btn-primary"
-            >
+            <button onClick={openImportWizard} className="h-10 px-4 rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm hover:bg-primary-hover">
               Import Budget
             </button>
           </PermissionGate>
           <PermissionGate permission="budgets.edit" fallback="disabled">
-            <ActionMenu
-              label="Manage"
-              items={manageItems}
-              buttonClassName="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-lg px-3 py-1.5 cursor-pointer font-semibold btn-secondary"
-            />
+            <ActionMenu label="Manage" items={manageItems}
+              buttonClassName="h-10 px-4 rounded-[11px] bg-surface-2 border border-line-strong text-content font-semibold text-sm hover:bg-surface" />
           </PermissionGate>
-          <OwnerFilter value={owner} onChange={setOwner} users={users} />
-          <div className="flex gap-2 items-center">
-            <button
-              onClick={() => setMonth(prevMonth(month))}
-              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium btn-secondary"
-            >
-              ← {shortMonth(prevMonth(month))}
+          <div className="flex items-center gap-0.5 h-10 px-1 bg-surface border border-line-strong rounded-[11px]">
+            <button onClick={goPrev} className="w-8 h-8 flex items-center justify-center rounded-lg text-content-2 hover:bg-surface-2" aria-label="Previous">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             </button>
-            <span className="text-[13px] font-semibold text-[var(--text-primary)] px-2">
-              {shortMonth(month)} {month.getFullYear()}
-            </span>
-            <button
-              onClick={() => setMonth(nextMonth(month))}
-              className="text-[12px] text-[var(--btn-secondary-text)] bg-[var(--btn-secondary-bg)] border-none rounded-md px-2.5 py-1.5 cursor-pointer font-medium btn-secondary"
-            >
-              {shortMonth(nextMonth(month))} →
+            <span className="px-2.5 text-sm font-bold tabular-nums text-content text-center" style={{ minWidth: 74 }}>{periodLabel}</span>
+            <button onClick={goNext} className="w-8 h-8 flex items-center justify-center rounded-lg text-content-2 hover:bg-surface-2" aria-label="Next">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </button>
           </div>
+          {!isTodayNow && (
+            <button onClick={goToday} className="h-10 px-4 rounded-[11px] bg-surface border border-line-strong text-content font-semibold text-sm hover:bg-surface-2">Today</button>
+          )}
+          <SegmentedControl value={view} onChange={setView}
+            options={[{ value: 'month', label: 'Month' }, { value: 'year', label: 'Year' }]} />
         </div>
       </div>
-      )}
 
-      {/* Owner Info Bar */}
-      {owner !== 'All' && (
-        <InlineNotification type="info" message={`Showing data from ${owner}'s accounts (including shared accounts)`} className="mb-4" />
-      )}
-
-      {/* KPI Cards */}
-      <div className="kpi-grid grid grid-cols-4 gap-4 mb-6 flex-shrink-0">
-        <KPICard label="Budgeted Income" value={fmtWhole(totals.budgetedIncome)} />
-        <KPICard
-          label="Actual Income"
-          value={fmtWhole(totals.actualIncome)}
-          subtitle={totals.budgetedIncome > 0
-            ? (totals.actualIncome >= totals.budgetedIncome ? 'On track' : `${fmtWhole(totals.budgetedIncome - totals.actualIncome)} under budget`)
-            : undefined}
-          trend={totals.actualIncome >= totals.budgetedIncome ? 'up' : 'down'}
-        />
-        <KPICard label="Budgeted Expenses" value={fmtWhole(totals.budgetedExpenses)} />
-        <KPICard
-          label="Actual Expenses"
-          value={fmtWhole(totals.actualExpenses)}
-          subtitle={totals.budgetedExpenses > 0
-            ? (expRemaining >= 0 ? `${fmtWhole(expRemaining)} remaining` : `${fmtWhole(Math.abs(expRemaining))} over budget`)
-            : undefined}
-          trend={expRemaining >= 0 ? 'up' : 'down'}
-          trendDirection={expRemaining >= 0 ? 'down' : 'up'}
-        />
-      </div>
-
-      {/* Income + Expenses */}
-      {isMobile ? (
-        /* Mobile: Card-based layout */
-        <div className="flex flex-col gap-3">
-          {/* Income Card */}
-          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
-            <div className="text-[13px] font-bold text-[var(--text-primary)] mb-2.5">Income</div>
-            {income.map((r, i) => {
-              const isEditing = editingCell?.categoryId === r.categoryId;
-              return (
-                <div key={r.categoryId} className="flex items-center py-1.5"
-                  style={{ borderBottom: i < income.length - 1 ? '1px solid var(--bg-card-border)' : 'none' }}>
-                  <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{r.subName}</span>
-                  <div className="flex gap-3 flex-shrink-0 ml-2">
-                    <div className="w-[70px]">
-                      <div
-                        className={`flex items-center w-full rounded ${
-                          isEditing
-                            ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
-                            : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
-                        }`}
-                        onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
-                      >
-                        <span className="pl-1 text-[12px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
-                        {isEditing ? (
-                          <input type="text" inputMode="decimal" autoFocus
-                            className="flex-1 min-w-0 text-right font-mono text-[12px] py-0.5 pr-1 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
-                            value={editingCell.value}
-                            onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
-                            onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
-                            onBlur={() => handleBudgetBlur(r.categoryId)}
-                          />
-                        ) : (
-                          <span className="flex-1 text-right font-mono text-[12px] py-0.5 pr-1 text-[var(--text-muted)]">
-                            {r.budgeted > 0 ? r.budgeted.toLocaleString('en-US') : '0'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span className="w-[70px] text-right text-[12px] font-mono font-semibold text-[var(--text-primary)] flex items-center justify-end">
-                      {r.actual > 0 ? fmt(r.actual) : '—'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+      {/* ===== MONTH VIEW ===== */}
+      {isMonth ? (
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_316px] gap-5 items-start">
+        {/* Budget table */}
+        <div className="bg-surface rounded-card border border-line shadow-sm overflow-hidden">
+          <div className="grid gap-3 px-6 py-3.5 border-b border-line font-mono text-[11px] uppercase tracking-wide text-content-3" style={{ gridTemplateColumns: 'minmax(0,1fr) 82px 82px 92px' }}>
+            <span>Category</span><span className="text-right">Planned</span><span className="text-right">Actual</span><span className="text-right">Remaining</span>
           </div>
-
-          {/* Expense Group Cards */}
-          {expenseGroups.map((g) => {
-            const allGroups = expenseGroups.map((x) => x.groupName);
-            const color = getCategoryColor(g.groupName, allGroups);
+          {sections.map((sec) => {
+            const secCollapsed = collapsedSections[sec.key];
+            const secRem = sec.planned - sec.actual;
             return (
-              <div key={g.groupName} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
-                  <span className="text-[13px] font-bold text-[var(--text-primary)]">{g.groupName}</span>
+              <div key={sec.key}>
+                <div onClick={() => setCollapsedSections((s) => ({ ...s, [sec.key]: !s[sec.key] }))}
+                  className="grid gap-3 px-6 py-2.5 bg-surface-2 border-t border-b border-line text-[13px] font-bold uppercase tracking-wide text-content-2 cursor-pointer items-center"
+                  style={{ gridTemplateColumns: 'minmax(0,1fr) 82px 82px 92px' }}>
+                  <span className="flex items-center gap-2.5">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="text-content-3" style={{ transform: secCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform .15s' }}><path d="m9 6 6 6-6 6"/></svg>
+                    {sec.label}
+                  </span>
+                  <span className="text-right tabular-nums">{fmtWhole(sec.planned)}</span>
+                  <span className="text-right tabular-nums">{fmtWhole(sec.actual)}</span>
+                  <span className="text-right tabular-nums">{fmtWhole(secRem)}</span>
                 </div>
-                {g.subs.map((sub, si) => {
-                  const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : 0;
-                  const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
-                  const isEditing = editingCell?.categoryId === sub.categoryId;
+                {!secCollapsed && sec.groups.map((g) => {
+                  const groupKey = sec.key + '|' + g.groupName;
+                  const gCollapsed = collapsedGroups[groupKey];
+                  const gPlanned = g.subs.reduce((s, r) => s + r.budgeted, 0);
+                  const gActual = g.subs.reduce((s, r) => s + r.actual, 0);
+                  const gRem = gPlanned - gActual;
+                  const showUn = showUnbudgeted[groupKey];
+                  const unbudgeted = g.subs.filter((r) => r.budgeted === 0 && r.actual === 0);
+                  const rows = showUn ? g.subs : g.subs.filter((r) => r.budgeted > 0 || r.actual > 0);
                   return (
-                    <div key={sub.categoryId} style={{ marginBottom: si < g.subs.length - 1 ? 10 : 0 }}>
-                      <div className="flex items-center mb-0.5">
-                        <span className="flex-1 min-w-0 truncate text-[12px] text-[var(--text-body)]">{sub.subName}</span>
-                        <div className="flex items-center flex-shrink-0 ml-2">
-                          <span className={overBudget ? "text-[11px] font-mono text-[#ef4444]" : "text-[11px] font-mono text-[var(--text-muted)]"}>
-                            {sub.actual !== 0 ? fmt(sub.actual) : '—'} /
-                          </span>
-                          <div className="w-[55px] flex-shrink-0 ml-1">
-                            <div
-                              className={`flex items-center w-full rounded ${
-                                isEditing
-                                  ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
-                                  : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
-                              }`}
-                              onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                            >
-                              <span className="pl-0.5 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
-                              {isEditing ? (
-                                <input type="text" inputMode="decimal" autoFocus
-                                  className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-0.5 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
-                                  value={editingCell.value}
-                                  onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
-                                  onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
-                                  onBlur={() => handleBudgetBlur(sub.categoryId)}
-                                />
-                              ) : (
-                                <span className="flex-1 text-right text-[11px] font-mono py-0.5 pr-0.5 text-[var(--text-body)]">
-                                  {sub.budgeted > 0 ? sub.budgeted.toLocaleString('en-US') : '0'}
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                    <div key={groupKey}>
+                      <div onClick={() => setCollapsedGroups((s) => ({ ...s, [groupKey]: !s[groupKey] }))}
+                        className="grid gap-3 px-6 py-3.5 border-b border-line cursor-pointer items-center hover:bg-surface-2/50"
+                        style={{ gridTemplateColumns: 'minmax(0,1fr) 82px 82px 92px' }}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-content-3 shrink-0" style={{ transform: gCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform .15s' }}><path d="m9 6 6 6-6 6"/></svg>
+                          <span className="w-8 h-8 shrink-0 rounded-[9px] bg-surface-2 border border-line flex items-center justify-center text-base leading-none">{getCategoryEmoji(g.groupName)}</span>
+                          <span className="font-bold text-[15px] truncate">{g.groupName}</span>
                         </div>
+                        <span className="text-right font-bold text-[15px] tabular-nums">{fmtWhole(gPlanned)}</span>
+                        <span className="text-right text-[15px] text-content-2 tabular-nums">{fmtWhole(gActual)}</span>
+                        <span className="text-right font-bold text-[15px] tabular-nums" style={{ color: gRem < 0 ? 'var(--negative)' : 'var(--positive)' }}>{fmtWhole(gRem)}</span>
                       </div>
-                      {sub.budgeted > 0 && (
-                        <div className="h-[5px] rounded-sm overflow-hidden" style={{ background: 'var(--progress-track)' }}>
-                          <div className="h-full rounded-sm" style={{
-                            width: `${pct}%`,
-                            background: overBudget ? '#ef4444' : color,
-                          }} />
+                      {!gCollapsed && (
+                        <div>
+                          {rows.map((r) => {
+                            const rem = r.budgeted - r.actual;
+                            return (
+                              <div key={r.categoryId} className="grid gap-3 pr-6 py-3 border-b border-line items-center" style={{ gridTemplateColumns: 'minmax(0,1fr) 82px 82px 92px', paddingLeft: 52 }}>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium mb-1.5 truncate">{r.subName}</div>
+                                  <div style={{ maxWidth: 320 }}><BudgetBar value={r.actual} max={r.budgeted} /></div>
+                                </div>
+                                <div className="flex justify-end">
+                                  <button onClick={(e) => { e.stopPropagation(); if (canEditBudgets) openEdit(r.categoryId, g.groupName, r.subName, r.budgeted); }}
+                                    disabled={!canEditBudgets}
+                                    className="min-w-16 text-right text-sm font-semibold text-content tabular-nums px-2.5 py-1.5 rounded-lg border border-line-strong bg-surface-2 enabled:hover:border-primary disabled:cursor-default">
+                                    {fmtWhole(r.budgeted)}
+                                  </button>
+                                </div>
+                                <span className="text-right text-sm text-content-2 tabular-nums self-center">{fmtWhole(r.actual)}</span>
+                                <span className="text-right text-sm font-semibold tabular-nums self-center" style={{ color: rem < 0 ? 'var(--negative)' : 'var(--positive)' }}>{fmtWhole(rem)}</span>
+                              </div>
+                            );
+                          })}
+                          {unbudgeted.length > 0 && (
+                            <div onClick={() => setShowUnbudgeted((s) => ({ ...s, [groupKey]: !s[groupKey] }))}
+                              className="flex items-center gap-2.5 px-6 py-3 border-b border-line cursor-pointer text-content-3" style={{ paddingLeft: 52 }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                              <span className="text-[13px] font-semibold">{showUn ? 'Hide' : 'Show'} {unbudgeted.length} unbudgeted</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -579,166 +485,77 @@ export default function BudgetPage() {
               </div>
             );
           })}
-        </div>
-      ) : (
-      /* Desktop: Two Column Income + Expenses */
-      <div className="grid gap-5 grid-cols-2 flex-1 min-h-[300px]">
-        {/* Income */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
-          <h3 className="text-[14px] font-bold text-[#10b981] m-0">Income</h3>
-          <div className="flex-1 min-h-0 mt-2">
-            <ScrollableList maxHeight="100%">
-              <table className="w-full border-collapse table-fixed">
-                <thead>
-                  <tr>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right w-[80px]">Budget</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right w-[90px]">Actual</th>
-                    <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-right w-[100px]">Diff</th>
-                  </tr>
-                </thead>
-            <tbody>
-              {income.map((r) => {
-                const diff = r.actual - r.budgeted;
-                const isEditing = editingCell?.categoryId === r.categoryId;
-                return (
-                  <tr key={r.categoryId} className="border-b border-[var(--table-row-border)]">
-                    <td className="px-2.5 py-1.5 text-[13px] font-medium text-[var(--text-primary)]">{r.subName}</td>
-                    <td className="px-1 py-1">
-                      <div
-                        className={`flex items-center w-full rounded ${
-                          isEditing
-                            ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
-                            : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
-                        }`}
-                        onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: r.categoryId, value: String(r.budgeted || '') })}
-                      >
-                        <span className="pl-1.5 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            autoFocus
-                            inputMode="decimal"
-                            className="flex-1 min-w-0 text-right text-[11px] font-mono py-1 pr-1.5 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
-                            value={editingCell.value}
-                            onChange={(e) => setEditingCell({ categoryId: r.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
-                            onKeyDown={(e) => handleBudgetKeyDown(e, r.categoryId)}
-                            onBlur={() => handleBudgetBlur(r.categoryId)}
-                          />
-                        ) : (
-                          <span className="flex-1 text-right text-[11px] font-mono py-1 pr-1.5 text-[var(--text-body)]">
-                            {r.budgeted > 0 ? r.budgeted.toLocaleString('en-US') : '0'}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-2.5 py-1.5 text-right font-mono text-[11px] font-semibold text-[var(--text-primary)]">
-                      {r.actual > 0 ? fmt(r.actual) : '—'}
-                    </td>
-                    <td className={`px-2.5 py-1.5 text-right font-mono text-[11px] ${
-                      (r.budgeted > 0 || r.actual > 0) ? (diff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]') : 'text-[var(--text-muted)]'
-                    }`}>
-                      {(r.budgeted > 0 || r.actual > 0) ? `${diff >= 0 ? '+' : ''}${fmt(diff)}` : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-              {/* Total Row */}
-              <tr className="bg-[var(--bg-hover)]">
-                <td className="px-2.5 py-2 text-[13px] font-bold text-[var(--text-primary)]">Total</td>
-                <td className="px-2.5 py-2 text-right font-mono text-[11px] font-bold text-[var(--text-primary)]">{fmt(totals.budgetedIncome)}</td>
-                <td className="px-2.5 py-2 text-right font-mono text-[11px] font-bold text-[var(--text-primary)]">{fmt(totals.actualIncome)}</td>
-                <td className={`px-2.5 py-2 text-right font-mono text-[11px] font-bold ${incDiff >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
-                  {incDiff >= 0 ? '+' : ''}{fmt(incDiff)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-            </ScrollableList>
+          <div className="flex items-center justify-between px-6 py-4" style={{ background: 'color-mix(in srgb, var(--positive) 14%, transparent)' }}>
+            <span className="text-base font-extrabold">Left to budget</span>
+            <span className="text-lg font-extrabold tabular-nums" style={{ color: totals.leftToBudget < 0 ? 'var(--negative)' : 'var(--positive)' }}>{fmtWhole(totals.leftToBudget)}</span>
           </div>
         </div>
 
-        {/* Expenses */}
-        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col min-h-0">
-          <h3 className="text-[14px] font-bold text-[#f97316] m-0">Expenses</h3>
-          <div className="flex-1 min-h-0 mt-2">
-            <ScrollableList maxHeight="100%">
-            {expenseGroups.map((g) => {
-              const gBudgeted = g.subs.reduce((s, sub) => s + sub.budgeted, 0);
-              const gActual = g.subs.reduce((s, sub) => s + sub.actual, 0);
-              const allGroups = expenseGroups.map((x) => x.groupName);
-              const color = getCategoryColor(g.groupName, allGroups);
+        {/* Summary rail */}
+        <div className="flex flex-col gap-4 lg:sticky lg:top-2">
+          <div className="rounded-card border shadow-sm p-6 text-center" style={{ borderColor: 'color-mix(in srgb, var(--positive) 35%, var(--line))', background: 'color-mix(in srgb, var(--positive) 12%, var(--surface))' }}>
+            <div className="text-[34px] font-extrabold tracking-tight tabular-nums" style={{ color: totals.leftToBudget < 0 ? 'var(--negative)' : 'var(--positive)' }}>{fmtWhole(totals.leftToBudget)}</div>
+            <div className="text-sm text-content-2 mt-1">Left to budget</div>
+          </div>
+          <div className="rounded-card border border-line bg-surface shadow-sm p-6">
+            {([
+              { label: 'Income', planned: totals.budgetedIncome, actual: totals.actualIncome, verb: 'earned' },
+              { label: 'Expenses', planned: totals.budgetedExpenses, actual: totals.actualExpenses, verb: 'spent' },
+              { label: 'Savings', planned: totals.budgetedSavings, actual: totals.actualSavings, verb: 'saved' },
+            ]).map((b, i) => {
+              const pct = b.planned > 0 ? Math.min(100, (b.actual / b.planned) * 100) : 0;
+              const rem = b.planned - b.actual;
               return (
-                <div key={g.groupName} className="mb-3.5">
-                  {/* Group Header */}
-                  <div className="flex justify-between py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
-                    <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] uppercase tracking-[0.05em] flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />
-                      {g.groupName}
-                    </span>
-                    <span className="font-semibold text-[12px] font-mono text-[var(--text-secondary)]">
-                      <span className={gBudgeted > 0 && gActual > gBudgeted ? 'text-[#ef4444]' : undefined}>
-                        {gActual !== 0 ? fmt(gActual) : '—'}
-                      </span>
-                      {' / '}
-                      <span>{gBudgeted > 0 ? fmt(gBudgeted) : '—'}</span>
-                    </span>
-                  </div>
-                  {/* Sub-category rows */}
-                  {g.subs.map((sub) => {
-                    const pct = sub.budgeted > 0 ? Math.min(100, (sub.actual / sub.budgeted) * 100) : (sub.actual !== 0 ? 100 : 0);
-                    const overBudget = sub.budgeted > 0 && sub.actual > sub.budgeted;
-                    const isEditing = editingCell?.categoryId === sub.categoryId;
-                    return (
-                      <div key={sub.categoryId} className="flex items-center py-1 pl-3.5 gap-2">
-                        <span className="flex-1 text-[12px] text-[var(--text-body)]">{sub.subName}</span>
-                        <div className="w-[50px] h-1 bg-[var(--progress-track)] rounded-sm overflow-hidden">
-                          <div className="h-full rounded-sm" style={{
-                            width: `${pct}%`,
-                            background: sub.budgeted > 0 && sub.actual > sub.budgeted ? '#ef4444' : color,
-                          }} />
-                        </div>
-                        <span className={overBudget ? "w-[80px] text-right text-[11px] font-mono text-[#ef4444]" : "w-[80px] text-right text-[11px] font-mono text-[var(--text-secondary)]"}>
-                          {sub.actual !== 0 ? fmt(sub.actual) : '—'}
-                        </span>
-                        <div className="w-[80px] flex-shrink-0">
-                          <div
-                            className={`flex items-center w-full rounded ${
-                              isEditing
-                                ? 'ring-1 ring-[#3b82f6] bg-[var(--bg-input)]'
-                                : canEditBudgets ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''
-                            }`}
-                            onClick={() => !isEditing && canEditBudgets && setEditingCell({ categoryId: sub.categoryId, value: String(sub.budgeted || '') })}
-                          >
-                            <span className="pl-1 text-[11px] font-mono text-[var(--text-muted)] flex-shrink-0 select-none">$</span>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                autoFocus
-                                inputMode="decimal"
-                                className="flex-1 min-w-0 text-right text-[11px] font-mono py-0.5 pr-1 no-focus-ring bg-transparent outline-none border-none text-[var(--text-body)]"
-                                value={editingCell.value}
-                                onChange={(e) => setEditingCell({ categoryId: sub.categoryId, value: e.target.value.replace(/[^0-9]/g, '') })}
-                                onKeyDown={(e) => handleBudgetKeyDown(e, sub.categoryId)}
-                                onBlur={() => handleBudgetBlur(sub.categoryId)}
-                              />
-                            ) : (
-                              <span className="flex-1 text-right text-[11px] font-mono py-0.5 pr-1 text-[var(--text-muted)]">
-                                {sub.budgeted > 0 ? sub.budgeted.toLocaleString('en-US') : '0'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div key={b.label}>
+                  {i > 0 && <div className="h-px bg-line my-[18px]" />}
+                  <div className="flex items-center justify-between mb-2.5"><span className="text-[15px] font-bold">{b.label}</span><span className="text-[13px] text-content-3 tabular-nums">{fmtWhole(b.planned)} planned</span></div>
+                  <div className="h-[7px] rounded-full bg-surface-2 overflow-hidden mb-2"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--positive)' }} /></div>
+                  <div className="flex items-center justify-between text-sm"><span className="font-semibold">{fmtWhole(b.actual)} {b.verb}</span><span className="text-content-3"><span className="text-positive font-bold tabular-nums">{fmtWhole(rem)}</span> remaining</span></div>
                 </div>
               );
             })}
-            </ScrollableList>
           </div>
         </div>
       </div>
+      ) : (
+      /* ===== YEAR VIEW (annual endpoint + 12-month grid coming next) ===== */
+      <div className="bg-surface rounded-card border border-line shadow-sm p-10 text-center">
+        <p className="text-content-3 font-mono text-sm">Annual view — coming next in this build</p>
+      </div>
+      )}
+
+      {/* ===== Edit budget popup ===== */}
+      {editModal && (
+        <div onClick={closeEdit} className="fixed inset-0 z-[80] flex items-center justify-center p-6" style={{ background: 'rgba(6,8,12,.6)', backdropFilter: 'blur(3px)' }}>
+          <div onClick={(e) => e.stopPropagation()} className="w-[440px] max-w-full bg-surface border border-line-strong rounded-card shadow-md overflow-hidden">
+            <div className="flex items-center justify-between px-6 pt-5 pb-1">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-9 h-9 shrink-0 rounded-[9px] bg-surface-2 border border-line flex items-center justify-center text-[17px] leading-none">{editModal.emoji}</span>
+                <span className="text-[19px] font-extrabold tracking-tight truncate">{editModal.subName}</span>
+              </div>
+              <button onClick={closeEdit} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+            </div>
+            <div className="px-6 pt-3.5 pb-1">
+              <div className="text-[13px] font-semibold text-content-2 mb-2">Budgeted amount</div>
+              <div className="flex items-center px-4 rounded-[12px] bg-surface-2 border-2 border-primary" style={{ height: 52, boxShadow: '0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent)' }}>
+                <span className="text-lg text-content-3 font-semibold">$</span>
+                <input autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal"
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') closeEdit(); }}
+                  className="flex-1 ml-1.5 bg-transparent border-none outline-none text-content text-lg font-bold tabular-nums" />
+              </div>
+            </div>
+            <div onClick={() => setApplyFuture((v) => !v)} className="flex items-center gap-3 px-6 py-3.5 cursor-pointer">
+              <span className="w-[22px] h-[22px] shrink-0 rounded-[7px] flex items-center justify-center border-[1.5px]" style={{ borderColor: applyFuture ? 'var(--primary)' : 'var(--line-strong)', background: applyFuture ? 'var(--primary)' : 'var(--surface)' }}>
+                {applyFuture && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}
+              </span>
+              <span className="text-sm font-semibold">Apply to the rest of {month.getFullYear()}</span>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-line">
+              <button onClick={closeEdit} className="h-[42px] px-[18px] rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
+              <button onClick={saveEdit} className="h-[42px] px-[22px] rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm hover:bg-primary-hover">Save</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Import Wizard Modal */}
