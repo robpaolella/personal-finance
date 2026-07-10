@@ -1017,8 +1017,7 @@ export default function TransactionsPage() {
         <div className="flex items-center gap-2.5 flex-wrap">
           {/* Clear all — shows whenever any filter/search/date is active */}
           {anyActive && (
-            <button onClick={clearAll} className="flex items-center gap-1.5 h-10 px-2.5 text-content-2 hover:text-content font-semibold text-sm">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            <button onClick={clearAll} className="h-10 px-2.5 text-primary hover:text-primary-hover font-semibold text-sm">
               Clear
             </button>
           )}
