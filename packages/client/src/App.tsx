@@ -15,6 +15,7 @@ import MockupPage from './pages/MockupPage';
 import QAPage from './pages/QAPage';
 import MobileHeader from './components/MobileHeader';
 import BottomTabBar from './components/BottomTabBar';
+import LedgerLogo from './components/LedgerLogo';
 import { NAV_ITEMS } from './lib/navItems';
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { apiFetch } from './lib/api';
@@ -117,10 +118,8 @@ function AppShell() {
           ) : (
             <>
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-md bg-gradient-to-br from-[#3b82f6] to-[#10b981] flex items-center justify-center shrink-0">
-                  <span className="text-white text-sm font-extrabold font-mono">$</span>
-                </div>
-                <span className="text-[var(--sidebar-text)] text-base font-bold tracking-[-0.02em] whitespace-nowrap">Ledger</span>
+                <LedgerLogo size={28} className="shrink-0" />
+                <span className="text-[var(--sidebar-text)] text-base font-extrabold tracking-[-0.02em] whitespace-nowrap">Ledger</span>
               </div>
               <button
                 onClick={toggleSidebar}

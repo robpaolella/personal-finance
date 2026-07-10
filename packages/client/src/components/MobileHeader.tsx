@@ -1,4 +1,5 @@
 import { usePageTitle } from '../hooks/usePageTitle';
+import LedgerLogo from './LedgerLogo';
 
 export default function MobileHeader() {
   const title = usePageTitle();
@@ -9,9 +10,7 @@ export default function MobileHeader() {
       style={{ padding: '10px 20px 12px' }}
     >
       <div className="flex items-center gap-2">
-        <div className="w-[22px] h-[22px] rounded-[5px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] flex items-center justify-center">
-          <span className="text-white text-[11px] font-extrabold font-mono">$</span>
-        </div>
+        <LedgerLogo size={22} />
         <span className="text-[17px] font-bold text-[var(--text-primary)]">{title}</span>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import LedgerLogo from '../components/LedgerLogo';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import InlineNotification from '../components/InlineNotification';
@@ -95,9 +96,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-10">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#10b981] flex items-center justify-center">
-              <span className="text-white text-xl font-extrabold font-mono">$</span>
-            </div>
+            <LedgerLogo size={40} />
             <span className="text-gray-100 text-2xl font-bold tracking-tight">Ledger</span>
           </div>
 
@@ -208,9 +207,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-10">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#10b981] flex items-center justify-center">
-            <span className="text-white text-xl font-extrabold font-mono">$</span>
-          </div>
+          <LedgerLogo size={40} />
           <span className="text-gray-100 text-2xl font-bold tracking-tight">Ledger</span>
         </div>
 
