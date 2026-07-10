@@ -91,6 +91,7 @@ router.get('/', (req: Request, res: Response) => {
       startDate, endDate,
       accountId, categoryId, groupName, categoryIds, groupNames,
       type, owner, search,
+      amountOp, amountValue, amountMin, amountMax,
       limit: limitStr, offset: offsetStr,
       sortBy = 'date', sortOrder = 'desc',
     } = req.query as Record<string, string | undefined>;
@@ -160,6 +161,17 @@ router.get('/', (req: Request, res: Response) => {
           like(transactions.note, `%${search}%`),
         )!
       );
+    }
+    // Amount filter (by magnitude) — operators from the Filters popover
+    const amtVal = amountValue ? parseFloat(amountValue) : NaN;
+    if (amountOp === 'gt' && !isNaN(amtVal)) conditions.push(sql`ABS(${transactions.amount}) > ${amtVal}`);
+    else if (amountOp === 'lt' && !isNaN(amtVal)) conditions.push(sql`ABS(${transactions.amount}) < ${amtVal}`);
+    else if (amountOp === 'eq' && !isNaN(amtVal)) conditions.push(sql`ABS(${transactions.amount}) = ${amtVal}`);
+    else if (amountOp === 'bt') {
+      const mn = amountMin ? parseFloat(amountMin) : NaN;
+      const mx = amountMax ? parseFloat(amountMax) : NaN;
+      if (!isNaN(mn)) conditions.push(sql`ABS(${transactions.amount}) >= ${mn}`);
+      if (!isNaN(mx)) conditions.push(sql`ABS(${transactions.amount}) <= ${mx}`);
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;

@@ -526,10 +526,10 @@ export default function TransactionsPage() {
   const [filterAccount, setFilterAccount] = useState('All');
   const [filterType, setFilterType] = useState('All');
   const [filterCategory, setFilterCategory] = useState<string[]>([]);
-
-  const toggleCategoryFilter = (value: string) => {
-    setFilterCategory(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
-  };
+  const [amountOp, setAmountOp] = useState('');   // '' | 'gt' | 'lt' | 'eq' | 'bt'
+  const [amountValue, setAmountValue] = useState('');
+  const [amountMin, setAmountMin] = useState('');
+  const [amountMax, setAmountMax] = useState('');
 
   const [datePreset, setDatePreset] = useState('all');
   const [customStart, setCustomStart] = useState('');
@@ -547,6 +547,10 @@ export default function TransactionsPage() {
   const [dateOpen, setDateOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [filterTab, setFilterTab] = useState('Categories');
+  const [filterSearch, setFilterSearch] = useState('');
+  const [dateDraft, setDateDraft] = useState<{ preset: string; start: string; end: string }>({ preset: 'all', start: '', end: '' });
+  const [filterDraft, setFilterDraft] = useState<{ account: string; type: string; category: string[]; op: string; val: string; min: string; max: string }>({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' });
   const [editCell, setEditCell] = useState<{ id: number; field: 'vendor' | 'category' } | null>(null);
   const [cellSearch, setCellSearch] = useState('');
   const [detail, setDetail] = useState<Transaction | null>(null);
@@ -628,13 +632,18 @@ export default function TransactionsPage() {
       if (groupNames.length) params.set('groupNames', groupNames.join(','));
       if (catIds.length) params.set('categoryIds', catIds.join(','));
     }
+    if (amountOp) {
+      params.set('amountOp', amountOp);
+      if (amountOp === 'bt') { if (amountMin) params.set('amountMin', amountMin); if (amountMax) params.set('amountMax', amountMax); }
+      else if (amountValue) params.set('amountValue', amountValue);
+    }
     params.set('sortBy', sortBy);
     params.set('sortOrder', sortOrder);
 
     const res = await apiFetch<{ data: Transaction[]; total: number }>(`/transactions?${params.toString()}`);
     setTransactions(res.data);
     setTotal(res.total);
-  }, [getDateRange, search, filterAccount, filterType, filterCategory, page, pageSize, sortBy, sortOrder]);
+  }, [getDateRange, search, filterAccount, filterType, filterCategory, amountOp, amountValue, amountMin, amountMax, page, pageSize, sortBy, sortOrder]);
 
   const loadMeta = useCallback(async () => {
     const [acctRes, catRes] = await Promise.all([
@@ -654,6 +663,17 @@ export default function TransactionsPage() {
   const applySort = (by: string, order: 'asc' | 'desc') => {
     setSortBy(by); setSortOrder(order); setSortTouched(true); setSortOpen(false); setPage(1);
   };
+
+  // Date / Filters overlays — edits are staged in a draft, committed on Apply.
+  const openDatePopover = () => { setDateDraft({ preset: datePreset, start: customStart, end: customEnd }); setSortOpen(false); setFilterOpen(false); setDateOpen(true); };
+  const applyDate = () => { setDatePreset(dateDraft.preset); setCustomStart(dateDraft.start); setCustomEnd(dateDraft.end); setDateOpen(false); };
+  const openFilterPopover = () => { setFilterDraft({ account: filterAccount, type: filterType, category: [...filterCategory], op: amountOp, val: amountValue, min: amountMin, max: amountMax }); setFilterTab('Categories'); setFilterSearch(''); setSortOpen(false); setDateOpen(false); setFilterOpen(true); };
+  const applyFilters = () => {
+    setFilterAccount(filterDraft.account); setFilterType(filterDraft.type); setFilterCategory(filterDraft.category);
+    setAmountOp(filterDraft.op); setAmountValue(filterDraft.val); setAmountMin(filterDraft.min); setAmountMax(filterDraft.max);
+    setFilterOpen(false);
+  };
+  const toggleDraftCategory = (value: string) => setFilterDraft((d) => ({ ...d, category: d.category.includes(value) ? d.category.filter((v) => v !== value) : [...d.category, value] }));
 
   // Inline/panel edit — rebuilds the txn body (preserving splits) and PUTs.
   const updateTxnField = async (t: Transaction, changes: { description?: string; categoryId?: number; date?: string; note?: string | null }) => {
@@ -744,7 +764,7 @@ export default function TransactionsPage() {
   };
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
-  useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory]);
+  useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory, amountOp, amountValue, amountMin, amountMax]);
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
 
   useEffect(() => {
@@ -884,7 +904,7 @@ export default function TransactionsPage() {
     { value: 'custom', label: 'Custom range…' },
   ];
   const dateLabel = datePreset === 'all' ? 'Date' : (DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Date');
-  const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length;
+  const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length + (amountOp ? 1 : 0);
   const groupedAll = Array.from(
     categories.reduce((m, c) => { if (!m.has(c.group_name)) m.set(c.group_name, []); m.get(c.group_name)!.push(c); return m; }, new Map<string, Category[]>()).entries()
   );
@@ -1001,82 +1021,155 @@ export default function TransactionsPage() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
             </button>
           )}
-          {/* Date */}
+          {/* Date range overlay (design system) */}
           <div className="relative">
-            <button onClick={() => { setDateOpen((o) => !o); setFilterOpen(false); setSortOpen(false); }}
-              className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border ${datePreset !== 'all' ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+            <button onClick={openDatePopover}
+              className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border-2 ${dateOpen || datePreset !== 'all' ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
               {dateLabel}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             {dateOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setDateOpen(false)} />
-                <div className="absolute top-12 right-0 z-50 w-64 bg-elevated border border-line-strong rounded-[12px] shadow-md p-1.5">
-                  {DATE_PRESETS.map((p) => (
-                    <button key={p.value} onClick={() => { setDatePreset(p.value); if (p.value !== 'custom') setDateOpen(false); }}
-                      className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-content hover:bg-surface-2">
-                      <span className="w-4 flex justify-center">{datePreset === p.value && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
-                      {p.label}
-                    </button>
-                  ))}
-                  {datePreset === 'custom' && (
-                    <div className="flex flex-col gap-2 p-2 mt-1 border-t border-line">
-                      <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="h-9 px-2 rounded-lg bg-surface-2 border border-line text-content text-sm outline-none" />
-                      <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="h-9 px-2 rounded-lg bg-surface-2 border border-line text-content text-sm outline-none" />
+                <div className="absolute top-12 right-0 z-50 w-[660px] max-w-[calc(100vw-64px)] bg-elevated border border-line-strong rounded-[16px] shadow-md overflow-hidden flex flex-col">
+                  <div className="flex">
+                    <div className="w-[212px] shrink-0 border-r border-line">
+                      <div className="px-5 pt-[18px] pb-3 text-base font-extrabold tracking-tight border-b border-line">Date Range</div>
+                      <div className="py-2">
+                        {DATE_PRESETS.map((p) => {
+                          const active = dateDraft.preset === p.value;
+                          return (
+                            <div key={p.value} onClick={() => setDateDraft((d) => ({ ...d, preset: p.value }))}
+                              className="px-5 py-2.5 text-[15px] font-medium cursor-pointer"
+                              style={{ color: active ? 'var(--primary)' : 'var(--text)', background: active ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent', borderLeft: `2px solid ${active ? 'var(--primary)' : 'transparent'}` }}>
+                              {p.value === 'custom' ? 'Custom range' : p.label}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  )}
-                  {datePreset !== 'all' && (
-                    <button onClick={() => { setDatePreset('all'); setCustomStart(''); setCustomEnd(''); }} className="w-full mt-1 px-3 py-2 rounded-lg text-sm font-semibold text-content-2 hover:bg-surface-2 border-t border-line">Clear</button>
-                  )}
+                    <div className="flex-1 p-6">
+                      <div className="flex items-center justify-between mb-2.5"><span className="text-[15px] font-bold">Start date</span><button onClick={() => setDateDraft((d) => ({ ...d, start: '', preset: 'custom' }))} className="text-sm font-semibold text-primary">Clear</button></div>
+                      <input type="date" value={dateDraft.start} onChange={(e) => setDateDraft((d) => ({ ...d, start: e.target.value, preset: 'custom' }))} className="w-full h-[50px] px-4 rounded-[12px] bg-surface border border-line text-content text-[15px] outline-none mb-[22px]" />
+                      <div className="flex items-center justify-between mb-2.5"><span className="text-[15px] font-bold">End date</span><button onClick={() => setDateDraft((d) => ({ ...d, end: '', preset: 'custom' }))} className="text-sm font-semibold text-primary">Clear</button></div>
+                      <input type="date" value={dateDraft.end} onChange={(e) => setDateDraft((d) => ({ ...d, end: e.target.value, preset: 'custom' }))} className="w-full h-[50px] px-4 rounded-[12px] bg-surface border border-line text-content text-[15px] outline-none" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
+                    <button onClick={() => setDateDraft({ preset: 'all', start: '', end: '' })} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
+                    <div className="flex gap-2.5">
+                      <button onClick={() => setDateOpen(false)} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
+                      <button onClick={applyDate} className="h-10 px-5 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Apply</button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
           </div>
-          {/* Filters */}
+          {/* Filters overlay (design system) */}
           <div className="relative">
-            <button onClick={() => { setFilterOpen((o) => !o); setDateOpen(false); setSortOpen(false); }}
-              className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border ${filterCount ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" strokeLinecap="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+            <button onClick={openFilterPopover}
+              className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border-2 ${filterOpen || filterCount ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
               Filters
-              {filterCount > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-primary text-on-primary text-[11px] font-bold flex items-center justify-center">{filterCount}</span>}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+              {filterCount > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-primary text-on-primary text-[11px] font-bold flex items-center justify-center">{filterCount}</span>}
             </button>
             {filterOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
-                <div className="absolute top-12 right-0 z-50 w-72 bg-elevated border border-line-strong rounded-[12px] shadow-md p-3">
-                  <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Type</div>
-                  <div className="flex gap-1 bg-surface-2 border border-line rounded-[10px] p-1 mb-3">
-                    {['All', 'Income', 'Expense'].map((tp) => (
-                      <button key={tp} onClick={() => setFilterType(tp)} className={`flex-1 py-1.5 rounded-lg text-sm font-semibold ${filterType === tp ? 'bg-elevated shadow-sm text-content' : 'text-content-2'}`}>{tp}</button>
-                    ))}
+                <div className="absolute top-12 right-0 z-50 w-[720px] max-w-[calc(100vw-64px)] bg-elevated border border-line-strong rounded-[16px] shadow-md overflow-hidden flex flex-col">
+                  <div className="flex border-b border-line">
+                    <div className="w-[186px] shrink-0 px-5 py-[18px] text-base font-extrabold tracking-tight border-r border-line">Filters</div>
+                    <div className="flex-1 flex items-center gap-2.5 px-5">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                      <input value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} placeholder={`Search ${filterTab.toLowerCase()}…`} className="flex-1 h-11 bg-transparent outline-none text-sm text-content" />
+                    </div>
                   </div>
-                  <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Account</div>
-                  <select value={filterAccount} onChange={(e) => setFilterAccount(e.target.value)} className="w-full h-10 px-3 rounded-[10px] bg-surface-2 border border-line text-content text-sm outline-none mb-3">
-                    <option value="All">All accounts</option>
-                    {accounts.map((a) => <option key={a.id} value={a.id.toString()}>{accountLabel(a)}</option>)}
-                  </select>
-                  <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Category</div>
-                  <div className="rounded-[10px] border border-line max-h-56 overflow-y-auto">
-                    {categoryGroups.map((g) => (
-                      <div key={g.group}>
-                        <label className="flex items-center gap-2 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wide text-content-3 hover:bg-surface-2 cursor-pointer">
-                          <input type="checkbox" checked={filterCategory.includes(`group:${g.group}`)} onChange={() => toggleCategoryFilter(`group:${g.group}`)} className="accent-[var(--primary)]" />
-                          {g.group}
-                        </label>
-                        {g.subs.map((s) => (
-                          <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 pl-7 text-[13px] text-content hover:bg-surface-2 cursor-pointer">
-                            <input type="checkbox" checked={filterCategory.includes(`sub:${s.id}`)} onChange={() => toggleCategoryFilter(`sub:${s.id}`)} className="accent-[var(--primary)]" />
-                            {s.sub}
-                          </label>
-                        ))}
-                      </div>
-                    ))}
+                  <div className="flex">
+                    <div className="w-[186px] shrink-0 p-3 border-r border-line flex flex-col gap-0.5">
+                      {['Categories', 'Merchants', 'Accounts', 'Tags', 'Amount', 'Other'].map((n) => {
+                        const active = filterTab === n;
+                        return (
+                          <button key={n} onClick={() => { setFilterTab(n); setFilterSearch(''); }} className="px-3.5 py-2.5 rounded-[9px] text-sm font-semibold text-left"
+                            style={{ color: active ? 'var(--primary)' : 'var(--text)', background: active ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent' }}>{n}</button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex-1 p-4 overflow-auto" style={{ minHeight: 340, maxHeight: 440 }}>
+                      {filterTab === 'Categories' && categoryGroups.map((g) => {
+                        const gChecked = filterDraft.category.includes(`group:${g.group}`);
+                        const subs = filterSearch ? g.subs.filter((s) => `${s.sub} ${g.group}`.toLowerCase().includes(filterSearch.toLowerCase())) : g.subs;
+                        if (filterSearch && subs.length === 0 && !g.group.toLowerCase().includes(filterSearch.toLowerCase())) return null;
+                        return (
+                          <div key={g.group} className="mb-1">
+                            <div onClick={() => toggleDraftCategory(`group:${g.group}`)} className="flex items-center gap-3 py-2 text-sm font-semibold cursor-pointer">
+                              <span className="w-[19px] h-[19px] shrink-0 rounded-md border-[1.5px] flex items-center justify-center" style={{ borderColor: gChecked ? 'var(--primary)' : 'var(--line-strong)', background: gChecked ? 'var(--primary)' : 'transparent' }}>{gChecked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
+                              {g.group}
+                            </div>
+                            {subs.map((s) => {
+                              const sChecked = filterDraft.category.includes(`sub:${s.id}`);
+                              return (
+                                <div key={s.id} onClick={() => toggleDraftCategory(`sub:${s.id}`)} className="flex items-center gap-3 py-2 pl-7 text-[13px] cursor-pointer">
+                                  <span className="w-[19px] h-[19px] shrink-0 rounded-md border-[1.5px] flex items-center justify-center" style={{ borderColor: sChecked ? 'var(--primary)' : 'var(--line-strong)', background: sChecked ? 'var(--primary)' : 'transparent' }}>{sChecked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}</span>
+                                  {s.sub}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                      {filterTab === 'Accounts' && [{ id: 'All', label: 'All accounts' }, ...accounts.filter((a) => !filterSearch || accountLabel(a).toLowerCase().includes(filterSearch.toLowerCase())).map((a) => ({ id: a.id.toString(), label: accountLabel(a) }))].map((a) => {
+                        const checked = filterDraft.account === a.id;
+                        return (
+                          <div key={a.id} onClick={() => setFilterDraft((d) => ({ ...d, account: a.id }))} className="flex items-center gap-3.5 py-2 text-[15px] cursor-pointer">
+                            <span className="w-[22px] h-[22px] shrink-0 rounded-full border-2 flex items-center justify-center" style={{ borderColor: checked ? 'var(--primary)' : 'var(--line-strong)' }}>{checked && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}</span>
+                            {a.label}
+                          </div>
+                        );
+                      })}
+                      {filterTab === 'Amount' && (
+                        <div>
+                          <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Amount</div>
+                          {([['gt', 'Greater than…'], ['lt', 'Less than…'], ['eq', 'Equal to…'], ['bt', 'Between…']] as [string, string][]).map(([op, label]) => (
+                            <div key={op}>
+                              <div onClick={() => setFilterDraft((d) => ({ ...d, op: d.op === op ? '' : op }))} className="flex items-center gap-3.5 py-2 cursor-pointer text-[15px]">
+                                <span className="w-[22px] h-[22px] shrink-0 rounded-full border-2 flex items-center justify-center" style={{ borderColor: filterDraft.op === op ? 'var(--primary)' : 'var(--line-strong)' }}>{filterDraft.op === op && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}</span>
+                                {label}
+                              </div>
+                              {filterDraft.op === op && op !== 'bt' && (
+                                <div className="pl-10 pb-2"><input value={filterDraft.val} onChange={(e) => setFilterDraft((d) => ({ ...d, val: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="$10" className="w-full h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" /></div>
+                              )}
+                              {filterDraft.op === op && op === 'bt' && (
+                                <div className="flex items-center gap-2.5 pl-10 pb-2">
+                                  <input value={filterDraft.min} onChange={(e) => setFilterDraft((d) => ({ ...d, min: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="Min" className="flex-1 min-w-0 h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" />
+                                  <span className="text-content-3 text-sm">to</span>
+                                  <input value={filterDraft.max} onChange={(e) => setFilterDraft((d) => ({ ...d, max: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="Max" className="flex-1 min-w-0 h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mt-3.5 mb-1.5">Type</div>
+                          {([['Expense', 'Debits only'], ['Income', 'Credits only']] as [string, string][]).map(([val, label]) => (
+                            <div key={val} onClick={() => setFilterDraft((d) => ({ ...d, type: d.type === val ? 'All' : val }))} className="flex items-center gap-3.5 py-2 cursor-pointer text-[15px]">
+                              <span className="w-[22px] h-[22px] shrink-0 rounded-full border-2 flex items-center justify-center" style={{ borderColor: filterDraft.type === val ? 'var(--primary)' : 'var(--line-strong)' }}>{filterDraft.type === val && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}</span>
+                              {label}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {(filterTab === 'Merchants' || filterTab === 'Tags' || filterTab === 'Other') && (
+                        <div className="flex items-center justify-center h-full min-h-[300px] text-content-3 text-sm">Coming soon</div>
+                      )}
+                    </div>
                   </div>
-                  {filterCount > 0 && (
-                    <button onClick={() => { setFilterAccount('All'); setFilterType('All'); setFilterCategory([]); }} className="w-full mt-3 px-3 py-2 rounded-lg text-sm font-semibold text-content-2 hover:bg-surface-2 border border-line">Clear filters</button>
-                  )}
+                  <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
+                    <button onClick={() => setFilterDraft({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' })} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
+                    <div className="flex gap-2.5">
+                      <button onClick={() => setFilterOpen(false)} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
+                      <button onClick={applyFilters} className="h-10 px-5 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Apply</button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
