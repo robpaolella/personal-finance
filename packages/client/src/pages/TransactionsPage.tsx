@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import CurrencyInput from '../components/CurrencyInput';
+import Calendar from '../components/Calendar';
 import PermissionGate from '../components/PermissionGate';
 import { CategoryBadge, SplitBadge, ReimbursementBadge } from '../components/badges';
 import InlineNotification from '../components/InlineNotification';
@@ -551,6 +552,7 @@ export default function TransactionsPage() {
   const [filterSearch, setFilterSearch] = useState('');
   const [dateDraft, setDateDraft] = useState<{ preset: string; start: string; end: string }>({ preset: 'all', start: '', end: '' });
   const [filterDraft, setFilterDraft] = useState<{ account: string; type: string; category: string[]; op: string; val: string; min: string; max: string }>({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' });
+  const [activeDateField, setActiveDateField] = useState<'start' | 'end'>('start');
   const [editCell, setEditCell] = useState<{ id: number; field: 'vendor' | 'category' } | null>(null);
   const [cellSearch, setCellSearch] = useState('');
   const [detail, setDetail] = useState<Transaction | null>(null);
@@ -665,7 +667,8 @@ export default function TransactionsPage() {
   };
 
   // Date / Filters overlays — edits are staged in a draft, committed on Apply.
-  const openDatePopover = () => { setDateDraft({ preset: datePreset, start: customStart, end: customEnd }); setSortOpen(false); setFilterOpen(false); setDateOpen(true); };
+  const openDatePopover = () => { setDateDraft({ preset: datePreset, start: customStart, end: customEnd }); setActiveDateField('start'); setSortOpen(false); setFilterOpen(false); setDateOpen(true); };
+  const applyPreset = (value: string) => { setDatePreset(value); setCustomStart(''); setCustomEnd(''); setDateOpen(false); };
   const applyDate = () => { setDatePreset(dateDraft.preset); setCustomStart(dateDraft.start); setCustomEnd(dateDraft.end); setDateOpen(false); };
   const openFilterPopover = () => { setFilterDraft({ account: filterAccount, type: filterType, category: [...filterCategory], op: amountOp, val: amountValue, min: amountMin, max: amountMax }); setFilterTab('Categories'); setFilterSearch(''); setSortOpen(false); setDateOpen(false); setFilterOpen(true); };
   const applyFilters = () => {
@@ -911,7 +914,11 @@ export default function TransactionsPage() {
     { value: 'this-year', label: 'This year' }, { value: 'last-year', label: 'Last year' }, { value: 'ytd', label: 'Year to date' },
     { value: 'custom', label: 'Custom range…' },
   ];
-  const dateLabel = datePreset === 'all' ? 'Date' : (DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Date');
+  const shortDate = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  const dateLabel = datePreset === 'all' ? 'Date'
+    : datePreset === 'custom'
+      ? (customStart && customEnd ? `${shortDate(customStart)} – ${shortDate(customEnd)}` : customStart ? `From ${shortDate(customStart)}` : customEnd ? `Until ${shortDate(customEnd)}` : 'Custom')
+      : (DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Date');
   const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length + (amountOp ? 1 : 0);
   const anyActive = search !== '' || datePreset !== 'all' || filterCount > 0;
   const groupedAll = Array.from(
@@ -1052,23 +1059,40 @@ export default function TransactionsPage() {
                     <div className="w-[212px] shrink-0 border-r border-line">
                       <div className="px-5 pt-[18px] pb-3 text-base font-extrabold tracking-tight border-b border-line">Date Range</div>
                       <div className="py-2">
-                        {DATE_PRESETS.map((p) => {
-                          const active = dateDraft.preset === p.value;
+                        {DATE_PRESETS.filter((p) => p.value !== 'custom').map((p) => {
+                          const active = datePreset === p.value;
                           return (
-                            <div key={p.value} onClick={() => setDateDraft((d) => ({ ...d, preset: p.value }))}
+                            <div key={p.value} onClick={() => applyPreset(p.value)}
                               className="px-5 py-2.5 text-[15px] font-medium cursor-pointer"
                               style={{ color: active ? 'var(--primary)' : 'var(--text)', background: active ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent', borderLeft: `2px solid ${active ? 'var(--primary)' : 'transparent'}` }}>
-                              {p.value === 'custom' ? 'Custom range' : p.label}
+                              {p.label}
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                    <div className="flex-1 p-6">
-                      <div className="flex items-center justify-between mb-2.5"><span className="text-[15px] font-bold">Start date</span><button onClick={() => setDateDraft((d) => ({ ...d, start: '', preset: 'custom' }))} className="text-sm font-semibold text-primary">Clear</button></div>
-                      <input type="date" value={dateDraft.start} onChange={(e) => setDateDraft((d) => ({ ...d, start: e.target.value, preset: 'custom' }))} className="w-full h-[50px] px-4 rounded-[12px] bg-surface border border-line text-content text-[15px] outline-none mb-[22px]" />
-                      <div className="flex items-center justify-between mb-2.5"><span className="text-[15px] font-bold">End date</span><button onClick={() => setDateDraft((d) => ({ ...d, end: '', preset: 'custom' }))} className="text-sm font-semibold text-primary">Clear</button></div>
-                      <input type="date" value={dateDraft.end} onChange={(e) => setDateDraft((d) => ({ ...d, end: e.target.value, preset: 'custom' }))} className="w-full h-[50px] px-4 rounded-[12px] bg-surface border border-line text-content text-[15px] outline-none" />
+                    <div className="flex-1 p-5">
+                      <div className="flex gap-2 mb-4">
+                        {(['start', 'end'] as const).map((f) => {
+                          const activeF = activeDateField === f;
+                          const val = f === 'start' ? dateDraft.start : dateDraft.end;
+                          return (
+                            <button key={f} type="button" onClick={() => setActiveDateField(f)}
+                              className="flex-1 text-left px-3.5 py-2 rounded-[11px] border"
+                              style={{ borderColor: activeF ? 'var(--primary)' : 'var(--line)', background: activeF ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : 'var(--surface)' }}>
+                              <div className="text-[11px] font-semibold text-content-3">{f === 'start' ? 'Start date' : 'End date'}</div>
+                              <div className="text-sm font-semibold text-content">{val ? new Date(val + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Select'}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <Calendar
+                        value={activeDateField === 'start' ? dateDraft.start : dateDraft.end}
+                        onChange={(d) => {
+                          setDateDraft((prev) => ({ ...prev, preset: 'custom', [activeDateField]: d }));
+                          if (activeDateField === 'start') setActiveDateField('end');
+                        }}
+                      />
                     </div>
                   </div>
                   <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
