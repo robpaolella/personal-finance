@@ -281,6 +281,54 @@ router.get('/summary', (req: Request, res: Response) => {
 });
 
 // POST /api/budgets/import — batch upsert from template/recurring
+// GET /api/budgets/annual?year=YYYY — planned amounts per category for all 12 months
+router.get('/annual', (req: Request, res: Response) => {
+  try {
+    const year = String(req.query.year || new Date().getFullYear());
+
+    const allCategories = db.select().from(categories)
+      .orderBy(asc(categories.sort_order), asc(categories.sub_name))
+      .all();
+
+    const yearBudgets = sqlite.prepare(
+      'SELECT category_id, month, amount FROM budgets WHERE month LIKE ?'
+    ).all(`${year}-%`) as { category_id: number; month: string; amount: number }[];
+
+    const plannedMap = new Map<number, number[]>();
+    for (const b of yearBudgets) {
+      const mi = parseInt(b.month.slice(5, 7), 10) - 1;
+      if (mi < 0 || mi > 11) continue;
+      if (!plannedMap.has(b.category_id)) plannedMap.set(b.category_id, new Array(12).fill(0));
+      plannedMap.get(b.category_id)![mi] = b.amount;
+    }
+    const plannedFor = (id: number) => plannedMap.get(id) ?? new Array(12).fill(0);
+
+    const income = allCategories.filter((c) => c.type === 'income')
+      .map((c) => ({ categoryId: c.id, subName: c.sub_name, planned: plannedFor(c.id) }));
+
+    const buildGroups = (type: string) => {
+      const gm = new Map<string, { groupName: string; subs: { categoryId: number; subName: string; planned: number[] }[] }>();
+      for (const c of allCategories.filter((c) => c.type === type)) {
+        if (!gm.has(c.group_name)) gm.set(c.group_name, { groupName: c.group_name, subs: [] });
+        gm.get(c.group_name)!.subs.push({ categoryId: c.id, subName: c.sub_name, planned: plannedFor(c.id) });
+      }
+      return Array.from(gm.values()).sort((a, b) => a.groupName.localeCompare(b.groupName));
+    };
+
+    res.json({
+      data: {
+        year,
+        income,
+        expenseGroups: buildGroups('expense'),
+        savingsGroups: buildGroups('savings'),
+      },
+    });
+  } catch (err) {
+    console.error('GET /budgets/annual error:', err);
+    res.status(500).json({ error: 'Failed to fetch annual budget' });
+  }
+});
+
 router.post('/import', requirePermission('budgets.edit'), (req: Request, res: Response) => {
   try {
     const { month, items } = req.body as { month: string; items: BudgetImportItem[] };

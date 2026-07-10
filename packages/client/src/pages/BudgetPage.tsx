@@ -50,6 +50,21 @@ interface BudgetSummary {
   totals: Totals;
 }
 
+interface AnnualRow {
+  categoryId: number;
+  subName: string;
+  planned: number[]; // 12 months
+}
+interface AnnualGroup {
+  groupName: string;
+  subs: AnnualRow[];
+}
+interface AnnualSummary {
+  income: AnnualRow[];
+  expenseGroups: AnnualGroup[];
+  savingsGroups: AnnualGroup[];
+}
+
 type ConflictAction = 'skip' | 'overwrite' | 'add';
 
 interface TemplateImportRow {
@@ -121,11 +136,12 @@ export default function BudgetPage() {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [view, setView] = useState<'month' | 'year'>('month');
   const [data, setData] = useState<BudgetSummary | null>(null);
+  const [annualData, setAnnualData] = useState<AnnualSummary | null>(null);
   const [users, setUsers] = useState<{ id: number; displayName: string }[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnbudgeted, setShowUnbudgeted] = useState<Record<string, boolean>>({});
-  const [editModal, setEditModal] = useState<{ categoryId: number; groupName: string; subName: string; emoji: string; planned: number } | null>(null);
+  const [editModal, setEditModal] = useState<{ categoryId: number; groupName: string; subName: string; emoji: string; planned: number; targetMonth: string } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [applyFuture, setApplyFuture] = useState(false);
 
@@ -169,8 +185,15 @@ export default function BudgetPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const openEdit = (categoryId: number, groupName: string, subName: string, planned: number) => {
-    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned });
+  const loadAnnual = useCallback(async () => {
+    const res = await apiFetch<{ data: AnnualSummary }>(`/budgets/annual?year=${month.getFullYear()}`);
+    setAnnualData(res.data);
+  }, [month]);
+
+  useEffect(() => { if (view === 'year') loadAnnual(); }, [view, loadAnnual]);
+
+  const openEdit = (categoryId: number, groupName: string, subName: string, planned: number, targetMonth: string = monthStr(month)) => {
+    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned, targetMonth });
     setEditValue(planned ? String(planned) : '');
     setApplyFuture(false);
   };
@@ -181,12 +204,11 @@ export default function BudgetPage() {
     if (!editModal) return;
     const val = parseFloat(editValue || '0');
     if (isNaN(val) || val < 0) { closeEdit(); return; }
-    const months: string[] = [monthStr(month)];
+    const [by, bm] = editModal.targetMonth.split('-').map(Number); // year, month (1-12)
+    const months: string[] = [editModal.targetMonth];
     if (applyFuture) {
-      // apply the amount through December of the selected year
-      for (let m = month.getMonth() + 1; m <= 11; m++) {
-        months.push(monthStr(new Date(month.getFullYear(), m, 1)));
-      }
+      // apply through December of the target month's year
+      for (let m = bm; m <= 11; m++) months.push(`${by}-${String(m + 1).padStart(2, '0')}`);
     }
     await Promise.all(months.map((mo) =>
       apiFetch('/budgets', {
@@ -197,6 +219,7 @@ export default function BudgetPage() {
     ));
     closeEdit();
     await loadData();
+    if (view === 'year') await loadAnnual();
   };
 
   const openImportWizard = async () => {
@@ -366,6 +389,23 @@ export default function BudgetPage() {
     { key: 'savings', label: 'Savings', groups: savingsGroups, planned: totals.budgetedSavings, actual: totals.actualSavings },
   ];
 
+  // Year view helpers
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const yr = month.getFullYear();
+  const isCurYear = yr === now.getFullYear();
+  const curMi = now.getMonth();
+  const colTint = (m: number) => (isCurYear && m === curMi) ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'transparent';
+  const sumCols = (subs: AnnualRow[]) => {
+    const t = new Array(12).fill(0);
+    for (const s of subs) for (let m = 0; m < 12; m++) t[m] += s.planned[m] || 0;
+    return t;
+  };
+  const annualSections = annualData ? [
+    { key: 'income', label: 'Income', groups: [{ groupName: 'Income', subs: annualData.income }] },
+    { key: 'expenses', label: 'Expenses', groups: annualData.expenseGroups },
+    { key: 'savings', label: 'Savings', groups: annualData.savingsGroups },
+  ] : [];
+
   return (
     <div>
       {/* Top bar */}
@@ -517,11 +557,73 @@ export default function BudgetPage() {
           </div>
         </div>
       </div>
-      ) : (
-      /* ===== YEAR VIEW (annual endpoint + 12-month grid coming next) ===== */
-      <div className="bg-surface rounded-card border border-line shadow-sm p-10 text-center">
-        <p className="text-content-3 font-mono text-sm">Annual view — coming next in this build</p>
+      ) : annualData ? (
+      /* ===== YEAR VIEW ===== */
+      <div className="bg-surface rounded-card border border-line shadow-sm overflow-x-auto">
+        <div style={{ minWidth: 'max-content' }}>
+          {/* month header */}
+          <div className="flex items-center border-b border-line bg-surface-2">
+            <div className="w-[250px] shrink-0 px-6 py-3 font-mono text-[11px] uppercase tracking-wide text-content-3 sticky left-0 bg-surface-2 z-[2]">Category</div>
+            {MONTHS.map((mn, m) => (
+              <div key={m} className="w-[104px] shrink-0 px-3 py-3 text-right font-mono text-[11px] uppercase tracking-wide"
+                style={{ color: (isCurYear && m === curMi) ? 'var(--primary)' : 'var(--text-3)', background: colTint(m), fontWeight: (isCurYear && m === curMi) ? 800 : 600 }}>{mn} {yr}</div>
+            ))}
+          </div>
+          {annualSections.map((sec) => {
+            const secTotals = sec.groups.reduce<number[]>((acc, g) => { const gt = sumCols(g.subs); return acc.map((v, m) => v + gt[m]); }, new Array(12).fill(0));
+            return (
+              <div key={sec.key}>
+                <div className="flex items-center border-t border-b border-line bg-surface-2">
+                  <div className="w-[250px] shrink-0 px-6 py-2.5 text-xs font-bold uppercase tracking-wide text-content-2 sticky left-0 bg-surface-2 z-[2]">{sec.label}</div>
+                  {secTotals.map((v, m) => (
+                    <div key={m} className="w-[104px] shrink-0 px-3 py-2.5 text-right text-xs font-bold text-content-2 tabular-nums" style={{ background: colTint(m) }}>{fmtWhole(v)}</div>
+                  ))}
+                </div>
+                {sec.groups.map((g) => {
+                  const groupKey = 'y|' + sec.key + '|' + g.groupName;
+                  const gCollapsed = collapsedGroups[groupKey];
+                  const gTotals = sumCols(g.subs);
+                  return (
+                    <div key={groupKey}>
+                      <div onClick={() => setCollapsedGroups((s) => ({ ...s, [groupKey]: !s[groupKey] }))} className="flex items-center border-b border-line cursor-pointer">
+                        <div className="w-[250px] shrink-0 px-6 py-3 flex items-center gap-2.5 sticky left-0 bg-surface z-[1]">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-content-3 shrink-0" style={{ transform: gCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform .15s' }}><path d="m9 6 6 6-6 6"/></svg>
+                          <span className="text-[15px] leading-none">{getCategoryEmoji(g.groupName)}</span>
+                          <span className="font-bold text-sm truncate">{g.groupName}</span>
+                        </div>
+                        {gTotals.map((v, m) => (
+                          <div key={m} className="w-[104px] shrink-0 px-3 py-3 text-right text-sm font-semibold tabular-nums" style={{ background: colTint(m) }}>{fmtWhole(v)}</div>
+                        ))}
+                      </div>
+                      {!gCollapsed && g.subs.map((sub) => (
+                        <div key={sub.categoryId} className="flex items-center border-b border-line">
+                          <div className="w-[250px] shrink-0 px-6 py-2.5 text-sm text-content-2 truncate sticky left-0 bg-surface z-[1]" style={{ paddingLeft: 52 }}>{sub.subName}</div>
+                          {sub.planned.map((v, m) => {
+                            const past = isCurYear && m < curMi;
+                            const targetMonth = `${yr}-${String(m + 1).padStart(2, '0')}`;
+                            return (
+                              <div key={m} className="w-[104px] shrink-0 px-2.5 py-1.5 flex justify-end" style={{ background: colTint(m) }}>
+                                <button onClick={() => { if (canEditBudgets && !past) openEdit(sub.categoryId, g.groupName, `${sub.subName} · ${MONTHS[m]} ${yr}`, v, targetMonth); }}
+                                  disabled={!canEditBudgets || past}
+                                  className="min-w-16 text-right text-sm tabular-nums px-2.5 py-1.5 rounded-lg enabled:hover:border-primary"
+                                  style={{ border: past ? '1px solid transparent' : '1px solid var(--line-strong)', color: past ? 'var(--text-3)' : 'var(--text)' }}>
+                                  {fmtWhole(v)}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
+      ) : (
+      <div className="bg-surface rounded-card border border-line shadow-sm p-10 flex justify-center"><Spinner /></div>
       )}
 
       {/* ===== Edit budget popup ===== */}
