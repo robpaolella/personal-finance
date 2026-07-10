@@ -680,6 +680,8 @@ export default function TransactionsPage() {
     setFilterAccount('All'); setFilterType('All'); setFilterCategory([]);
     setAmountOp(''); setAmountValue(''); setAmountMin(''); setAmountMax('');
   };
+  // Clear every active filter (search + date + filters) without opening a popover.
+  const clearAll = () => { setSearch(''); setSearchOpen(false); clearDate(); clearFilters(); };
 
   // Inline/panel edit — rebuilds the txn body (preserving splits) and PUTs.
   const updateTxnField = async (t: Transaction, changes: { description?: string; categoryId?: number; date?: string; note?: string | null }) => {
@@ -911,6 +913,7 @@ export default function TransactionsPage() {
   ];
   const dateLabel = datePreset === 'all' ? 'Date' : (DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Date');
   const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length + (amountOp ? 1 : 0);
+  const anyActive = search !== '' || datePreset !== 'all' || filterCount > 0;
   const groupedAll = Array.from(
     categories.reduce((m, c) => { if (!m.has(c.group_name)) m.set(c.group_name, []); m.get(c.group_name)!.push(c); return m; }, new Map<string, Category[]>()).entries()
   );
@@ -1012,6 +1015,13 @@ export default function TransactionsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Clear all — shows whenever any filter/search/date is active */}
+          {anyActive && (
+            <button onClick={clearAll} className="flex items-center gap-1.5 h-10 px-2.5 text-content-2 hover:text-content font-semibold text-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+              Clear
+            </button>
+          )}
           {/* Search */}
           {searchOpen ? (
             <div className="flex items-center h-10 rounded-[11px] bg-surface border border-line-strong px-3 gap-2">
