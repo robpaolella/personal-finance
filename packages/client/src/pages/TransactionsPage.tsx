@@ -569,6 +569,10 @@ export default function TransactionsPage() {
   const [sortTouched, setSortTouched] = useState(false);
   const [editCell, setEditCell] = useState<{ id: number; field: 'vendor' | 'category' } | null>(null);
   const [cellSearch, setCellSearch] = useState('');
+  const [detail, setDetail] = useState<Transaction | null>(null);
+  const [detailNote, setDetailNote] = useState('');
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitDraft, setSplitDraft] = useState<{ categoryId: number | ''; amount: string }[]>([]);
 
   const getDateRange = useCallback((): { startDate?: string; endDate?: string } => {
     const now = new Date();
@@ -671,35 +675,92 @@ export default function TransactionsPage() {
     setSortBy(by); setSortOrder(order); setSortTouched(true); setSortOpen(false); setPage(1);
   };
 
-  // Inline vendor/category edit — rebuilds the txn body (preserving splits) and PUTs.
-  const updateTxnField = async (t: Transaction, changes: { description?: string; categoryId?: number }) => {
+  // Inline/panel edit — rebuilds the txn body (preserving splits) and PUTs.
+  const updateTxnField = async (t: Transaction, changes: { description?: string; categoryId?: number; date?: string; note?: string | null }) => {
     const isSplit = !!(t.splits && t.splits.length > 0);
+    let newAmount = t.amount;
     const body: Record<string, unknown> = {
       accountId: t.account.id,
-      date: t.date,
+      date: changes.date ?? t.date,
       description: changes.description ?? t.description,
-      note: t.note,
+      note: changes.note !== undefined ? changes.note : t.note,
     };
     if (isSplit) {
       body.splits = t.splits!.map((s) => ({ categoryId: s.categoryId, amount: s.amount }));
       body.amount = t.amount;
     } else {
       const categoryId = changes.categoryId ?? t.category?.id ?? null;
-      let amount = t.amount;
       if (changes.categoryId != null) {
         const newCat = categories.find((c) => c.id === changes.categoryId);
-        if (newCat) amount = newCat.type === 'income' ? -Math.abs(t.amount) : Math.abs(t.amount);
+        if (newCat) newAmount = newCat.type === 'income' ? -Math.abs(t.amount) : Math.abs(t.amount);
       }
       body.categoryId = categoryId;
-      body.amount = amount;
+      body.amount = newAmount;
     }
     try {
       await apiFetch(`/transactions/${t.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       setEditCell(null); setCellSearch('');
+      // keep the detail panel in sync if it's showing this txn
+      if (detail && detail.id === t.id) {
+        const merged: Transaction = { ...detail };
+        if (changes.description !== undefined) merged.description = changes.description;
+        if (changes.date !== undefined) merged.date = changes.date;
+        if (changes.note !== undefined) merged.note = changes.note;
+        if (changes.categoryId != null) {
+          const c = categories.find((x) => x.id === changes.categoryId);
+          if (c) { merged.category = { id: c.id, groupName: c.group_name, subName: c.sub_name, displayName: c.display_name, type: c.type }; merged.splits = null; merged.amount = newAmount; }
+        }
+        setDetail(merged);
+      }
       await loadTransactions();
     } catch {
       addToast('Failed to update transaction', 'error');
     }
+  };
+
+  const openDetail = (t: Transaction) => { setDetail(t); setDetailNote(t.note ?? ''); };
+
+  const deleteFromDetail = async () => {
+    if (!detail) return;
+    try {
+      await apiFetch(`/transactions/${detail.id}`, { method: 'DELETE' });
+      setDetail(null);
+      addToast('Transaction deleted');
+      await loadTransactions();
+    } catch { addToast('Failed to delete transaction', 'error'); }
+  };
+
+  const openSplit = () => {
+    if (!detail) return;
+    const rows = (detail.splits && detail.splits.length > 0)
+      ? detail.splits.map((s) => ({ categoryId: s.categoryId as number | '', amount: Math.abs(s.amount).toFixed(2) }))
+      : [
+          { categoryId: (detail.category?.id ?? '') as number | '', amount: Math.abs(detail.amount).toFixed(2) },
+          { categoryId: '' as number | '', amount: '' },
+        ];
+    setSplitDraft(rows);
+    setSplitOpen(true);
+  };
+
+  const saveSplit = async () => {
+    if (!detail) return;
+    const sign = detail.amount < 0 ? -1 : 1;
+    const rows = splitDraft.filter((r) => r.categoryId !== '' && parseFloat(r.amount) > 0);
+    const body = {
+      accountId: detail.account.id,
+      date: detail.date,
+      description: detail.description,
+      note: detail.note,
+      amount: detail.amount,
+      splits: rows.map((r) => ({ categoryId: r.categoryId, amount: +(Math.abs(parseFloat(r.amount)) * sign).toFixed(2) })),
+    };
+    try {
+      await apiFetch(`/transactions/${detail.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      setSplitOpen(false);
+      setDetail(null);
+      addToast('Split saved');
+      await loadTransactions();
+    } catch { addToast('Failed to save split', 'error'); }
   };
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
@@ -848,6 +909,12 @@ export default function TransactionsPage() {
   const formatDateHeader = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const vendorOptions = [...new Set(transactions.map((t) => t.description).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const sortLabel = !sortTouched ? 'Sort' : (SORT_OPTIONS.find((o) => o.by === sortBy && o.order === sortOrder)?.label ?? 'Sort');
+  const groupedAll = Array.from(
+    categories.reduce((m, c) => { if (!m.has(c.group_name)) m.set(c.group_name, []); m.get(c.group_name)!.push(c); return m; }, new Map<string, Category[]>()).entries()
+  );
+  const splitAlloc = splitDraft.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+  const splitRemainingVal = detail ? Math.abs(detail.amount) - splitAlloc : 0;
+  const splitValid = splitDraft.filter((r) => r.categoryId !== '' && parseFloat(r.amount) > 0).length >= 2 && Math.abs(splitRemainingVal) < 0.01;
   const dateGroups: { date: string; rows: Transaction[]; net: number }[] = [];
   for (const t of transactions) {
     const last = dateGroups[dateGroups.length - 1];
@@ -869,7 +936,7 @@ export default function TransactionsPage() {
     const catMatches = categories.filter((c) => `${c.sub_name} ${c.group_name}`.toLowerCase().includes(cellSearch.toLowerCase())).slice(0, 60);
     return (
       <div key={t.id}
-        onClick={() => { if (bulkMode) toggleSelect(t.id); else if (canEdit) setEditing(t); }}
+        onClick={() => { if (bulkMode) toggleSelect(t.id); else if (canEdit) openDetail(t); }}
         className="flex items-center gap-3.5 px-6 border-b border-line cursor-pointer hover:bg-surface-2/40"
         style={{ height: 44, background: checked ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : undefined }}>
         {bulkMode && (
@@ -1190,7 +1257,7 @@ export default function TransactionsPage() {
             const hasReimbursement = isSplit && t.splits!.some(s => s.type !== t.splits![0].type);
             return (
               <div key={t.id}
-                onClick={() => { if (hasPermission('transactions.edit')) setEditing(t); }}
+                onClick={() => { if (hasPermission('transactions.edit')) openDetail(t); }}
                 className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5 flex justify-between items-center ${hasPermission('transactions.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</div>
@@ -1286,6 +1353,131 @@ export default function TransactionsPage() {
       </div>
       )}
       {editCell && <div className="fixed inset-0 z-[55]" onClick={() => { setEditCell(null); setCellSearch(''); }} />}
+
+      {/* ===== Detail side panel ===== */}
+      {detail && (
+        <>
+          <div onClick={() => setDetail(null)} className="fixed inset-0 z-[70]" style={{ background: 'rgba(6,8,12,.5)', backdropFilter: 'blur(2px)' }} />
+          <div className="fixed top-0 right-0 bottom-0 z-[71] w-[440px] max-w-full bg-surface border-l border-line-strong shadow-md flex flex-col">
+            <div className="flex items-center justify-end gap-1.5 px-4 py-3 border-b border-line">
+              {canEdit && <button onClick={() => { const t = detail; setDetail(null); setEditing(t); }} className="h-8 px-3 rounded-lg text-content-2 hover:bg-surface-2 text-sm font-semibold">Edit</button>}
+              <button onClick={() => setDetail(null)} className="w-9 h-9 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              {(() => {
+                const catType = detail.category?.type ?? detail.splits?.[0]?.type ?? 'expense';
+                const { text: amtText, className: amtClass } = fmtTransaction(detail.amount, catType);
+                const color = getCategoryColorHex(detail.category?.groupName);
+                const initial = (detail.description?.trim()?.[0] ?? '?').toUpperCase();
+                const isSplit = !!(detail.splits && detail.splits.length > 0);
+                return (
+                  <>
+                    <div className="flex items-start justify-between gap-4 mb-5">
+                      <span className="shrink-0 rounded-full flex items-center justify-center font-bold text-xl" style={{ width: 52, height: 52, background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>{initial}</span>
+                      <div className="text-right">
+                        <div className={`text-[26px] font-extrabold tracking-tight tabular-nums ${amtClass}`}>{amtText}</div>
+                        <div className="text-[13px] text-content-3 mt-1">{accountLabel(detail.account)}</div>
+                      </div>
+                    </div>
+                    <div className="text-2xl font-extrabold tracking-tight mb-6 break-words">{detail.description}</div>
+
+                    <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-2">Original Statement</div>
+                    <div className="text-[15px] text-content mb-6 break-words">{detail.description}</div>
+
+                    <div className="text-[13px] font-semibold text-content-2 mb-2">Date</div>
+                    <input type="date" value={detail.date} onChange={(e) => e.target.value && updateTxnField(detail, { date: e.target.value })}
+                      className="w-full h-12 px-3.5 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] outline-none mb-6" />
+
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[13px] font-semibold text-content-2">Category</span>
+                      {!isSplit && <button onClick={openSplit} className="text-[13px] font-semibold text-primary inline-flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg>Split</button>}
+                    </div>
+                    {isSplit ? (
+                      <div className="w-full px-3.5 py-3 rounded-[11px] bg-surface-2 border border-line text-[15px] mb-6">Split across {detail.splits!.length} categories</div>
+                    ) : (
+                      <div className="relative mb-6">
+                        <select value={detail.category?.id ?? ''} onChange={(e) => e.target.value && updateTxnField(detail, { categoryId: parseInt(e.target.value) })}
+                          className="w-full h-12 pl-3.5 pr-9 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] outline-none appearance-none cursor-pointer">
+                          <option value="">Uncategorized</option>
+                          {groupedAll.map(([group, subs]) => (
+                            <optgroup key={group} label={group}>
+                              {subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}
+                            </optgroup>
+                          ))}
+                        </select>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-4 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
+                      </div>
+                    )}
+
+                    <div className="text-[13px] font-semibold text-content-2 mb-2">Notes</div>
+                    <textarea value={detailNote} onChange={(e) => setDetailNote(e.target.value)}
+                      onBlur={() => { if ((detail.note ?? '') !== detailNote) updateTxnField(detail, { note: detailNote }); }}
+                      placeholder="Add notes to this transaction…"
+                      className="w-full min-h-[76px] resize-y p-3 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none mb-8" />
+
+                    {canEdit && (
+                      <button onClick={deleteFromDetail} className="w-full h-11 rounded-[11px] font-bold text-sm"
+                        style={{ border: '1px solid color-mix(in srgb, var(--negative) 40%, var(--line))', color: 'var(--negative)', background: 'transparent' }}>Delete transaction</button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ===== Split modal ===== */}
+      {splitOpen && detail && (
+        <div onClick={() => setSplitOpen(false)} className="fixed inset-0 z-[80] flex items-center justify-center p-6" style={{ background: 'rgba(6,8,12,.6)', backdropFilter: 'blur(3px)' }}>
+          <div onClick={(e) => e.stopPropagation()} className="w-[560px] max-w-full max-h-[88vh] bg-surface border border-line-strong rounded-card shadow-md overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 pt-5 pb-1">
+              <div>
+                <div className="text-[19px] font-extrabold tracking-tight">Split transaction</div>
+                <div className="text-[13px] text-content-3 mt-0.5">Divide this transaction across categories</div>
+              </div>
+              <button onClick={() => setSplitOpen(false)} className="w-9 h-9 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+            </div>
+            <div className="flex items-center justify-between mx-6 mt-3.5 mb-1 px-4 py-3.5 rounded-[12px] bg-surface-2 border border-line">
+              <span className="text-sm font-semibold text-content-2">Total to split</span>
+              <span className="text-lg font-extrabold tabular-nums">{fmt(Math.abs(detail.amount))}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-3.5">
+              {splitDraft.map((r, i) => (
+                <div key={i} className="flex items-center gap-2.5 mb-3">
+                  <div className="relative flex-1 min-w-0">
+                    <select value={r.categoryId} onChange={(e) => setSplitDraft((d) => d.map((x, j) => j === i ? { ...x, categoryId: e.target.value ? parseInt(e.target.value) : '' } : x))}
+                      className="w-full h-12 pl-3.5 pr-9 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] font-semibold outline-none appearance-none cursor-pointer">
+                      <option value="">Category…</option>
+                      {groupedAll.map(([group, subs]) => (<optgroup key={group} label={group}>{subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}</optgroup>))}
+                    </select>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-4 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
+                  </div>
+                  <div className="relative w-[130px] shrink-0">
+                    <span className="absolute left-3.5 top-3.5 text-[15px] text-content-3 font-semibold">$</span>
+                    <input value={r.amount} onChange={(e) => setSplitDraft((d) => d.map((x, j) => j === i ? { ...x, amount: e.target.value.replace(/[^0-9.]/g, '') } : x))} inputMode="decimal" placeholder="0.00"
+                      className="w-full h-12 pl-7 pr-3 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] font-semibold text-right tabular-nums outline-none" />
+                  </div>
+                  {splitDraft.length > 2 && (
+                    <button onClick={() => setSplitDraft((d) => d.filter((_, j) => j !== i))} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-[10px] text-content-3 hover:bg-surface-2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+                  )}
+                </div>
+              ))}
+              <button onClick={() => setSplitDraft((d) => [...d, { categoryId: '', amount: '' }])} className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[11px] border border-dashed border-line-strong text-primary text-sm font-bold mt-0.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>Add split
+              </button>
+            </div>
+            <div className="flex items-center justify-between px-6 py-3 border-t border-line">
+              <span className="text-sm font-semibold text-content-2">Remaining</span>
+              <span className="text-base font-extrabold tabular-nums" style={{ color: Math.abs(splitRemainingVal) < 0.01 ? 'var(--positive)' : 'var(--negative)' }}>{fmt(splitRemainingVal)}</span>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-line">
+              <button onClick={() => setSplitOpen(false)} className="h-[42px] px-[18px] rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
+              <button onClick={saveSplit} disabled={!splitValid} className="h-[42px] px-[22px] rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50">Save split</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pagination */}
       <div className={`mt-3 text-[13px] text-[var(--text-secondary)] ${isMobile ? 'flex flex-col items-center gap-2 pb-16' : 'flex justify-between items-center'}`}>
