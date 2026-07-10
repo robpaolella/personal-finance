@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
-import { transactions, accounts, categories, transactionSplits } from '../db/schema.js';
+import { transactions, accounts, categories, transactionSplits, merchants } from '../db/schema.js';
 import { eq, and, gte, lte, like, or, sql, desc, asc, inArray } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
+import { findOrCreateMerchant } from '../db/merchants.js';
 
 const router = Router();
 
@@ -90,6 +91,7 @@ router.get('/', (req: Request, res: Response) => {
     const {
       startDate, endDate,
       accountId, categoryId, groupName, categoryIds, groupNames,
+      merchantId, merchantIds,
       type, owner, search,
       amountOp, amountValue, amountMin, amountMax,
       limit: limitStr, offset: offsetStr,
@@ -103,6 +105,11 @@ router.get('/', (req: Request, res: Response) => {
     if (startDate) conditions.push(gte(transactions.date, startDate));
     if (endDate) conditions.push(lte(transactions.date, endDate));
     if (accountId) conditions.push(eq(transactions.account_id, parseInt(accountId, 10)));
+    if (merchantId) conditions.push(eq(transactions.merchant_id, parseInt(merchantId, 10)));
+    if (merchantIds) {
+      const mIdList = merchantIds.split(',').map(Number).filter((n) => !isNaN(n));
+      if (mIdList.length) conditions.push(inArray(transactions.merchant_id, mIdList));
+    }
     if (categoryId) {
       const catId = parseInt(categoryId, 10);
       conditions.push(
@@ -159,6 +166,7 @@ router.get('/', (req: Request, res: Response) => {
         or(
           like(transactions.description, `%${search}%`),
           like(transactions.note, `%${search}%`),
+          like(merchants.name, `%${search}%`),
         )!
       );
     }
@@ -178,6 +186,7 @@ router.get('/', (req: Request, res: Response) => {
 
     const sortColumn =
       sortBy === 'amount' ? transactions.amount :
+      sortBy === 'merchant' ? sql`COALESCE(${merchants.name}, ${transactions.description})` :
       sortBy === 'description' ? transactions.description :
       sortBy === 'account' ? accounts.name :
       sortBy === 'category' ? categories.group_name :
@@ -193,6 +202,8 @@ router.get('/', (req: Request, res: Response) => {
         note: transactions.note,
         amount: transactions.amount,
         created_at: transactions.created_at,
+        merchant_id: transactions.merchant_id,
+        merchant_name: merchants.name,
         account_id: accounts.id,
         account_name: accounts.name,
         account_last_four: accounts.last_four,
@@ -206,18 +217,20 @@ router.get('/', (req: Request, res: Response) => {
       .from(transactions)
       .innerJoin(accounts, eq(transactions.account_id, accounts.id))
       .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .leftJoin(merchants, eq(transactions.merchant_id, merchants.id))
       .where(where)
       .orderBy(orderFn(sortColumn), desc(transactions.id))
       .limit(limit)
       .offset(offset)
       .all();
 
-    // Get total count
+    // Get total count (same joins so a merchant/search filter resolves)
     const [{ count }] = db
       .select({ count: sql<number>`count(*)` })
       .from(transactions)
       .innerJoin(accounts, eq(transactions.account_id, accounts.id))
       .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .leftJoin(merchants, eq(transactions.merchant_id, merchants.id))
       .where(where)
       .all();
 
@@ -234,6 +247,7 @@ router.get('/', (req: Request, res: Response) => {
         note: r.note,
         amount: r.amount,
         created_at: r.created_at,
+        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name } : null,
         account: {
           id: r.account_id,
           name: r.account_name,
@@ -302,6 +316,8 @@ router.get('/:id', (req: Request, res: Response) => {
         note: transactions.note,
         amount: transactions.amount,
         created_at: transactions.created_at,
+        merchant_id: transactions.merchant_id,
+        merchant_name: merchants.name,
         account_id: accounts.id,
         account_name: accounts.name,
         account_last_four: accounts.last_four,
@@ -315,6 +331,7 @@ router.get('/:id', (req: Request, res: Response) => {
       .from(transactions)
       .innerJoin(accounts, eq(transactions.account_id, accounts.id))
       .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .leftJoin(merchants, eq(transactions.merchant_id, merchants.id))
       .where(eq(transactions.id, id))
       .all();
 
@@ -333,6 +350,7 @@ router.get('/:id', (req: Request, res: Response) => {
         note: r.note,
         amount: r.amount,
         created_at: r.created_at,
+        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name } : null,
         account: { id: r.account_id, name: r.account_name, lastFour: r.account_last_four, owner: r.account_owner, owners, isShared: owners.length > 1 },
         category: r.category_id ? { id: r.category_id, groupName: r.category_group_name, subName: r.category_sub_name, displayName: r.category_display_name, type: r.category_type } : null,
         splits,
@@ -347,12 +365,16 @@ router.get('/:id', (req: Request, res: Response) => {
 // POST /api/transactions — create
 router.post('/', requirePermission('transactions.create'), (req: Request, res: Response) => {
   try {
-    const { accountId, date, description, note, categoryId, amount, splits } = sanitize(req.body);
+    const { accountId, date, description, note, categoryId, amount, splits, merchant } = sanitize(req.body);
     const parsedAmount = parseFloat(amount);
 
     if (!accountId || !date || !description || amount === undefined) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    // Resolve the merchant: explicit name if given, else fall back to the
+    // description so every transaction is linked to a merchant.
+    const merchantId = findOrCreateMerchant(merchant ?? description);
 
     // Validate: must have either categoryId or splits, not both
     if (splits && splits.length > 0) {
@@ -365,6 +387,7 @@ router.post('/', requirePermission('transactions.create'), (req: Request, res: R
         description,
         note: note || null,
         category_id: null,
+        merchant_id: merchantId,
         amount: parsedAmount,
       }).run();
 
@@ -381,6 +404,7 @@ router.post('/', requirePermission('transactions.create'), (req: Request, res: R
         description,
         note: note || null,
         category_id: categoryId,
+        merchant_id: merchantId,
         amount: parsedAmount,
       }).run();
 
@@ -396,7 +420,7 @@ router.post('/', requirePermission('transactions.create'), (req: Request, res: R
 router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
-    const { accountId, date, description, note, categoryId, amount, splits } = sanitize(req.body);
+    const { accountId, date, description, note, categoryId, amount, splits, merchant } = sanitize(req.body);
 
     const existing = db.select().from(transactions).where(eq(transactions.id, id)).all();
     if (existing.length === 0) {
@@ -404,6 +428,8 @@ router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: R
     }
 
     const newAmount = amount !== undefined ? parseFloat(amount) : existing[0].amount;
+    // Re-resolve merchant only when a merchant name was supplied; otherwise keep the link.
+    const merchantId = merchant !== undefined ? findOrCreateMerchant(merchant) : existing[0].merchant_id;
 
     if (splits && splits.length > 0) {
       // Switching to split mode
@@ -417,6 +443,7 @@ router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: R
           description: description ?? existing[0].description,
           note: note !== undefined ? note : existing[0].note,
           category_id: null,
+          merchant_id: merchantId,
           amount: newAmount,
         })
         .where(eq(transactions.id, id))
@@ -434,6 +461,7 @@ router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: R
           description: description ?? existing[0].description,
           note: note !== undefined ? note : existing[0].note,
           category_id: categoryId,
+          merchant_id: merchantId,
           amount: newAmount,
         })
         .where(eq(transactions.id, id))
@@ -447,6 +475,7 @@ router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: R
           description: description ?? existing[0].description,
           note: note !== undefined ? note : existing[0].note,
           category_id: existing[0].category_id,
+          merchant_id: merchantId,
           amount: newAmount,
         })
         .where(eq(transactions.id, id))
@@ -514,7 +543,8 @@ router.post('/bulk-update', requirePermission('transactions.bulk_edit'), (req: R
     const setFields: Record<string, unknown> = {};
     if (updates.date) setFields.date = updates.date;
     if (updates.categoryId) setFields.category_id = updates.categoryId;
-    if (updates.merchant) setFields.description = updates.merchant;
+    // Merchant is a name → resolve to a merchant_id (leaves the raw description intact).
+    if (updates.merchant && updates.merchant.trim()) setFields.merchant_id = findOrCreateMerchant(updates.merchant);
 
     if (Object.keys(setFields).length > 0) {
       // If changing category, clear any existing splits on these transactions
@@ -587,14 +617,16 @@ router.post('/check-duplicate', (req: Request, res: Response) => {
       match = sqlite.prepare(`
         SELECT t.id, t.date, t.description, t.amount, t.note,
                a.name as account_name,
+               m.name as merchant_name,
                c.group_name, c.sub_name
         FROM transactions t
         LEFT JOIN accounts a ON t.account_id = a.id
         LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN merchants m ON t.merchant_id = m.id
         WHERE t.id = ?
       `).get(result.matchId) as {
         id: number; date: string; description: string; amount: number; note: string | null;
-        account_name: string | null; group_name: string | null; sub_name: string | null;
+        account_name: string | null; merchant_name: string | null; group_name: string | null; sub_name: string | null;
       } | undefined;
     }
 
@@ -605,6 +637,7 @@ router.post('/check-duplicate', (req: Request, res: Response) => {
           id: match.id,
           date: match.date,
           description: match.description,
+          merchant: match.merchant_name,
           amount: match.amount,
           notes: match.note,
           accountName: match.account_name,

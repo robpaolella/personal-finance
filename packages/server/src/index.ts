@@ -17,12 +17,14 @@ import { migrateBudgetTemplatesRecurring } from './db/migrate-budget-templates-r
 import { migrateDismissedTransfers } from './db/migrate-dismissed-transfers.js';
 import { migratePayCycles } from './db/migrate-pay-cycles.js';
 import { migrateSavingsCategories } from './db/migrate-savings-categories.js';
+import { migrateMerchants } from './db/migrate-merchants.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
 import categoryRoutes from './routes/categories.js';
 import userRoutes from './routes/users.js';
 import transactionRoutes from './routes/transactions.js';
+import merchantRoutes from './routes/merchants.js';
 import dashboardRoutes from './routes/dashboard.js';
 import budgetRoutes from './routes/budgets.js';
 import reportRoutes from './routes/reports.js';
@@ -61,6 +63,7 @@ migrateBudgetTemplatesRecurring(sqlite);
 migrateDismissedTransfers(sqlite);
 migratePayCycles(sqlite);
 migrateSavingsCategories(sqlite);
+migrateMerchants(sqlite); // after splits — splits rebuilds the transactions table
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
@@ -86,6 +89,7 @@ app.use('/api/accounts', accountRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/merchants', merchantRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/budget-templates', budgetTemplateRoutes);

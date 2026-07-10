@@ -88,6 +88,12 @@ async function seed() {
       sort_order INTEGER DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS merchants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       account_id INTEGER NOT NULL REFERENCES accounts(id),
@@ -95,6 +101,7 @@ async function seed() {
       description TEXT NOT NULL,
       note TEXT,
       category_id INTEGER NOT NULL REFERENCES categories(id),
+      merchant_id INTEGER REFERENCES merchants(id),
       amount REAL NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );

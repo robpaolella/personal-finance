@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { db, sqlite } from '../db/index.js';
 import { transactions, categories, transactionSplits, dismissedTransfers } from '../db/schema.js';
+import { findOrCreateMerchant } from '../db/merchants.js';
 import { eq } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
@@ -373,6 +374,7 @@ router.post('/commit', requirePermission('import.csv'), (req: Request, res: Resp
         date: t.date,
         description: t.description,
         note: t.note || null,
+        merchant_id: findOrCreateMerchant(t.description),
         amount: t.amount,
       }).run();
 

@@ -48,6 +48,12 @@ export interface Category {
   sort_order: number;
 }
 
+export interface Merchant {
+  id: number;
+  name: string;
+  created_at: string;
+}
+
 export interface Transaction {
   id: number;
   account_id: number;
@@ -55,6 +61,7 @@ export interface Transaction {
   description: string;
   note: string | null;
   category_id: number | null;
+  merchant_id: number | null;
   amount: number;
   simplefin_transaction_id: string | null;
   created_at: string;

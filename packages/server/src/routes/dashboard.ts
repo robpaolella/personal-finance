@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
-import { transactions, accounts, categories, budgets, balanceSnapshots, assets } from '../db/schema.js';
+import { transactions, accounts, categories, budgets, balanceSnapshots, assets, merchants } from '../db/schema.js';
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { calculateCurrentValue } from '../utils/depreciation.js';
 
@@ -252,6 +252,8 @@ router.get('/recent-transactions', (req: Request, res: Response) => {
       description: transactions.description,
       note: transactions.note,
       amount: transactions.amount,
+      merchant_id: transactions.merchant_id,
+      merchant_name: merchants.name,
       account_id: accounts.id,
       account_name: accounts.name,
       account_last_four: accounts.last_four,
@@ -264,6 +266,7 @@ router.get('/recent-transactions', (req: Request, res: Response) => {
     }).from(transactions)
       .innerJoin(accounts, eq(transactions.account_id, accounts.id))
       .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .leftJoin(merchants, eq(transactions.merchant_id, merchants.id))
       .orderBy(desc(transactions.date), desc(transactions.id))
       .limit(limit)
       .all();
@@ -303,6 +306,7 @@ router.get('/recent-transactions', (req: Request, res: Response) => {
         description: r.description,
         note: r.note,
         amount: r.amount,
+        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name } : null,
         account: { id: r.account_id, name: r.account_name, lastFour: r.account_last_four, owner: r.account_owner, owners, isShared: owners.length > 1 },
         category: r.category_id ? { id: r.category_id, groupName: r.category_group_name, subName: r.category_sub_name, displayName: r.category_display_name, type: r.category_type } : null,
         splits,

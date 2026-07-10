@@ -70,6 +70,15 @@ export const categories = sqliteTable('categories', {
   sort_order: integer('sort_order').default(0),
 });
 
+// === Merchants ===
+// First-class vendor/payee. transactions.description keeps the raw statement
+// text; transactions.merchant_id links to the clean, dedup'd display name.
+export const merchants = sqliteTable('merchants', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+});
+
 // === Transactions ===
 export const transactions = sqliteTable('transactions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -78,6 +87,7 @@ export const transactions = sqliteTable('transactions', {
   description: text('description').notNull(),
   note: text('note'),
   category_id: integer('category_id').references(() => categories.id),
+  merchant_id: integer('merchant_id').references(() => merchants.id),
   amount: real('amount').notNull(),
   simplefin_transaction_id: text('simplefin_transaction_id').unique(),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),

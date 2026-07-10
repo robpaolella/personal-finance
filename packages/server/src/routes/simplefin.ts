@@ -15,6 +15,7 @@ import { detectDuplicates } from '../services/duplicateDetector.js';
 import { detectTransfers } from '../services/transferDetector.js';
 import type { AccountClassification, SyncTransaction, SyncBalanceUpdate, SyncHoldingsUpdate } from '@ledger/shared/src/types.js';
 import { requirePermission } from '../middleware/permissions.js';
+import { findOrCreateMerchant } from '../db/merchants.js';
 
 const router = Router();
 
@@ -631,8 +632,8 @@ router.post('/commit', requirePermission('import.bank_sync'), (req: Request, res
       // Insert transactions
       if (txns && txns.length > 0) {
         const insertTxn = sqlite.prepare(`
-          INSERT INTO transactions (account_id, date, description, note, category_id, amount, simplefin_transaction_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO transactions (account_id, date, description, note, category_id, merchant_id, amount, simplefin_transaction_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const insertSplit = sqlite.prepare(`
           INSERT INTO transaction_splits (transaction_id, category_id, amount)
@@ -641,6 +642,8 @@ router.post('/commit', requirePermission('import.bank_sync'), (req: Request, res
 
         for (const t of txns) {
           const hasSplits = t.splits && t.splits.length >= 2;
+          // Resolve merchant from the payee-preferred description (same handle → atomic).
+          const merchantId = findOrCreateMerchant(t.description, sqlite);
           // Store payee as description, raw bank description as note
           const result = insertTxn.run(
             t.accountId,
@@ -648,6 +651,7 @@ router.post('/commit', requirePermission('import.bank_sync'), (req: Request, res
             t.description,
             t.rawDescription !== t.description ? t.rawDescription : null,
             hasSplits ? null : (t.categoryId ?? null),
+            merchantId,
             t.amount,
             t.simplefinId
           );

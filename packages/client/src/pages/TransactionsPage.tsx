@@ -54,15 +54,32 @@ interface TransactionSplit {
   amount: number;
 }
 
+interface TransactionMerchant {
+  id: number;
+  name: string;
+}
+
 interface Transaction {
   id: number;
   date: string;
-  description: string;
+  description: string; // raw statement text
   note: string | null;
   amount: number;
+  merchant: TransactionMerchant | null;
   account: TransactionAccount;
   category: TransactionCategory | null;
   splits: TransactionSplit[] | null;
+}
+
+interface Merchant {
+  id: number;
+  name: string;
+  txn_count?: number;
+}
+
+/** Display label for a transaction's vendor: merchant name, or raw statement as fallback. */
+function vendorLabel(t: { merchant?: TransactionMerchant | null; description: string }): string {
+  return t.merchant?.name ?? t.description;
 }
 
 interface Account {
@@ -106,6 +123,7 @@ function TransactionForm({
   transaction,
   accounts,
   categories,
+  merchants,
   onSave,
   onDelete,
   onClose,
@@ -114,6 +132,7 @@ function TransactionForm({
   transaction?: Transaction;
   accounts: Account[];
   categories: Category[];
+  merchants: Merchant[];
   onSave: (data: Record<string, unknown>) => void;
   onDelete?: () => void;
   onClose: () => void;
@@ -121,6 +140,7 @@ function TransactionForm({
 }) {
   const [date, setDate] = useState(transaction?.date ?? new Date().toISOString().slice(0, 10));
   const [accountId, setAccountId] = useState<number>(transaction?.account.id ?? (accounts[0]?.id ?? 0));
+  const [merchant, setMerchant] = useState(transaction ? vendorLabel(transaction) : '');
   const [description, setDescription] = useState(transaction?.description ?? '');
   const [note, setNote] = useState(transaction?.note ?? '');
   const [categoryId, setCategoryId] = useState<number>(transaction?.category?.id ?? 0);
@@ -159,6 +179,7 @@ function TransactionForm({
   // Refs for focusing first invalid field
   const dateRef = useRef<HTMLInputElement>(null);
   const accountRef = useRef<HTMLSelectElement>(null);
+  const merchantRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLInputElement>(null);
   const categoryRef = useRef<HTMLSelectElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -228,7 +249,7 @@ function TransactionForm({
   const isValid = !!(
     date &&
     accountId > 0 &&
-    description.trim() &&
+    merchant.trim() &&
     hasCategoryOrSplits &&
     amount !== '' &&
     !isNaN(parsedAmount)
@@ -237,7 +258,7 @@ function TransactionForm({
   const getFirstInvalidRef = () => {
     if (!date) return dateRef;
     if (accountId <= 0) return accountRef;
-    if (!description.trim()) return descRef;
+    if (!merchant.trim()) return merchantRef;
     if (!splitMode && categoryId <= 0) return categoryRef;
     if (amount === '' || isNaN(parsedAmount)) return amountRef;
     return null;
@@ -259,6 +280,8 @@ function TransactionForm({
       finalAmount = txType === 'income' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
     }
 
+    // For a manual entry the raw statement defaults to the merchant name.
+    const finalDescription = description.trim() || merchant.trim();
     if (splitMode && splits) {
       // Splits are stored with absolute amounts in editor; apply sign from finalAmount
       const sign = finalAmount < 0 ? -1 : 1;
@@ -266,9 +289,9 @@ function TransactionForm({
         categoryId: s.categoryId,
         amount: +(s.amount * sign).toFixed(2),
       }));
-      onSave({ accountId, date, description, note: note || null, splits: finalSplits, amount: finalAmount });
+      onSave({ accountId, date, description: finalDescription, merchant: merchant.trim(), note: note || null, splits: finalSplits, amount: finalAmount });
     } else {
-      onSave({ accountId, date, description, note: note || null, categoryId, amount: finalAmount });
+      onSave({ accountId, date, description: finalDescription, merchant: merchant.trim(), note: note || null, categoryId, amount: finalAmount });
     }
   };
 
@@ -301,7 +324,7 @@ function TransactionForm({
 
   const errDate = showErrors && !date;
   const errAccount = showErrors && accountId <= 0;
-  const errDesc = showErrors && !description.trim();
+  const errMerchant = showErrors && !merchant.trim();
   const errCategory = showErrors && !splitMode && categoryId <= 0;
   const errAmount = showErrors && (amount === '' || isNaN(parsedAmount));
 
@@ -337,9 +360,14 @@ function TransactionForm({
             </select>
           </Field>
         </div>
-        <Field label="Description" required error={errDesc}>
+        <Field label="Merchant" required error={errMerchant}>
+          <input ref={merchantRef} value={merchant} onChange={(e) => setMerchant(e.target.value)}
+            list="txn-form-merchant-list" placeholder="Who was paid?" className={inputCls(!!errMerchant)} />
+          <datalist id="txn-form-merchant-list">{merchants.map((m) => <option key={m.id} value={m.name} />)}</datalist>
+        </Field>
+        <Field label="Statement (optional)">
           <input ref={descRef} value={description} onChange={(e) => setDescription(e.target.value)}
-            className={inputCls(!!errDesc)} />
+            placeholder="Raw bank statement text" className={inputCls(false)} />
         </Field>
         <Field label="Note (optional)">
           <input value={note} onChange={(e) => setNote(e.target.value)}
@@ -507,6 +535,7 @@ export default function TransactionsPage() {
   const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
   const allGroupNames = useMemo(() => [...new Set(categories.map(c => c.group_name))], [categories]);
   const categoryGroups = useMemo(() => {
     const groups: { group: string; subs: { id: number; sub: string }[] }[] = [];
@@ -527,6 +556,7 @@ export default function TransactionsPage() {
   const [filterAccount, setFilterAccount] = useState('All');
   const [filterType, setFilterType] = useState('All');
   const [filterCategory, setFilterCategory] = useState<string[]>([]);
+  const [filterMerchant, setFilterMerchant] = useState<string[]>([]); // merchant ids as strings
   const [amountOp, setAmountOp] = useState('');   // '' | 'gt' | 'lt' | 'eq' | 'bt'
   const [amountValue, setAmountValue] = useState('');
   const [amountMin, setAmountMin] = useState('');
@@ -551,12 +581,13 @@ export default function TransactionsPage() {
   const [filterTab, setFilterTab] = useState('Categories');
   const [filterSearch, setFilterSearch] = useState('');
   const [dateDraft, setDateDraft] = useState<{ preset: string; start: string; end: string }>({ preset: 'all', start: '', end: '' });
-  const [filterDraft, setFilterDraft] = useState<{ account: string; type: string; category: string[]; op: string; val: string; min: string; max: string }>({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' });
+  const [filterDraft, setFilterDraft] = useState<{ account: string; type: string; category: string[]; merchant: string[]; op: string; val: string; min: string; max: string }>({ account: 'All', type: 'All', category: [], merchant: [], op: '', val: '', min: '', max: '' });
   const [calOpen, setCalOpen] = useState<'start' | 'end' | null>(null);
   const [editCell, setEditCell] = useState<{ id: number; field: 'vendor' | 'category' } | null>(null);
   const [cellSearch, setCellSearch] = useState('');
   const [detail, setDetail] = useState<Transaction | null>(null);
   const [detailNote, setDetailNote] = useState('');
+  const [detailMerchant, setDetailMerchant] = useState('');
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitDraft, setSplitDraft] = useState<{ categoryId: number | ''; amount: string }[]>([]);
 
@@ -633,6 +664,7 @@ export default function TransactionsPage() {
       if (groupNames.length) params.set('groupNames', groupNames.join(','));
       if (catIds.length) params.set('categoryIds', catIds.join(','));
     }
+    if (filterMerchant.length > 0) params.set('merchantIds', filterMerchant.join(','));
     if (amountOp) {
       params.set('amountOp', amountOp);
       if (amountOp === 'bt') { if (amountMin) params.set('amountMin', amountMin); if (amountMax) params.set('amountMax', amountMax); }
@@ -644,20 +676,28 @@ export default function TransactionsPage() {
     const res = await apiFetch<{ data: Transaction[]; total: number }>(`/transactions?${params.toString()}`);
     setTransactions(res.data);
     setTotal(res.total);
-  }, [getDateRange, search, filterAccount, filterType, filterCategory, amountOp, amountValue, amountMin, amountMax, page, pageSize, sortBy, sortOrder]);
+  }, [getDateRange, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax, page, pageSize, sortBy, sortOrder]);
+
+  const loadMerchants = useCallback(async () => {
+    const res = await apiFetch<{ data: Merchant[] }>('/merchants');
+    setMerchants(res.data);
+  }, []);
 
   const loadMeta = useCallback(async () => {
-    const [acctRes, catRes] = await Promise.all([
+    const [acctRes, catRes, merchRes] = await Promise.all([
       apiFetch<{ data: Account[] }>('/accounts'),
       apiFetch<{ data: Category[] }>('/categories'),
+      apiFetch<{ data: Merchant[] }>('/merchants'),
     ]);
     setAccounts(acctRes.data);
     setCategories(catRes.data);
+    setMerchants(merchRes.data);
   }, []);
 
   const SORT_OPTIONS: { by: string; order: 'asc' | 'desc'; label: string }[] = [
     { by: 'date', order: 'desc', label: 'Date (new → old)' },
     { by: 'date', order: 'asc', label: 'Date (old → new)' },
+    { by: 'merchant', order: 'asc', label: 'Merchant (A → Z)' },
     { by: 'amount', order: 'desc', label: 'Amount (high → low)' },
     { by: 'amount', order: 'asc', label: 'Amount (low → high)' },
   ];
@@ -670,13 +710,14 @@ export default function TransactionsPage() {
   const applyPreset = (value: string) => { setDatePreset(value); setCustomStart(''); setCustomEnd(''); setDateOpen(false); };
   const dateRangeInvalid = (s: string, e: string) => !!(s && e && e < s);
   const applyDate = () => { if (dateRangeInvalid(dateDraft.start, dateDraft.end)) return; setDatePreset(dateDraft.preset); setCustomStart(dateDraft.start); setCustomEnd(dateDraft.end); setDateOpen(false); };
-  const openFilterPopover = () => { setFilterDraft({ account: filterAccount, type: filterType, category: [...filterCategory], op: amountOp, val: amountValue, min: amountMin, max: amountMax }); setFilterTab('Categories'); setFilterSearch(''); setSortOpen(false); setDateOpen(false); setFilterOpen(true); };
+  const openFilterPopover = () => { setFilterDraft({ account: filterAccount, type: filterType, category: [...filterCategory], merchant: [...filterMerchant], op: amountOp, val: amountValue, min: amountMin, max: amountMax }); setFilterTab('Categories'); setFilterSearch(''); setSortOpen(false); setDateOpen(false); setFilterOpen(true); };
   const applyFilters = () => {
-    setFilterAccount(filterDraft.account); setFilterType(filterDraft.type); setFilterCategory(filterDraft.category);
+    setFilterAccount(filterDraft.account); setFilterType(filterDraft.type); setFilterCategory(filterDraft.category); setFilterMerchant(filterDraft.merchant);
     setAmountOp(filterDraft.op); setAmountValue(filterDraft.val); setAmountMin(filterDraft.min); setAmountMax(filterDraft.max);
     setFilterOpen(false);
   };
   const toggleDraftCategory = (value: string) => setFilterDraft((d) => ({ ...d, category: d.category.includes(value) ? d.category.filter((v) => v !== value) : [...d.category, value] }));
+  const toggleDraftMerchant = (id: string) => setFilterDraft((d) => ({ ...d, merchant: d.merchant.includes(id) ? d.merchant.filter((v) => v !== id) : [...d.merchant, id] }));
   // Selecting a category (group) toggles all of its sub-categories at once.
   const toggleDraftGroup = (subs: { id: number }[]) => setFilterDraft((d) => {
     const ids = subs.map((s) => `sub:${s.id}`);
@@ -685,15 +726,15 @@ export default function TransactionsPage() {
   });
   const clearDate = () => { setDateDraft({ preset: 'all', start: '', end: '' }); setDatePreset('all'); setCustomStart(''); setCustomEnd(''); };
   const clearFilters = () => {
-    setFilterDraft({ account: 'All', type: 'All', category: [], op: '', val: '', min: '', max: '' });
-    setFilterAccount('All'); setFilterType('All'); setFilterCategory([]);
+    setFilterDraft({ account: 'All', type: 'All', category: [], merchant: [], op: '', val: '', min: '', max: '' });
+    setFilterAccount('All'); setFilterType('All'); setFilterCategory([]); setFilterMerchant([]);
     setAmountOp(''); setAmountValue(''); setAmountMin(''); setAmountMax('');
   };
   // Clear every active filter (search + date + filters) without opening a popover.
   const clearAll = () => { setSearch(''); setSearchOpen(false); clearDate(); clearFilters(); };
 
   // Inline/panel edit — rebuilds the txn body (preserving splits) and PUTs.
-  const updateTxnField = async (t: Transaction, changes: { description?: string; categoryId?: number; date?: string; note?: string | null }) => {
+  const updateTxnField = async (t: Transaction, changes: { description?: string; merchant?: string; categoryId?: number; date?: string; note?: string | null }) => {
     const isSplit = !!(t.splits && t.splits.length > 0);
     let newAmount = t.amount;
     const body: Record<string, unknown> = {
@@ -702,6 +743,7 @@ export default function TransactionsPage() {
       description: changes.description ?? t.description,
       note: changes.note !== undefined ? changes.note : t.note,
     };
+    if (changes.merchant !== undefined) body.merchant = changes.merchant;
     if (isSplit) {
       body.splits = t.splits!.map((s) => ({ categoryId: s.categoryId, amount: s.amount }));
       body.amount = t.amount;
@@ -721,6 +763,7 @@ export default function TransactionsPage() {
       if (detail && detail.id === t.id) {
         const merged: Transaction = { ...detail };
         if (changes.description !== undefined) merged.description = changes.description;
+        if (changes.merchant !== undefined) merged.merchant = changes.merchant.trim() ? { id: merged.merchant?.id ?? -1, name: changes.merchant.trim() } : null;
         if (changes.date !== undefined) merged.date = changes.date;
         if (changes.note !== undefined) merged.note = changes.note;
         if (changes.categoryId != null) {
@@ -729,13 +772,14 @@ export default function TransactionsPage() {
         }
         setDetail(merged);
       }
+      if (changes.merchant !== undefined) loadMerchants(); // pick up any newly-created merchant
       await loadTransactions();
     } catch {
       addToast('Failed to update transaction', 'error');
     }
   };
 
-  const openDetail = (t: Transaction) => { setDetail(t); setDetailNote(t.note ?? ''); };
+  const openDetail = (t: Transaction) => { setDetail(t); setDetailNote(t.note ?? ''); setDetailMerchant(vendorLabel(t)); };
 
   const deleteFromDetail = async () => {
     if (!detail) return;
@@ -781,7 +825,7 @@ export default function TransactionsPage() {
   };
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
-  useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory, amountOp, amountValue, amountMin, amountMax]);
+  useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax]);
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
 
   useEffect(() => {
@@ -822,6 +866,7 @@ export default function TransactionsPage() {
       }
       setEditing(null);
       addToast('Transaction saved');
+      loadMerchants(); // a new merchant may have been created
       loadTransactions();
     } catch {
       addToast('Failed to save transaction', 'error');
@@ -885,6 +930,7 @@ export default function TransactionsPage() {
       addToast(`Updated ${ids.length} transactions`);
       setBulkMerchant(''); setBulkCategoryId(''); setBulkDate(''); setBulkCalOpen(false);
       setBulkEditOpen(false);
+      if (updates.merchant) loadMerchants(); // a new merchant may have been created
       loadTransactions();
     } catch (_err) {
       addToast('Bulk operation failed', 'error');
@@ -918,7 +964,8 @@ export default function TransactionsPage() {
     </span>
   );
   const formatDateHeader = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const vendorOptions = [...new Set(transactions.map((t) => t.description).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  // Merchant name suggestions for the inline vendor picker — the real merchant list.
+  const vendorOptions = merchants.map((m) => m.name).sort((a, b) => a.localeCompare(b));
   const sortLabel = !sortTouched ? 'Sort' : (SORT_OPTIONS.find((o) => o.by === sortBy && o.order === sortOrder)?.label ?? 'Sort');
   const DATE_PRESETS: { value: string; label: string }[] = [
     { value: 'all', label: 'All time' }, { value: 'this-month', label: 'This month' }, { value: 'last-month', label: 'Last month' },
@@ -932,8 +979,8 @@ export default function TransactionsPage() {
     : datePreset === 'custom'
       ? (customStart && customEnd ? `${shortDate(customStart)} – ${shortDate(customEnd)}` : customStart ? `From ${shortDate(customStart)}` : customEnd ? `Until ${shortDate(customEnd)}` : 'Custom')
       : (DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Date');
-  const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length + (amountOp ? 1 : 0);
-  const draftCount = filterDraft.category.filter((c) => c.startsWith('sub:')).length + (filterDraft.account !== 'All' ? 1 : 0) + (filterDraft.op ? 1 : 0) + (filterDraft.type !== 'All' ? 1 : 0);
+  const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length + filterMerchant.length + (amountOp ? 1 : 0);
+  const draftCount = filterDraft.category.filter((c) => c.startsWith('sub:')).length + filterDraft.merchant.length + (filterDraft.account !== 'All' ? 1 : 0) + (filterDraft.op ? 1 : 0) + (filterDraft.type !== 'All' ? 1 : 0);
   const anyActive = search !== '' || datePreset !== 'all' || filterCount > 0;
   const groupedAll = Array.from(
     categories.reduce((m, c) => { if (!m.has(c.group_name)) m.set(c.group_name, []); m.get(c.group_name)!.push(c); return m; }, new Map<string, Category[]>()).entries()
@@ -954,7 +1001,7 @@ export default function TransactionsPage() {
     const isSplit = !!(t.splits && t.splits.length > 0);
     const emoji = isSplit ? '🔀' : getCategoryEmoji(t.category?.groupName);
     const color = getCategoryColorHex(t.category?.groupName);
-    const initial = (t.description?.trim()?.[0] ?? '?').toUpperCase();
+    const initial = (vendorLabel(t)?.trim()?.[0] ?? '?').toUpperCase();
     const checked = selectedIds.has(t.id);
     const vendorEditing = editCell?.id === t.id && editCell.field === 'vendor';
     const categoryEditing = editCell?.id === t.id && editCell.field === 'category';
@@ -974,17 +1021,17 @@ export default function TransactionsPage() {
         {/* vendor cell (inline edit) */}
         <div className="relative flex-[1.4] min-w-0" onClick={(e) => { if (!bulkMode && canEdit) { e.stopPropagation(); setEditCell({ id: t.id, field: 'vendor' }); setCellSearch(''); } }}>
           <div className="flex items-center h-8 px-2 -ml-2 rounded-lg hover:bg-surface-2">
-            <span className="font-semibold text-[15px] truncate">{t.description}</span>
+            <span className="font-semibold text-[15px] truncate">{vendorLabel(t)}</span>
           </div>
           {vendorEditing && (
             <div onClick={(e) => e.stopPropagation()} className="absolute top-9 left-0 z-[60] w-64 bg-elevated border border-line-strong rounded-[12px] shadow-md overflow-hidden">
-              <div className="p-2 border-b border-line"><input autoFocus value={cellSearch} onChange={(e) => setCellSearch(e.target.value)} placeholder="Search vendors…" className="w-full h-9 px-3 rounded-lg bg-surface-2 border border-line text-content text-sm outline-none" /></div>
+              <div className="p-2 border-b border-line"><input autoFocus value={cellSearch} onChange={(e) => setCellSearch(e.target.value)} placeholder="Search merchants…" className="w-full h-9 px-3 rounded-lg bg-surface-2 border border-line text-content text-sm outline-none" /></div>
               <div className="max-h-60 overflow-y-auto p-1.5">
                 {cellSearch.trim() && !vendorMatches.some((v) => v.toLowerCase() === cellSearch.trim().toLowerCase()) && (
-                  <button onClick={() => updateTxnField(t, { description: cellSearch.trim() })} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-primary font-medium hover:bg-surface-2">Use “{cellSearch.trim()}”</button>
+                  <button onClick={() => updateTxnField(t, { merchant: cellSearch.trim() })} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-primary font-medium hover:bg-surface-2">Create “{cellSearch.trim()}”</button>
                 )}
                 {vendorMatches.map((v) => (
-                  <button key={v} onClick={() => updateTxnField(t, { description: v })} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-content hover:bg-surface-2 truncate">{v}</button>
+                  <button key={v} onClick={() => updateTxnField(t, { merchant: v })} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-content hover:bg-surface-2 truncate">{v}</button>
                 ))}
               </div>
             </div>
@@ -1207,7 +1254,21 @@ export default function TransactionsPage() {
                           ))}
                         </div>
                       )}
-                      {(filterTab === 'Merchants' || filterTab === 'Tags' || filterTab === 'Other') && (
+                      {filterTab === 'Merchants' && (
+                        merchants.length === 0 ? (
+                          <div className="flex items-center justify-center h-full min-h-[320px] text-content-3 text-sm">No merchants yet</div>
+                        ) : (
+                          merchants
+                            .filter((m) => !filterSearch || m.name.toLowerCase().includes(filterSearch.toLowerCase()))
+                            .map((m) => (
+                              <div key={m.id} onClick={() => toggleDraftMerchant(m.id.toString())} className="flex items-center gap-3 px-1 py-2 rounded-lg hover:bg-surface-2 text-[15px] cursor-pointer">
+                                {chkbox(filterDraft.merchant.includes(m.id.toString()))}<span className="flex-1 truncate">{m.name}</span>
+                                {m.txn_count !== undefined && <span className="text-content-3 text-[13px] tabular-nums shrink-0">{m.txn_count}</span>}
+                              </div>
+                            ))
+                        )
+                      )}
+                      {(filterTab === 'Tags' || filterTab === 'Other') && (
                         <div className="flex items-center justify-center h-full min-h-[320px] text-content-3 text-sm">Coming soon</div>
                       )}
                     </div>
@@ -1227,6 +1288,20 @@ export default function TransactionsPage() {
                                     <span className="text-[15px] leading-none">{getCategoryEmoji(cat?.group_name)}</span>
                                     <span className="flex-1 truncate">{cat?.sub_name ?? c}</span>
                                     <button onClick={() => toggleDraftCategory(c)} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {filterDraft.merchant.length > 0 && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Merchants</span><button onClick={() => setFilterDraft((d) => ({ ...d, merchant: [] }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
+                              {filterDraft.merchant.map((mid) => {
+                                const m = merchants.find((x) => x.id.toString() === mid);
+                                return (
+                                  <div key={mid} className="flex items-center gap-2 py-1.5 text-sm">
+                                    <span className="flex-1 truncate">{m?.name ?? mid}</span>
+                                    <button onClick={() => toggleDraftMerchant(mid)} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button>
                                   </div>
                                 );
                               })}
@@ -1315,7 +1390,7 @@ export default function TransactionsPage() {
                 onClick={() => { if (hasPermission('transactions.edit')) openDetail(t); }}
                 className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5 flex justify-between items-center ${hasPermission('transactions.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
                 <div className="flex-1 min-w-0 mr-3">
-                  <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</div>
+                  <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{vendorLabel(t)}</div>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     <span className="font-mono text-[10px] text-[var(--text-muted)]">{t.date}</span>
                     <span className="text-[var(--text-muted)]">·</span>
@@ -1417,7 +1492,8 @@ export default function TransactionsPage() {
               {/* Merchant */}
               <div>
                 <div className="text-[13px] font-semibold text-content-2 mb-2">Merchant</div>
-                <input value={bulkMerchant} onChange={(e) => setBulkMerchant(e.target.value)} placeholder="Set merchant name…" className="w-full h-11 px-3.5 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none" />
+                <input value={bulkMerchant} onChange={(e) => setBulkMerchant(e.target.value)} list="bulk-merchant-list" placeholder="Choose or type a merchant…" className="w-full h-11 px-3.5 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none" />
+                <datalist id="bulk-merchant-list">{merchants.map((m) => <option key={m.id} value={m.name} />)}</datalist>
               </div>
               {/* Category */}
               <div>
@@ -1469,8 +1545,9 @@ export default function TransactionsPage() {
                 const catType = detail.category?.type ?? detail.splits?.[0]?.type ?? 'expense';
                 const { text: amtText, className: amtClass } = fmtTransaction(detail.amount, catType);
                 const color = getCategoryColorHex(detail.category?.groupName);
-                const initial = (detail.description?.trim()?.[0] ?? '?').toUpperCase();
+                const initial = (vendorLabel(detail)?.trim()?.[0] ?? '?').toUpperCase();
                 const isSplit = !!(detail.splits && detail.splits.length > 0);
+                const commitMerchant = () => { const v = detailMerchant.trim(); if (v && v !== vendorLabel(detail)) updateTxnField(detail, { merchant: v }); };
                 return (
                   <>
                     <div className="flex items-start justify-between gap-4 mb-5">
@@ -1480,10 +1557,19 @@ export default function TransactionsPage() {
                         <div className="text-[13px] text-content-3 mt-1">{accountLabel(detail.account)}</div>
                       </div>
                     </div>
-                    <div className="text-2xl font-extrabold tracking-tight mb-6 break-words">{detail.description}</div>
 
-                    <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-2">Original Statement</div>
-                    <div className="text-[15px] text-content mb-6 break-words">{detail.description}</div>
+                    <div className="text-[13px] font-semibold text-content-2 mb-2">Merchant</div>
+                    <input value={detailMerchant} onChange={(e) => setDetailMerchant(e.target.value)} onBlur={commitMerchant}
+                      list="txn-merchant-list" placeholder="Set merchant…"
+                      className="w-full h-12 px-3.5 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] font-semibold outline-none mb-6" />
+                    <datalist id="txn-merchant-list">{merchants.map((m) => <option key={m.id} value={m.name} />)}</datalist>
+
+                    {detail.description && detail.description !== vendorLabel(detail) && (
+                      <>
+                        <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-2">Original Statement</div>
+                        <div className="text-[15px] text-content mb-6 break-words">{detail.description}</div>
+                      </>
+                    )}
 
                     <div className="text-[13px] font-semibold text-content-2 mb-2">Date</div>
                     <input type="date" value={detail.date} onChange={(e) => e.target.value && updateTxnField(detail, { date: e.target.value })}
@@ -1619,6 +1705,7 @@ export default function TransactionsPage() {
           transaction={editing === 'new' ? undefined : editing}
           accounts={accounts}
           categories={categories}
+          merchants={merchants}
           onSave={handleSave}
           onDelete={editing !== 'new' && hasPermission('transactions.delete') ? handleDelete : undefined}
           onClose={() => { setEditing(null); setPendingSave(null); setDuplicateMatch(null); }}

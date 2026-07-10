@@ -38,10 +38,16 @@ interface Transaction {
   id: number;
   date: string;
   description: string;
+  merchant?: { id: number; name: string } | null;
   amount: number;
   account: { id: number; name: string; lastFour: string | null; owner: string; owners?: { id: number; displayName: string }[]; isShared?: boolean };
   category: { id: number; groupName: string; subName: string; displayName: string; type: string } | null;
   splits?: { categoryId: number; groupName: string; subName: string; displayName: string; type: string; amount: number }[];
+}
+
+/** Merchant name, or raw statement as a fallback. */
+function txnVendor(t: Transaction): string {
+  return t.merchant?.name ?? t.description;
 }
 
 export default function DashboardPage() {
@@ -230,7 +236,7 @@ export default function DashboardPage() {
               return (
                 <div key={t.id} className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5 flex justify-between items-center">
                   <div className="flex-1 min-w-0 mr-3">
-                    <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{t.description}</div>
+                    <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{txnVendor(t)}</div>
                     <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[var(--text-muted)]">
                       <span className="font-mono text-[10px]">{t.date}</span>
                       <span>·</span>
@@ -268,7 +274,7 @@ export default function DashboardPage() {
             <thead>
               <tr>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Date</th>
-                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Description</th>
+                <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Merchant</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Category</th>
                 <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Sub-Category</th>
@@ -282,7 +288,7 @@ export default function DashboardPage() {
                 return (
                   <tr key={t.id} className="border-b border-[var(--table-row-border)]">
                     <td className="px-2.5 py-2 font-mono text-[12px] text-[var(--text-body)]">{t.date}</td>
-                    <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{t.description}</td>
+                    <td className="px-2.5 py-2 text-[var(--text-primary)] font-medium">{txnVendor(t)}</td>
                     <td className="px-2.5 py-2">
                       <span className="inline-flex items-center gap-1.5 flex-wrap">
                         <AccountBadge name={accountLabel(t.account)} />
