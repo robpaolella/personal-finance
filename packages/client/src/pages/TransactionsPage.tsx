@@ -280,8 +280,9 @@ function TransactionForm({
       finalAmount = txType === 'income' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
     }
 
-    // For a manual entry the raw statement defaults to the merchant name.
-    const finalDescription = description.trim() || merchant.trim();
+    // Statement (raw description): use the edited value; if left blank, preserve the
+    // existing raw statement on edits, and fall back to the merchant name for new entries.
+    const finalDescription = description.trim() || transaction?.description || merchant.trim();
     if (splitMode && splits) {
       // Splits are stored with absolute amounts in editor; apply sign from finalAmount
       const sign = finalAmount < 0 ? -1 : 1;

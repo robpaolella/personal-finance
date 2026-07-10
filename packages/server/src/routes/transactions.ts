@@ -372,15 +372,21 @@ router.post('/', requirePermission('transactions.create'), (req: Request, res: R
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Resolve the merchant: explicit name if given, else fall back to the
-    // description so every transaction is linked to a merchant.
-    const merchantId = findOrCreateMerchant(merchant ?? description);
-
-    // Validate: must have either categoryId or splits, not both
+    // Validate BEFORE any side effects, so a rejected request never creates an
+    // orphan merchant row.
     if (splits && splits.length > 0) {
       const err = validateSplits(splits, parsedAmount);
       if (err) return res.status(400).json({ error: err });
+    } else if (!categoryId) {
+      return res.status(400).json({ error: 'categoryId or splits required' });
+    }
 
+    // Resolve the merchant: explicit name if given, else fall back to the
+    // description (|| — an empty/blank merchant also falls back) so every
+    // transaction is linked to a merchant.
+    const merchantId = findOrCreateMerchant((merchant && merchant.trim()) ? merchant : description);
+
+    if (splits && splits.length > 0) {
       const result = db.insert(transactions).values({
         account_id: accountId,
         date,
@@ -395,9 +401,6 @@ router.post('/', requirePermission('transactions.create'), (req: Request, res: R
       saveSplits(txnId, splits);
       res.status(201).json({ data: { id: txnId } });
     } else {
-      if (!categoryId) {
-        return res.status(400).json({ error: 'categoryId or splits required' });
-      }
       const result = db.insert(transactions).values({
         account_id: accountId,
         date,
@@ -428,14 +431,18 @@ router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: R
     }
 
     const newAmount = amount !== undefined ? parseFloat(amount) : existing[0].amount;
+
+    // Validate before any side effects so a rejected request can't orphan a merchant.
+    if (splits && splits.length > 0) {
+      const err = validateSplits(splits, newAmount);
+      if (err) return res.status(400).json({ error: err });
+    }
+
     // Re-resolve merchant only when a merchant name was supplied; otherwise keep the link.
     const merchantId = merchant !== undefined ? findOrCreateMerchant(merchant) : existing[0].merchant_id;
 
     if (splits && splits.length > 0) {
       // Switching to split mode
-      const err = validateSplits(splits, newAmount);
-      if (err) return res.status(400).json({ error: err });
-
       db.update(transactions)
         .set({
           account_id: accountId ?? existing[0].account_id,

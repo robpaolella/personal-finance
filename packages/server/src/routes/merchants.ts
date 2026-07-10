@@ -33,9 +33,9 @@ router.get('/', (_req: Request, res: Response) => {
 router.patch('/:id', requirePermission('transactions.edit'), (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
-    const { name } = sanitize(req.body) as { name?: string };
-    const clean = (name ?? '').trim();
-    if (!clean) return res.status(400).json({ error: 'name is required' });
+    const { name } = sanitize(req.body) as { name?: unknown };
+    if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'name is required' });
+    const clean = name.trim();
 
     const existing = db.select().from(merchants).where(eq(merchants.id, id)).all();
     if (existing.length === 0) return res.status(404).json({ error: 'Merchant not found' });
