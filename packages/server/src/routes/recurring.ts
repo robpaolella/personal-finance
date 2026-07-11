@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db/index.js';
+import { db, sqlite } from '../db/index.js';
 import { recurringItems, categories, merchants, accounts, users } from '../db/schema.js';
 import { eq, asc } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
@@ -149,7 +149,11 @@ function validate(body: Record<string, unknown>): { error: string } | { value: V
   } else if (freq_kind === 'semi_monthly') {
     const d1 = Number(body.dayOfMonth1), d2 = Number(body.dayOfMonth2);
     if (!validDay(d1) || !validDay(d2)) return { error: 'two day-of-month values 0-31 (0 = last day) are required' };
-    if (d1 === d2) return { error: 'the two semi-monthly days must be different' };
+    // 0 (last day) and 31 both resolve to the last day in every month, so reject
+    // pairs that would collapse to a single occurrence (would pay once but be
+    // annualized as twice).
+    const norm = (d: number) => (d === 0 ? 31 : d);
+    if (norm(d1) === norm(d2)) return { error: 'the two semi-monthly days must resolve to different days' };
     days_json = JSON.stringify([d1, d2]);
   } else if (freq_kind === 'every_n_months') {
     interval = Number(body.interval);
@@ -280,7 +284,19 @@ router.post('/', requirePermission('budgets.edit'), (req: Request, res: Response
     if ('error' in result) return res.status(400).json({ error: result.error });
     const now = new Date().toISOString();
     const inserted = db.insert(recurringItems).values({ ...result.value, created_at: now, updated_at: now }).run();
-    res.status(201).json({ data: baseSelect().where(eq(recurringItems.id, Number(inserted.lastInsertRowid))).get() });
+    const id = Number(inserted.lastInsertRowid);
+    const catId = result.value.category_id;
+    // Budget conflict: the FIRST recurring item on a category that already has a
+    // manual budget row — the fold mode (set/add) hasn't been chosen for it yet,
+    // so the client should ask the user how to handle it.
+    const otherCount = (sqlite.prepare('SELECT COUNT(*) as n FROM recurring_items WHERE category_id = ? AND id != ?').get(catId, id) as { n: number }).n;
+    const hasBudget = !!sqlite.prepare('SELECT 1 FROM budgets WHERE category_id = ? LIMIT 1').get(catId);
+    const cat = db.select().from(categories).where(eq(categories.id, catId)).get();
+    res.status(201).json({
+      data: baseSelect().where(eq(recurringItems.id, id)).get(),
+      budgetConflict: otherCount === 0 && hasBudget,
+      categoryMode: cat?.recurring_budget_mode === 'add' ? 'add' : 'set',
+    });
   } catch (err) {
     console.error('POST /recurring error:', err);
     res.status(500).json({ error: 'Failed to create recurring item' });

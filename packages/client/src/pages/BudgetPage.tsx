@@ -201,11 +201,11 @@ export default function BudgetPage() {
 
   const openEdit = (categoryId: number, groupName: string, subName: string, planned: number, targetMonth: string = monthStr(month), recurring: RecMeta | null = null, manual?: number) => {
     const m = manual ?? planned;
-    // In 'add' mode the input edits the discretionary (manual) amount; otherwise
-    // it edits the effective budget (which the recurring floor may have raised).
-    const startVal = recurring && recurring.mode === 'add' ? m : planned;
+    // Always edit the raw MANUAL amount (never the floored effective). The floor is
+    // applied per-month at display, so storing the manual keeps "Apply to rest of
+    // year" correct for cadences whose floor varies by month (e.g. quarterly).
     setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned, targetMonth, recurring, manual: m });
-    setEditValue(startVal ? String(startVal) : '');
+    setEditValue(m ? String(m) : '');
     setApplyFuture(false);
   };
 
@@ -218,20 +218,20 @@ export default function BudgetPage() {
       await apiFetch(`/categories/${editModal.categoryId}/recurring-mode`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
       });
-      const floor = editModal.recurring.amount;
-      const startVal = mode === 'add' ? editModal.manual : Math.max(editModal.manual, floor);
+      // The input edits the manual amount in both modes; only the preview differs.
       setEditModal({ ...editModal, recurring: { ...editModal.recurring, mode } });
-      setEditValue(startVal ? String(startVal) : '');
+      setEditValue(editModal.manual ? String(editModal.manual) : '');
       await loadData();
     } catch { addToast('Failed to change recurring mode', 'error'); }
   };
 
   const saveEdit = async () => {
     if (!editModal) return;
-    let val = parseFloat(editValue || '0');
+    const val = parseFloat(editValue || '0');
     if (isNaN(val) || val < 0) { closeEdit(); return; }
-    // 'set' mode: the budget can't drop below the month's recurring commitments.
-    if (editModal.recurring && editModal.recurring.mode === 'set') val = Math.max(val, editModal.recurring.amount);
+    // Store the raw manual amount as-is; the recurring floor is applied per-month
+    // at display (set = max(manual, floor), add = manual + floor). Clamping the
+    // stored value here would bake THIS month's floor into every applied month.
     const [by, bm] = editModal.targetMonth.split('-').map(Number); // year, month (1-12)
     const months: string[] = [editModal.targetMonth];
     if (applyFuture) {
@@ -701,7 +701,7 @@ export default function BudgetPage() {
                   </div>
                   <div className="text-[11px] text-content-3 mt-2">
                     {editModal.recurring.mode === 'set'
-                      ? `Minimum ${fmt(editModal.recurring.amount)} — the budget can't go below your recurring commitments.`
+                      ? `Effective budget ${fmt(Math.max(parseFloat(editValue || '0') || 0, editModal.recurring.amount))} — recurring ${fmt(editModal.recurring.amount)} is the minimum.`
                       : `Added on top of ${fmt(editModal.recurring.amount)} recurring → total ${fmt((parseFloat(editValue || '0') || 0) + editModal.recurring.amount)}.`}
                   </div>
                 </div>

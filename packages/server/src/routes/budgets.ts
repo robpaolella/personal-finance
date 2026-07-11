@@ -322,14 +322,26 @@ router.get('/annual', (req: Request, res: Response) => {
     }
     const plannedFor = (id: number) => plannedMap.get(id) ?? new Array(12).fill(0);
 
+    // Recurring overlay, per month, so the year view agrees with the month view.
+    const monthFloors = Array.from({ length: 12 }, (_, i) => getRecurringFloors(`${year}-${String(i + 1).padStart(2, '0')}`));
+    const effectivePlannedFor = (c: { id: number; recurring_budget_mode: string | null }): number[] => {
+      const raw = plannedFor(c.id);
+      const mode = c.recurring_budget_mode === 'add' ? 'add' : 'set';
+      return raw.map((v, m) => {
+        const f = monthFloors[m].get(c.id)?.amount ?? 0;
+        if (!f) return v;
+        return mode === 'add' ? +(v + f).toFixed(2) : Math.max(v, f);
+      });
+    };
+
     const income = allCategories.filter((c) => c.type === 'income')
-      .map((c) => ({ categoryId: c.id, subName: c.sub_name, planned: plannedFor(c.id) }));
+      .map((c) => ({ categoryId: c.id, subName: c.sub_name, planned: effectivePlannedFor(c) }));
 
     const buildGroups = (type: string) => {
       const gm = new Map<string, { groupName: string; subs: { categoryId: number; subName: string; planned: number[] }[] }>();
       for (const c of allCategories.filter((c) => c.type === type)) {
         if (!gm.has(c.group_name)) gm.set(c.group_name, { groupName: c.group_name, subs: [] });
-        gm.get(c.group_name)!.subs.push({ categoryId: c.id, subName: c.sub_name, planned: plannedFor(c.id) });
+        gm.get(c.group_name)!.subs.push({ categoryId: c.id, subName: c.sub_name, planned: effectivePlannedFor(c) });
       }
       return Array.from(gm.values()).sort((a, b) => a.groupName.localeCompare(b.groupName));
     };

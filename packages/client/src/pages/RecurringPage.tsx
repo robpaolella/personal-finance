@@ -103,6 +103,7 @@ export default function RecurringPage() {
 
   const [panel, setPanel] = useState<RItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [conflict, setConflict] = useState<Conflict | null>(null);
 
   const loadItems = useCallback(async () => {
     try { const r = await apiFetch<{ data: RItem[] }>('/recurring'); setItems(r.data); }
@@ -124,7 +125,9 @@ export default function RecurringPage() {
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
   useEffect(() => { loadItems(); }, [loadItems]);
-  useEffect(() => { setLoading(true); loadMonth().finally(() => setLoading(false)); }, [loadMonth]);
+  // Clear the prior month's data on change so the summary strip never shows stale
+  // numbers under the new month's header while the fetch is in flight.
+  useEffect(() => { setLoading(true); setMonthView(null); loadMonth().finally(() => setLoading(false)); }, [loadMonth]);
 
   const refresh = async () => { await Promise.all([loadItems(), loadMonth()]); };
 
@@ -289,8 +292,54 @@ export default function RecurringPage() {
       {modalOpen && (
         <RecurringModal item={panel} cats={cats} accts={accts}
           onClose={() => setModalOpen(false)}
-          onSaved={async () => { setModalOpen(false); setPanel(null); await refresh(); }} />
+          onSaved={async (c) => { setModalOpen(false); setPanel(null); await refresh(); if (c) setConflict(c); }} />
       )}
+
+      {conflict && (
+        <ConflictDialog conflict={conflict} onClose={() => setConflict(null)}
+          onResolved={async () => { setConflict(null); await refresh(); }} />
+      )}
+    </div>
+  );
+}
+
+// ============================ Budget-conflict dialog ============================
+function ConflictDialog({ conflict, onClose, onResolved }: {
+  conflict: Conflict; onClose: () => void; onResolved: () => void;
+}) {
+  const { addToast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const choose = async (mode: 'set' | 'add') => {
+    setBusy(true);
+    try {
+      await apiFetch(`/categories/${conflict.categoryId}/recurring-mode`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
+      });
+      addToast(mode === 'add' ? 'Recurring will be added on top of the budget' : 'Recurring set as the budget minimum');
+      onResolved();
+    } catch { addToast('Failed to save choice', 'error'); setBusy(false); }
+  };
+  return (
+    <div onClick={onClose} className="fixed inset-0 z-[85] flex items-center justify-center p-6" style={{ background: 'rgba(6,8,12,.6)', backdropFilter: 'blur(3px)' }}>
+      <div onClick={(e) => e.stopPropagation()} className="w-[460px] max-w-full bg-surface border border-line-strong rounded-card shadow-md overflow-hidden">
+        <div className="px-6 pt-5 pb-3 border-b border-line">
+          <div className="text-[18px] font-extrabold tracking-tight">Handle recurring in budget</div>
+          <div className="text-[13px] text-content-2 mt-1"><span className="font-semibold text-content">{conflict.categoryName}</span> already has a budget this month. How should the recurring <span className="font-semibold text-content">{conflict.label}</span> fold into it?</div>
+        </div>
+        <div className="p-4 flex flex-col gap-3">
+          <button disabled={busy} onClick={() => choose('set')} className="text-left rounded-[12px] border border-line-strong bg-surface-2 hover:border-primary p-4 disabled:opacity-50">
+            <div className="font-bold text-sm mb-0.5">Include within budget</div>
+            <div className="text-[12px] text-content-2">Your existing budget already covers it — the recurring amount just becomes the minimum you can budget. Your number stays the same.</div>
+          </button>
+          <button disabled={busy} onClick={() => choose('add')} className="text-left rounded-[12px] border border-line-strong bg-surface-2 hover:border-primary p-4 disabled:opacity-50">
+            <div className="font-bold text-sm mb-0.5">Add on top</div>
+            <div className="text-[12px] text-content-2">The recurring amount is added to your budget each month, raising this category's budget by that amount.</div>
+          </button>
+        </div>
+        <div className="flex justify-end px-6 py-3 border-t border-line">
+          <button onClick={onClose} className="h-10 px-4 rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Decide later</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -395,8 +444,9 @@ function DetailPanel({ item, monthOcc, today, canEdit, onClose, onEdit, onDelete
 }) {
   const { addToast } = useToast();
   const color = getCategoryColorHex(item.groupName);
-  const next = monthOcc.filter((o) => o.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0]
-    ?? monthOcc.sort((a, b) => a.date.localeCompare(b.date))[0];
+  // Only the genuinely-upcoming occurrence this month counts as "Next" — never a
+  // past one (which would render "Next: … · N days ago").
+  const next = monthOcc.filter((o) => o.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
   const del = async () => {
     if (!confirm(`Delete recurring item "${item.label}"?`)) return;
     try { await apiFetch(`/recurring/${item.id}`, { method: 'DELETE' }); addToast('Recurring item deleted'); onDeleted(); }
@@ -446,8 +496,10 @@ const FREQ_CHIPS: { value: Kind; label: string }[] = [
   { value: 'every_n_months', label: 'Every N months' }, { value: 'custom_months', label: 'Custom months' },
 ];
 
+interface Conflict { categoryId: number; categoryName: string; label: string; mode: 'set' | 'add' }
+
 function RecurringModal({ item, cats, accts, onClose, onSaved }: {
-  item: RItem | null; cats: Cat[]; accts: Acct[]; onClose: () => void; onSaved: () => void;
+  item: RItem | null; cats: Cat[]; accts: Acct[]; onClose: () => void; onSaved: (conflict?: Conflict) => void;
 }) {
   const { addToast } = useToast();
   const editing = !!item;
@@ -516,10 +568,15 @@ function RecurringModal({ item, cats, accts, onClose, onSaved }: {
     if (freqKind === 'every_n_months') body.interval = interval;
     if (freqKind === 'custom_months') body.months = months;
     try {
-      if (editing) await apiFetch(`/recurring/${item!.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      else await apiFetch('/recurring', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      addToast(editing ? 'Recurring item updated' : 'Recurring item added');
-      onSaved();
+      if (editing) {
+        await apiFetch(`/recurring/${item!.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        addToast('Recurring item updated');
+        onSaved();
+      } else {
+        const res = await apiFetch<{ data: RItem; budgetConflict: boolean; categoryMode: 'set' | 'add' }>('/recurring', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        addToast('Recurring item added');
+        onSaved(res.budgetConflict ? { categoryId: res.data.category_id, categoryName: res.data.subName, label: res.data.label, mode: res.categoryMode } : undefined);
+      }
     } catch (e) { addToast(e instanceof Error ? e.message : 'Failed to save', 'error'); setSaving(false); }
   };
 

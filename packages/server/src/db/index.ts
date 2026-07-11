@@ -72,7 +72,8 @@ sqlite.exec(`
     display_name TEXT NOT NULL,
     type TEXT NOT NULL,
     is_deductible INTEGER DEFAULT 0,
-    sort_order INTEGER DEFAULT 0
+    sort_order INTEGER DEFAULT 0,
+    recurring_budget_mode TEXT DEFAULT 'set'
   );
 
   CREATE TABLE IF NOT EXISTS merchants (
