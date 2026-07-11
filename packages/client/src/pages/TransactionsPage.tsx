@@ -567,13 +567,11 @@ export default function TransactionsPage() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
-  const [page, setPage] = useState(1);
+  const PAGE = 50; // infinite-scroll increment
+  const [limit, setLimit] = useState(PAGE); // rows currently loaded; grows on scroll
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [pageSize, setPageSize] = useState(() => {
-    const stored = localStorage.getItem('ledger-page-size');
-    return stored ? parseInt(stored, 10) : 50;
-  });
   const [sortOpen, setSortOpen] = useState(false);
   const [sortTouched, setSortTouched] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
@@ -654,8 +652,10 @@ export default function TransactionsPage() {
     const { startDate, endDate } = getDateRange();
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
-    params.set('limit', pageSize.toString());
-    params.set('offset', ((page - 1) * pageSize).toString());
+    // Infinite scroll: always fetch from the top up to the current `limit`, so
+    // growing `limit` extends the list and edits/deletes preserve the window.
+    params.set('limit', limit.toString());
+    params.set('offset', '0');
     if (search) params.set('search', search);
     if (filterAccount !== 'All') params.set('accountId', filterAccount);
     if (filterType !== 'All') params.set('type', filterType.toLowerCase());
@@ -677,7 +677,7 @@ export default function TransactionsPage() {
     const res = await apiFetch<{ data: Transaction[]; total: number }>(`/transactions?${params.toString()}`);
     setTransactions(res.data);
     setTotal(res.total);
-  }, [getDateRange, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax, page, pageSize, sortBy, sortOrder]);
+  }, [getDateRange, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax, limit, sortBy, sortOrder]);
 
   const loadMerchants = useCallback(async () => {
     const res = await apiFetch<{ data: Merchant[] }>('/merchants');
@@ -703,7 +703,7 @@ export default function TransactionsPage() {
     { by: 'amount', order: 'asc', label: 'Amount (low → high)' },
   ];
   const applySort = (by: string, order: 'asc' | 'desc') => {
-    setSortBy(by); setSortOrder(order); setSortTouched(true); setSortOpen(false); setPage(1);
+    setSortBy(by); setSortOrder(order); setSortTouched(true); setSortOpen(false); setLimit(PAGE);
   };
 
   // Date / Filters overlays — edits are staged in a draft, committed on Apply.
@@ -826,8 +826,20 @@ export default function TransactionsPage() {
   };
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
-  useEffect(() => { setPage(1); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax]);
+  useEffect(() => { setLimit(PAGE); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax]);
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
+
+  // Infinite scroll: when the sentinel nears the viewport, load one more batch.
+  // Re-arms after each fetch (transactions.length changes); stops when all loaded.
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el || transactions.length >= total) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) { io.disconnect(); setLimit((l) => l + PAGE); }
+    }, { rootMargin: '600px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [transactions.length, total]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -953,9 +965,7 @@ export default function TransactionsPage() {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const showFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const showTo = Math.min(page * pageSize, total);
+  const hasMore = transactions.length < total;
 
   const canEdit = hasPermission('transactions.edit');
   // Rounded-square checkbox indicator (never a circle — circles read as radios).
@@ -1018,11 +1028,12 @@ export default function TransactionsPage() {
             {checked && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}
           </span>
         )}
-        <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>{initial}</span>
-        {/* vendor cell (inline edit) */}
+        {/* vendor cell (avatar + name), inline edit — outline encompasses the logo */}
         <div className="relative flex-[1.4] min-w-0" onClick={(e) => { if (!bulkMode && canEdit) { e.stopPropagation(); setEditCell({ id: t.id, field: 'vendor' }); setCellSearch(''); } }}>
-          <div className="flex items-center h-8 px-2 -ml-2 rounded-lg hover:bg-surface-2">
-            <span className="font-semibold text-[15px] truncate">{vendorLabel(t)}</span>
+          <div className={`group flex items-center gap-2.5 h-9 pl-1 pr-2 rounded-[8px] border transition-colors ${vendorEditing ? 'border-primary' : 'border-transparent hover:border-line-strong'}`}>
+            <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>{initial}</span>
+            <span className="font-semibold text-[15px] truncate flex-1">{vendorLabel(t)}</span>
+            {canEdit && !bulkMode && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className={`shrink-0 transition-opacity ${vendorEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><path d="m6 9 6 6 6-6"/></svg>}
           </div>
           {vendorEditing && (
             <div onClick={(e) => e.stopPropagation()} className="absolute top-9 left-0 z-[60] w-64 bg-elevated border border-line-strong rounded-[12px] shadow-md overflow-hidden">
@@ -1040,9 +1051,10 @@ export default function TransactionsPage() {
         </div>
         {/* category cell (inline edit; disabled for splits) */}
         <div className="relative flex-1 min-w-0" onClick={(e) => { if (!bulkMode && !isSplit && canEdit) { e.stopPropagation(); setEditCell({ id: t.id, field: 'category' }); setCellSearch(''); } }}>
-          <div className="flex items-center gap-2 h-8 px-2 -ml-2 rounded-lg hover:bg-surface-2 text-[13px] text-content-2">
+          <div className={`group flex items-center gap-2 h-9 px-2 rounded-[8px] border transition-colors text-[13px] text-content-2 ${categoryEditing ? 'border-primary' : isSplit ? 'border-transparent' : 'border-transparent hover:border-line-strong'}`}>
             <span className="text-[15px] leading-none">{emoji}</span>
-            <span className="truncate">{isSplit ? `Split (${t.splits!.length})` : (t.category?.subName ?? 'Uncategorized')}</span>
+            <span className="truncate flex-1">{isSplit ? `Split (${t.splits!.length})` : (t.category?.subName ?? 'Uncategorized')}</span>
+            {canEdit && !bulkMode && !isSplit && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className={`shrink-0 transition-opacity ${categoryEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><path d="m6 9 6 6 6-6"/></svg>}
           </div>
           {categoryEditing && (
             <div onClick={(e) => e.stopPropagation()} className="absolute top-9 left-0 z-[60] w-64 bg-elevated border border-line-strong rounded-[12px] shadow-md overflow-hidden">
@@ -1667,37 +1679,10 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      <div className={`mt-3 text-[13px] text-[var(--text-secondary)] ${isMobile ? 'flex flex-col items-center gap-2 pb-16' : 'flex justify-between items-center'}`}>
-        {!isMobile && (
-          <span className="font-mono text-[12px]">
-            {total > 0 ? `${showFrom}–${showTo} of ${total}` : 'No transactions'}
-          </span>
-        )}
-        <div className={`flex items-center ${isMobile ? 'justify-center' : 'gap-3'}`}>
-          {!isMobile && (
-            <div className="flex items-center gap-1.5">
-              <select value={pageSize} onChange={(e) => { const v = parseInt(e.target.value, 10); setPageSize(v); localStorage.setItem('ledger-page-size', v.toString()); setPage(1); }}
-                className="px-2 py-1 border border-[var(--table-border)] rounded text-[12px] bg-[var(--bg-input)] outline-none text-[var(--text-secondary)]">
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={250}>250</option>
-              </select>
-              <span className="text-[12px] text-[var(--text-muted)]">per page</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
-              className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default btn-secondary">
-              ← Prev
-            </button>
-            <span className="font-mono text-[12px] text-[var(--text-muted)]">{page} / {totalPages}</span>
-            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-              className="px-2.5 py-1 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded text-[12px] font-medium border-none cursor-pointer disabled:opacity-40 disabled:cursor-default btn-secondary">
-              Next →
-            </button>
-          </div>
-        </div>
+      {/* Infinite scroll: sentinel loads the next batch as it nears the viewport */}
+      <div ref={loadMoreRef} />
+      <div className={`mt-3 mb-16 text-center font-mono text-[12px] text-content-3`}>
+        {total > 0 ? (hasMore ? `Showing ${transactions.length} of ${total} — scroll for more` : `All ${total} transactions`) : 'No transactions'}
       </div>
 
       {/* Modal */}
