@@ -148,14 +148,13 @@ router.get('/summary', (req: Request, res: Response) => {
     // recurring. `manual` is the raw stored amount (for editing); `budgeted` is the
     // effective amount used for display + all totals.
     const floors = getRecurringFloors(month);
-    type RecMeta = { amount: number; itemCount: number; items: { label: string; cadence: string }[]; mode: 'set' | 'add' };
-    const foldBudget = (c: { id: number; recurring_budget_mode: string | null }, stored: number, overridden: boolean): { budgeted: number; manual: number; recurring: RecMeta | null; overridden: boolean } => {
+    type RecMeta = { amount: number; itemCount: number; items: { label: string; cadence: string }[] };
+    // Floor-only model: recurring is the minimum. override bypasses it for one month.
+    const foldBudget = (c: { id: number }, stored: number, overridden: boolean): { budgeted: number; manual: number; recurring: RecMeta | null; overridden: boolean } => {
       const f = floors.get(c.id);
       if (!f) return { budgeted: stored, manual: stored, recurring: null, overridden: false };
-      const mode: 'set' | 'add' = c.recurring_budget_mode === 'add' ? 'add' : 'set';
-      // override bypasses the floor for this month (intentional sub-floor budget).
-      const budgeted = overridden ? stored : (mode === 'add' ? +(stored + f.amount).toFixed(2) : Math.max(stored, f.amount));
-      return { budgeted, manual: stored, recurring: { amount: f.amount, itemCount: f.itemCount, items: f.items, mode }, overridden };
+      const budgeted = overridden ? stored : Math.max(stored, f.amount);
+      return { budgeted, manual: stored, recurring: { amount: f.amount, itemCount: f.itemCount, items: f.items }, overridden };
     };
 
     // Get actuals from transactions — optionally filtered by owner
@@ -333,14 +332,13 @@ router.get('/annual', (req: Request, res: Response) => {
 
     // Recurring overlay, per month, so the year view agrees with the month view.
     const monthFloors = Array.from({ length: 12 }, (_, i) => getRecurringFloors(`${year}-${String(i + 1).padStart(2, '0')}`));
-    const effectivePlannedFor = (c: { id: number; recurring_budget_mode: string | null }): number[] => {
+    const effectivePlannedFor = (c: { id: number }): number[] => {
       const raw = plannedFor(c.id);
       const ovr = overrideFor(c.id);
-      const mode = c.recurring_budget_mode === 'add' ? 'add' : 'set';
       return raw.map((v, m) => {
         const f = monthFloors[m].get(c.id)?.amount ?? 0;
-        if (!f || ovr[m]) return v; // override bypasses the floor for that month
-        return mode === 'add' ? +(v + f).toFixed(2) : Math.max(v, f);
+        if (!f || ovr[m]) return v; // no floor, or override bypasses it this month
+        return Math.max(v, f);
       });
     };
 

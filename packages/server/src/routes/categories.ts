@@ -120,20 +120,6 @@ router.put('/:id', requirePermission('categories.edit'), (req: Request, res: Res
   res.json({ data: updated });
 });
 
-// PATCH /api/categories/:id/recurring-mode — how recurring items fold into this
-// category's monthly budget: 'set' (floor) | 'add' (added on top).
-router.patch('/:id/recurring-mode', requirePermission('budgets.edit'), (req: Request, res: Response): void => {
-  const id = Number(req.params.id);
-  const existing = db.select().from(categories).where(eq(categories.id, id)).get();
-  if (!existing) {
-    res.status(404).json({ error: 'Category not found' });
-    return;
-  }
-  const mode = req.body?.mode === 'add' ? 'add' : 'set';
-  db.update(categories).set({ recurring_budget_mode: mode }).where(eq(categories.id, id)).run();
-  res.json({ data: { id, recurring_budget_mode: mode } });
-});
-
 // DELETE /api/categories/:id
 router.delete('/:id', requirePermission('categories.delete'), (req: Request, res: Response): void => {
   const id = Number(req.params.id);

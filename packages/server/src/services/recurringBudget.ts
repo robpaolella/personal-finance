@@ -1,10 +1,11 @@
 import { sqlite } from '../db/index.js';
 import { computePaydaysInMonth, type PayCycleForMath } from '../utils/payCycleMath.js';
 
+export interface RecurringFloorItem { label: string; cadence: string }
 export interface RecurringFloor {
   amount: number;      // summed positive magnitude of active occurrences this month
   itemCount: number;
-  labels: string[];    // contributing item labels, for the notice breakdown
+  items: RecurringFloorItem[]; // contributing items (label + cadence) for the breakdown
 }
 
 interface Row {
@@ -17,6 +18,19 @@ function parseIntArray(json: string | null): number[] {
   if (!json) return [];
   try { const v = JSON.parse(json); return Array.isArray(v) ? v.map(Number).filter((n) => Number.isFinite(n)) : []; }
   catch { return []; }
+}
+
+/** Human cadence label for a recurring item, matching the Recurring page copy. */
+function cadenceOf(freq_kind: string, interval: number | null, months_json: string | null): string {
+  switch (freq_kind) {
+    case 'monthly': return 'monthly';
+    case 'semi_monthly': return 'semi-monthly';
+    case 'weekly': return 'weekly';
+    case 'biweekly': return 'bi-weekly';
+    case 'every_n_months': return interval === 1 ? 'monthly' : `every ${interval ?? '?'} months`;
+    case 'custom_months': { const n = parseIntArray(months_json).length; return n === 1 ? 'once a year' : `${n}× a year`; }
+    default: return freq_kind;
+  }
 }
 
 /**
@@ -47,10 +61,10 @@ export function getRecurringFloors(month: string): Map<number, RecurringFloor> {
     const count = computePaydaysInMonth(math, year, mon).length;
     if (count === 0) continue;
     const add = (r.amount ?? 0) * count;
-    const cur = map.get(r.category_id) ?? { amount: 0, itemCount: 0, labels: [] };
+    const cur = map.get(r.category_id) ?? { amount: 0, itemCount: 0, items: [] as RecurringFloorItem[] };
     cur.amount = +(cur.amount + add).toFixed(2);
     cur.itemCount += 1;
-    cur.labels.push(r.label);
+    cur.items.push({ label: r.label, cadence: cadenceOf(r.freq_kind, r.interval, r.months_json) });
     map.set(r.category_id, cur);
   }
   return map;

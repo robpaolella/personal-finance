@@ -30,8 +30,6 @@ interface ROcc {
 interface Flow { total: number; paid: number; remaining: number }
 interface MonthView { month: string; occurrences: ROcc[]; income: Flow; expense: Flow; net: number }
 interface Cat { id: number; group_name: string; sub_name: string; type: string; recurring_budget_mode?: string | null }
-// Authoritative budget-conflict preview from POST /recurring/budget-preview.
-interface Preview { applicable: boolean; month: string; occurs: boolean; currentMode: 'set' | 'add'; manual: number; recurTotal: number; currentEffective: number; resultSet: number; resultAdd: number }
 interface Acct { id: number; name: string; last_four: string | null; owner: string; owners?: { displayName: string }[]; isShared?: boolean }
 
 const DAY_MS = 86_400_000;
@@ -472,32 +470,6 @@ function RecurringModal({ item, cats, accts, onClose, onSaved }: {
   const [status, setStatus] = useState<'active' | 'paused'>(item?.status ?? 'active');
   const [saving, setSaving] = useState(false);
 
-  // Fold mode for the recurring→budget conflict. Per the design, defaults to
-  // "Add on top" for a fresh decision.
-  const [budgetMode, setBudgetMode] = useState<'set' | 'add'>('add');
-
-  // Authoritative budget-conflict preview (server-computed from the real engine +
-  // existing items + the first month the item occurs). Debounced on the inputs
-  // that affect it. Only for INCOME (expenses always floor); only when the
-  // affected month already has a manual budget.
-  const [preview, setPreview] = useState<Preview | null>(null);
-  useEffect(() => {
-    const amt = parseFloat(amount);
-    if (editing || type !== 'income' || categoryId === '' || !(amt > 0)) { setPreview(null); return; }
-    const body: Record<string, unknown> = { categoryId, amount: amt, freqKind, startDate };
-    if (freqKind === 'monthly' || freqKind === 'every_n_months' || freqKind === 'custom_months') body.day = day;
-    if (freqKind === 'semi_monthly') { body.dayOfMonth1 = day1; body.dayOfMonth2 = day2; }
-    if (freqKind === 'every_n_months') body.interval = interval;
-    if (freqKind === 'custom_months') body.months = months;
-    let cancelled = false;
-    const t = setTimeout(() => {
-      apiFetch<{ data: Preview }>('/recurring/budget-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-        .then((r) => { if (!cancelled) setPreview(r.data.applicable ? r.data : null); })
-        .catch(() => { if (!cancelled) setPreview(null); });
-    }, 300);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [editing, type, categoryId, amount, freqKind, day, day1, day2, interval, months, startDate]);
-
   const catOptions = useMemo(() => {
     const wanted = type === 'income' ? ['income'] : ['expense', 'savings'];
     const filtered = cats.filter((c) => wanted.includes(c.type));
@@ -520,10 +492,6 @@ function RecurringModal({ item, cats, accts, onClose, onSaved }: {
   };
 
   const parsedAmount = parseFloat(amount);
-  // Budget conflict (create + income only): server preview says the affected month
-  // already has a manual budget, so the user chooses how the recurring folds in.
-  const hasConflict = !editing && type === 'income' && !!preview?.applicable;
-  const selectedCatName = cats.find((c) => c.id === categoryId)?.sub_name ?? '';
   const valid = !!label.trim() && categoryId !== '' && parsedAmount > 0 && !!startDate
     && (freqKind !== 'custom_months' || months.length > 0)
     && (freqKind !== 'semi_monthly' || day1 !== day2)
@@ -550,8 +518,6 @@ function RecurringModal({ item, cats, accts, onClose, onSaved }: {
     if (freqKind === 'semi_monthly') { body.dayOfMonth1 = day1; body.dayOfMonth2 = day2; }
     if (freqKind === 'every_n_months') body.interval = interval;
     if (freqKind === 'custom_months') body.months = months;
-    // Resolve the budget conflict inline: send the chosen fold mode with the create.
-    if (hasConflict) body.budgetMode = budgetMode;
     try {
       if (editing) {
         await apiFetch(`/recurring/${item!.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -592,43 +558,6 @@ function RecurringModal({ item, cats, accts, onClose, onSaved }: {
             </select>
           </div>
         </div>
-
-        {/* Budget fold-in control (income + existing-budget conflict). A calm,
-            neutral decision panel per the Claude Design handoff — NOT a warning. */}
-        {hasConflict && preview && (
-          <div className="bg-surface border border-line rounded-[14px] p-4">
-            {/* Info line */}
-            <div className="flex gap-2.5 mb-3.5">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" className="shrink-0 mt-px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
-              <div className="text-[13.5px] leading-[1.55] text-content-2">
-                <span className="font-bold text-content">{selectedCatName}</span> already has a <span className="font-bold text-content tabular-nums">{fmt(preview.currentEffective)}</span> budget in <span className="font-bold text-content">{monthLabel(preview.month)}</span>. Choose how this recurring folds in.
-              </div>
-            </div>
-            {/* Segmented slider with animated thumb */}
-            <div className="relative flex h-12 bg-surface-2 border border-line rounded-[12px] p-1">
-              <div className="absolute top-1 bottom-1 left-1 rounded-[9px] bg-primary shadow-sm"
-                style={{ width: 'calc(50% - 4px)', transform: budgetMode === 'set' ? 'translateX(0)' : 'translateX(100%)', transition: 'transform .24s cubic-bezier(.4,.1,.2,1)' }} />
-              <button type="button" onClick={() => setBudgetMode('set')} aria-pressed={budgetMode === 'set'}
-                className={`relative z-[2] flex-1 flex items-center justify-center rounded-[9px] text-sm font-bold transition-colors ${budgetMode === 'set' ? 'text-on-primary' : 'text-content-2'}`}>Set as minimum</button>
-              <button type="button" onClick={() => setBudgetMode('add')} aria-pressed={budgetMode === 'add'}
-                className={`relative z-[2] flex-1 flex items-center justify-center rounded-[9px] text-sm font-bold transition-colors ${budgetMode === 'add' ? 'text-on-primary' : 'text-content-2'}`}>Add on top</button>
-            </div>
-            {/* Result readout */}
-            <div className="mt-4 pt-4 border-t border-line">
-              <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-content-3 mb-2 text-center">This month's budget becomes</div>
-              <div className="flex items-baseline justify-center gap-3 tabular-nums">
-                <span className="text-[19px] font-semibold text-content-3 line-through">{fmt(preview.currentEffective)}</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 self-center"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
-                <span className="text-[30px] font-extrabold text-positive" style={{ letterSpacing: '-0.01em' }}>{fmt(budgetMode === 'set' ? preview.resultSet : preview.resultAdd)}</span>
-              </div>
-              <div className="text-[13px] leading-normal text-content-2 mt-2.5">
-                {budgetMode === 'set'
-                  ? `The recurring total (${fmt(preview.recurTotal)}) is used as the floor. Your existing budget is kept only if it is higher.`
-                  : `The recurring total (${fmt(preview.recurTotal)}) is added straight on top of your existing ${fmt(preview.currentEffective)} budget.`}
-              </div>
-            </div>
-          </div>
-        )}
 
         <div>
           <div className={labelCls}>Frequency</div>

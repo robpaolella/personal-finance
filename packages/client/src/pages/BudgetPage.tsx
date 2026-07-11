@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 // Recurring overlay meta on a budget row (null when no recurring items apply).
-interface RecMeta { amount: number; itemCount: number; items: { label: string; cadence: string }[]; mode: 'set' | 'add' }
+interface RecMeta { amount: number; itemCount: number; items: { label: string; cadence: string }[] }
 
 interface IncomeRow {
   categoryId: number;
@@ -220,20 +220,18 @@ export default function BudgetPage() {
     if (isNaN(val) || val < 0) { closeEdit(); return; }
     const rec = editModal.recurring;
     const floor = rec?.amount ?? 0;
-    const mode = rec?.mode ?? 'set';
     const below = !!rec && val < floor;
     const overriding = below && editOverride;
 
-    // What to store as the month's manual amount + whether to bypass the floor:
-    // - overriding: save the raw sub-floor value; set override=1; THIS MONTH ONLY.
+    // Floor-only model. Store the total budget the overlay will floor at recurring:
+    // - overriding: save the raw sub-floor value + override=1; THIS MONTH ONLY.
     // - below (not overriding): clamp up to the floor.
-    // - at/above: store the manual derived per fold mode (set=total, add=total-floor).
+    // - at/above: store the entered total.
     let stored: number; let override = 0; let applyForward = applyFuture;
     if (overriding) {
       stored = val; override = 1; applyForward = false;
     } else {
-      const total = below ? floor : val;
-      stored = mode === 'add' ? +(total - floor).toFixed(2) : total;
+      stored = below ? floor : val;
     }
 
     const [by, bm] = editModal.targetMonth.split('-').map(Number); // year, month (1-12)
@@ -530,7 +528,7 @@ export default function BudgetPage() {
                                   <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
                                     <span className="text-sm font-medium truncate">{r.subName}</span>
                                     {r.recurring && (
-                                      <span title={`Recurring: ${r.recurring.items.map((i) => i.label).join(', ')} — ${r.recurring.mode === 'add' ? 'added on top' : 'sets the minimum'}`}
+                                      <span title={`Recurring (minimum): ${r.recurring.items.map((i) => i.label).join(', ')}`}
                                         className="shrink-0 inline-flex items-center gap-1 px-1.5 h-[18px] rounded-md text-[10px] font-bold tabular-nums"
                                         style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
                                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
