@@ -367,3 +367,82 @@ export interface PayCycleProjection {
   cycles: PayCycleProjectionCycle[];
   categoryTotals: PayCycleProjectionCategoryTotal[];
 }
+
+// === Recurring Items (unified recurring income + expense + savings) ===
+
+export type RecurrenceKind =
+  | 'monthly' | 'semi_monthly' | 'biweekly' | 'weekly' | 'every_n_months' | 'custom_months';
+
+export interface RecurringItem {
+  id: number;
+  type: 'income' | 'expense'; // savings shares the expense (outflow) sign convention
+  label: string;
+  merchant_id: number | null;
+  category_id: number;
+  account_id: number | null;
+  amount: number | null; // per-occurrence positive magnitude (null = unset)
+  freq_kind: RecurrenceKind;
+  day: number | null; // monthly/every-N/custom day-of-month (0 = last day)
+  days_json: string | null; // semi_monthly two days, e.g. '[1,15]'
+  interval: number | null; // every_n_months
+  anchor_date: string | null; // 'YYYY-MM-DD' phase ref (weekly/biweekly/every-N)
+  months_json: string | null; // custom_months 1-based, e.g. '[3,11]'
+  start_date: string | null;
+  status: 'active' | 'paused';
+  user_id: number | null;
+  effective_start: string | null;
+  effective_end: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// A recurring item enriched with category/merchant/account meta (GET /api/recurring).
+export interface RecurringItemWithMeta extends RecurringItem {
+  groupName: string;
+  subName: string;
+  displayName: string;
+  categoryType: CategoryType;
+  merchantName: string | null;
+  accountName: string | null;
+  accountLastFour: string | null;
+}
+
+// One dated occurrence of a recurring item within a month.
+export interface RecurringOccurrence {
+  itemId: number;
+  label: string;
+  merchantName: string | null;
+  date: string; // 'YYYY-MM-DD'
+  amount: number; // positive magnitude
+  type: 'income' | 'expense';
+  categoryId: number;
+  groupName: string;
+  subName: string;
+  categoryType: CategoryType;
+  accountName: string | null;
+  accountLastFour: string | null;
+  frequency: RecurrenceKind;
+  status: 'paid' | 'due' | 'upcoming';
+}
+
+export interface RecurringMonthFlow {
+  total: number;
+  paid: number; // occurrences on/before today
+  remaining: number;
+}
+
+export interface RecurringMonthView {
+  month: string; // 'YYYY-MM'
+  occurrences: RecurringOccurrence[];
+  income: RecurringMonthFlow;
+  expense: RecurringMonthFlow;
+  net: number;
+}
+
+// Per-category recurring total for a month, for the budget overlay.
+export interface RecurringBudgetFloor {
+  categoryId: number;
+  amount: number; // summed positive magnitude of active occurrences this month
+  itemCount: number;
+  labels: string[]; // contributing item labels, for the notice breakdown
+}

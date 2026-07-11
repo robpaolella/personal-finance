@@ -24,6 +24,7 @@ import { migrateSyncStatus } from './db/migrate-sync-status.js';
 import { migrateNotifications } from './db/migrate-notifications.js';
 import { migrateTransfersCategory } from './db/migrate-transfers-category.js';
 import { migrateSplitMerchant } from './db/migrate-split-merchant.js';
+import { migrateRecurringItems } from './db/migrate-recurring-items.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -44,6 +45,7 @@ import twofaRoutes from './routes/twofa.js';
 import budgetTemplateRoutes from './routes/budget-templates.js';
 import budgetRecurringRoutes from './routes/budget-recurring.js';
 import payCycleRoutes from './routes/pay-cycles.js';
+import recurringRoutes from './routes/recurring.js';
 import devRoutes from './routes/dev.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -76,6 +78,7 @@ migrateTxnCategorize(sqlite);
 migrateSyncStatus(sqlite);
 migrateNotifications(sqlite);
 migrateTransfersCategory(sqlite);
+migrateRecurringItems(sqlite); // after categories/merchants/accounts/users (FK targets)
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
@@ -107,6 +110,7 @@ app.use('/api/budgets', budgetRoutes);
 app.use('/api/budget-templates', budgetTemplateRoutes);
 app.use('/api/budget-recurring', budgetRecurringRoutes);
 app.use('/api/pay-cycles', payCycleRoutes);
+app.use('/api/recurring', recurringRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/balances', balanceRoutes);
 app.use('/api/assets', assetRoutes);

@@ -25,6 +25,7 @@ function base(overrides: Partial<PayCycleForMath>): PayCycleForMath {
     category_id: 100, sub_name: 'Take Home Pay', group_name: 'Income',
     frequency: 'biweekly', amount: 1000,
     anchor_date: null, day_of_month_1: null, day_of_month_2: null, day_of_month: null,
+    interval: null, months: null,
     effective_start: null, effective_end: null, is_active: 1,
     ...overrides,
   };
@@ -122,6 +123,46 @@ const countsForYear = (c: PayCycleForMath, year: number) =>
   check('Jan (partial, 1 check) NOT flagged extra', projectPayCycles([c], '2026-01').categoryTotals[0].hasExtraPaycheck === false);
   check('Feb (normal, 2 checks) NOT flagged extra', projectPayCycles([c], '2026-02').categoryTotals[0].hasExtraPaycheck === false);
   check('Jul (3 checks) IS flagged extra', projectPayCycles([c], '2026-07').categoryTotals[0].hasExtraPaycheck === true);
+}
+
+// 10. every_n_months — quarterly anchored 2026-02-10, day 10, across a year boundary
+{
+  const c = base({ frequency: 'every_n_months', amount: 300, interval: 3, anchor_date: '2026-02-10', day_of_month: 10 });
+  const counts = countsForYear(c, 2026);
+  console.log('every_n_months (quarterly, anchor 2026-02-10 day 10):');
+  check('2026 counts = Feb/May/Aug/Nov', eq(counts, [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]), counts);
+  check('Feb payday = 02-10', eq(computePaydaysInMonth(c, 2026, 2), ['2026-02-10']));
+  // Year boundary continuity: next in-phase month after Nov 2026 is Feb 2027, and
+  // Jan 2027 (11 months from anchor) is NOT in phase, but 2027-02 IS (12 % 3 === 0).
+  check('2027-01 not in phase', computePaydaysInMonth(c, 2027, 1).length === 0);
+  check('2027-02 in phase', eq(computePaydaysInMonth(c, 2027, 2), ['2027-02-10']));
+  // Backward extrapolation: 2025-11 (−3 months) is in phase.
+  check('2025-11 in phase (backward)', eq(computePaydaysInMonth(c, 2025, 11), ['2025-11-10']));
+}
+
+// 11. every_n_months day 31 clamps to short in-phase months
+{
+  const c = base({ frequency: 'every_n_months', amount: 100, interval: 1, anchor_date: '2026-01-31', day_of_month: 31 });
+  console.log('every_n_months (monthly-equiv, day 31):');
+  check('Feb clamps to 02-28', eq(computePaydaysInMonth(c, 2026, 2), ['2026-02-28']));
+  check('Apr clamps to 04-30', eq(computePaydaysInMonth(c, 2026, 4), ['2026-04-30']));
+}
+
+// 12. custom_months — occurs only in Mar & Nov, day 10
+{
+  const c = base({ frequency: 'custom_months', amount: 200, months: [3, 11], day_of_month: 10 });
+  const counts = countsForYear(c, 2026);
+  console.log('custom_months [3,11] day 10:');
+  check('only Mar & Nov', eq(counts, [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0]), counts);
+  check('Mar payday = 03-10', eq(computePaydaysInMonth(c, 2026, 3), ['2026-03-10']));
+}
+
+// 13. custom_months day 31 in Feb clamps (leap-year aware)
+{
+  const c = base({ frequency: 'custom_months', amount: 200, months: [2], day_of_month: 31 });
+  console.log('custom_months [2] day 31 (leap clamp):');
+  check('2026-02 (non-leap) = 02-28', eq(computePaydaysInMonth(c, 2026, 2), ['2026-02-28']));
+  check('2028-02 (leap) = 02-29', eq(computePaydaysInMonth(c, 2028, 2), ['2028-02-29']));
 }
 
 console.log(failures === 0 ? '\nALL PASSED' : `\n${failures} FAILURE(S)`);

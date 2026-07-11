@@ -69,6 +69,9 @@ export const categories = sqliteTable('categories', {
   type: text('type').notNull(), // income, expense, savings
   is_deductible: integer('is_deductible').default(0),
   sort_order: integer('sort_order').default(0),
+  // How recurring items on this category fold into its monthly budget:
+  // 'set' = recurring is the floor (max(manual, recurring)); 'add' = manual + recurring.
+  recurring_budget_mode: text('recurring_budget_mode').default('set'),
 });
 
 // === Merchants ===
@@ -263,6 +266,33 @@ export const payCycles = sqliteTable('pay_cycles', {
   effective_start: text('effective_start'), // 'YYYY-MM-DD' inclusive lower bound, nullable
   effective_end: text('effective_end'), // 'YYYY-MM-DD' inclusive upper bound, nullable
   is_active: integer('is_active').notNull().default(1),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+  updated_at: text('updated_at').default('CURRENT_TIMESTAMP'),
+});
+
+// === Recurring Items ===
+// Unified recurring income + expense (+ savings) — the superset of pay_cycles +
+// budget_recurring. The engine expands each item into dated occurrences per month
+// and they overlay the budget live (see routes/recurring.ts + Budget integration).
+export const recurringItems = sqliteTable('recurring_items', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  type: text('type').notNull(), // 'income' | 'expense' (savings uses expense/outflow sign)
+  label: text('label').notNull(),
+  merchant_id: integer('merchant_id').references(() => merchants.id), // nullable
+  category_id: integer('category_id').notNull().references(() => categories.id),
+  account_id: integer('account_id').references(() => accounts.id), // nullable
+  amount: real('amount'), // per-occurrence positive magnitude, nullable (unset)
+  freq_kind: text('freq_kind').notNull(), // monthly|semi_monthly|biweekly|weekly|every_n_months|custom_months
+  day: integer('day'), // monthly/every-N/custom day-of-month (0 = last day)
+  days_json: text('days_json'), // semi_monthly two days, e.g. '[1,15]'
+  interval: integer('interval'), // every_n_months
+  anchor_date: text('anchor_date'), // 'YYYY-MM-DD' phase ref (weekly/biweekly/every-N)
+  months_json: text('months_json'), // custom_months 1-based, e.g. '[3,11]'
+  start_date: text('start_date'), // 'YYYY-MM-DD'
+  status: text('status').notNull().default('active'), // 'active' | 'paused'
+  user_id: integer('user_id').references(() => users.id), // nullable owner attribution
+  effective_start: text('effective_start'), // nullable inclusive lower bound
+  effective_end: text('effective_end'), // nullable inclusive upper bound
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
   updated_at: text('updated_at').default('CURRENT_TIMESTAMP'),
 });

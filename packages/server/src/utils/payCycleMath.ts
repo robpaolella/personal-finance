@@ -30,12 +30,16 @@ export interface PayCycleForMath {
   category_id: number;
   sub_name: string;
   group_name: string;
-  frequency: PayFrequency;
+  // Recurring items add 'every_n_months' and 'custom_months' on top of the four
+  // pay-cycle frequencies; the extra branches are purely additive.
+  frequency: PayFrequency | 'every_n_months' | 'custom_months';
   amount: number;
   anchor_date: string | null;
   day_of_month_1: number | null;
   day_of_month_2: number | null;
   day_of_month: number | null;
+  interval?: number | null; // every_n_months: repeat every N months from the anchor
+  months?: number[] | null; // custom_months: 1-based months it occurs in
   effective_start: string | null;
   effective_end: string | null;
   is_active: number;
@@ -98,6 +102,28 @@ export function computePaydaysInMonth(cycle: PayCycleForMath, year: number, mon:
     const d = resolveDay(cycle.day_of_month ?? 1, lastDay);
     const p = ymdToMs(year, mon, d);
     if (p >= startMs && p <= endMs) out.push(p);
+  } else if (cycle.frequency === 'every_n_months') {
+    // Repeat every N months from an anchor month (anchor_date, else effective_start).
+    // In phase when the whole-month delta from the anchor is a multiple of N — works
+    // across year boundaries and extrapolates backward (modulo is sign-safe).
+    const n = cycle.interval && cycle.interval > 0 ? cycle.interval : 1;
+    const anchor = cycle.anchor_date ?? cycle.effective_start;
+    if (anchor) {
+      const [ay, am] = anchor.split('-').map(Number);
+      const mDelta = (year - ay) * 12 + (mon - am);
+      if (((mDelta % n) + n) % n === 0) {
+        const d = resolveDay(cycle.day_of_month ?? 1, lastDay);
+        const p = ymdToMs(year, mon, d);
+        if (p >= startMs && p <= endMs) out.push(p);
+      }
+    }
+  } else if (cycle.frequency === 'custom_months') {
+    // Occurs only in a chosen set of 1-based months, on day_of_month.
+    if (cycle.months && cycle.months.includes(mon)) {
+      const d = resolveDay(cycle.day_of_month ?? 1, lastDay);
+      const p = ymdToMs(year, mon, d);
+      if (p >= startMs && p <= endMs) out.push(p);
+    }
   }
 
   return out.map(msToYmd);
@@ -146,7 +172,9 @@ export function projectPayCycles(cycles: PayCycleForMath[], month: string): PayC
       categoryId: c.category_id,
       subName: c.sub_name,
       groupName: c.group_name,
-      frequency: c.frequency,
+      // projectPayCycles only runs over the 4 pay-cycle frequencies; the widened
+      // union (for recurring items) never reaches this projection path.
+      frequency: c.frequency as PayFrequency,
       perPaycheckAmount: c.amount,
       paydays,
       paydayCount,

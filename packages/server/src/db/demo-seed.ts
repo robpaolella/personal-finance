@@ -33,6 +33,27 @@ db.exec(`
   )
 `);
 
+// Ensure recurring_items table exists (not created by base seed)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS recurring_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL CHECK (type IN ('income','expense')),
+    label TEXT NOT NULL,
+    merchant_id INTEGER REFERENCES merchants(id),
+    category_id INTEGER NOT NULL REFERENCES categories(id),
+    account_id INTEGER REFERENCES accounts(id),
+    amount REAL,
+    freq_kind TEXT NOT NULL CHECK (freq_kind IN ('monthly','semi_monthly','biweekly','weekly','every_n_months','custom_months')),
+    day INTEGER, days_json TEXT, interval INTEGER, anchor_date TEXT, months_json TEXT,
+    start_date TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused')),
+    user_id INTEGER REFERENCES users(id),
+    effective_start TEXT, effective_end TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
