@@ -10,7 +10,7 @@ import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import CurrencyInput from '../components/CurrencyInput';
 import Calendar from '../components/Calendar';
 import PermissionGate from '../components/PermissionGate';
-import { CategoryBadge, SplitBadge, ReimbursementBadge } from '../components/badges';
+import { CategoryBadge } from '../components/badges';
 import InlineNotification from '../components/InlineNotification';
 import ResponsiveModal from '../components/ResponsiveModal';
 import SplitEditor from '../components/SplitEditor';
@@ -778,8 +778,10 @@ export default function TransactionsPage() {
     if (!detail) return;
     const rows = (detail.splits && detail.splits.length > 0)
       ? detail.splits.map((s) => ({ categoryId: s.categoryId as number | '', amount: Math.abs(s.amount).toFixed(2) }))
+      // New split: start every row at $0 so nothing is pre-filled and you never
+      // have to go back and correct a row that was seeded with the full amount.
       : [
-          { categoryId: (detail.category?.id ?? '') as number | '', amount: Math.abs(detail.amount).toFixed(2) },
+          { categoryId: (detail.category?.id ?? '') as number | '', amount: '' },
           { categoryId: '' as number | '', amount: '' },
         ];
     setSplitDraft(rows);
@@ -981,21 +983,60 @@ export default function TransactionsPage() {
   const splitAlloc = splitDraft.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
   const splitRemainingVal = detail ? Math.abs(detail.amount) - splitAlloc : 0;
   const splitValid = splitDraft.filter((r) => r.categoryId !== '' && parseFloat(r.amount) > 0).length >= 2 && Math.abs(splitRemainingVal) < 0.01;
-  const dateGroups: { date: string; rows: Transaction[]; net: number }[] = [];
+  // A split transaction renders as one row PER split (each with its own category
+  // + amount + a split marker); non-split txns render as a single row.
+  type DisplayRow = { t: Transaction; split?: TransactionSplit };
+  const dateGroups: { date: string; rows: DisplayRow[]; net: number }[] = [];
   for (const t of transactions) {
+    const rows: DisplayRow[] = (t.splits && t.splits.length > 0) ? t.splits.map((s) => ({ t, split: s })) : [{ t }];
     const last = dateGroups[dateGroups.length - 1];
-    if (last && last.date === t.date) { last.rows.push(t); last.net += t.amount; }
-    else dateGroups.push({ date: t.date, rows: [t], net: t.amount });
+    if (last && last.date === t.date) { last.rows.push(...rows); last.net += t.amount; }
+    else dateGroups.push({ date: t.date, rows, net: t.amount });
   }
+  const displayRows = dateGroups.flatMap((g) => g.rows); // flat, split-expanded (mobile)
 
-  const renderRow = (t: Transaction) => {
+  const splitIcon = (size = 12) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg>
+  );
+
+  const renderRow = (t: Transaction, split?: TransactionSplit) => {
+    const checked = selectedIds.has(t.id);
+    // Split sub-row: parent merchant + this split's own category + amount + marker.
+    if (split) {
+      const scolor = getCategoryColorHex(split.groupName);
+      const sinitial = (vendorLabel(t)?.trim()?.[0] ?? '?').toUpperCase();
+      const { text: sAmt, className: sClass } = fmtTransaction(split.amount, split.type);
+      return (
+        <div key={`${t.id}-split-${split.id}`}
+          onClick={() => { if (bulkMode) toggleSelect(t.id); else if (canEdit) openDetail(t); }}
+          className="flex items-center gap-3.5 px-6 border-b border-line cursor-pointer hover:bg-surface-2/40"
+          style={{ height: 44, background: checked ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : undefined, boxShadow: 'inset 3px 0 0 color-mix(in srgb, var(--primary) 30%, transparent)' }}>
+          {bulkMode && (
+            <span className="w-5 h-5 shrink-0 rounded-[6px] flex items-center justify-center border-[1.5px]" style={{ borderColor: checked ? 'var(--primary)' : 'var(--line-strong)', background: checked ? 'var(--primary)' : 'transparent' }}>
+              {checked && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}
+            </span>
+          )}
+          <div className="flex-[1.4] min-w-0 flex items-center gap-2.5 pl-1">
+            <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${scolor} 16%, transparent)`, color: scolor }}>{sinitial}</span>
+            <span className="font-semibold text-[15px] truncate">{vendorLabel(t)}</span>
+            <span className="shrink-0 inline-flex items-center justify-center w-[18px] h-[18px] rounded-md" style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }} title="Part of a split transaction">{splitIcon(11)}</span>
+          </div>
+          <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-content-2 px-2">
+            <span className="text-[15px] leading-none">{getCategoryEmoji(split.groupName)}</span>
+            <span className="truncate">{split.subName}</span>
+          </div>
+          <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-content-3"><span className="truncate">{accountLabel(t.account)}</span></div>
+          <div className={`w-[128px] shrink-0 text-right font-bold text-[15px] tabular-nums ${sClass}`}>{sAmt}</div>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-content-3 shrink-0"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+      );
+    }
     const catType = t.category?.type ?? t.splits?.[0]?.type ?? 'expense';
     const { text: amtText, className: amtClass } = fmtTransaction(t.amount, catType);
     const isSplit = !!(t.splits && t.splits.length > 0);
     const emoji = isSplit ? '🔀' : getCategoryEmoji(t.category?.groupName);
     const color = getCategoryColorHex(t.category?.groupName);
     const initial = (vendorLabel(t)?.trim()?.[0] ?? '?').toUpperCase();
-    const checked = selectedIds.has(t.id);
     const vendorEditing = editCell?.id === t.id && editCell.field === 'vendor';
     const categoryEditing = editCell?.id === t.id && editCell.field === 'category';
     const vendorMatches = vendorOptions.filter((v) => v.toLowerCase().includes(cellSearch.toLowerCase())).slice(0, 40);
@@ -1375,29 +1416,23 @@ export default function TransactionsPage() {
       {isMobile ? (
         /* Mobile: Standalone cards */
         <div className="flex flex-col gap-1.5">
-          {transactions.map((t) => {
-            const catType = t.category?.type ?? t.splits?.[0]?.type ?? 'expense';
-            const { text: amtText, className: amtClass } = fmtTransaction(t.amount, catType);
-            const isSplit = t.splits && t.splits.length > 0;
-            const hasReimbursement = isSplit && t.splits!.some(s => s.type !== t.splits![0].type);
+          {displayRows.map(({ t, split }) => {
+            const catType = split ? split.type : (t.category?.type ?? t.splits?.[0]?.type ?? 'expense');
+            const { text: amtText, className: amtClass } = fmtTransaction(split ? split.amount : t.amount, catType);
             return (
-              <div key={t.id}
+              <div key={split ? `${t.id}-split-${split.id}` : t.id}
                 onClick={() => { if (hasPermission('transactions.edit')) openDetail(t); }}
                 className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5 flex justify-between items-center ${hasPermission('transactions.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
                 <div className="flex-1 min-w-0 mr-3">
-                  <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{vendorLabel(t)}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{vendorLabel(t)}</span>
+                    {split && <span className="shrink-0 inline-flex items-center justify-center w-[16px] h-[16px] rounded-md" style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }} title="Part of a split transaction">{splitIcon(10)}</span>}
+                  </div>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     <span className="font-mono text-[10px] text-[var(--text-muted)]">{t.date}</span>
                     <span className="text-[var(--text-muted)]">·</span>
-                    {isSplit ? (
-                      <>
-                        <SplitBadge
-                          colors={t.splits!.map(s => getCategoryColor(s.groupName, allGroupNames))}
-                          count={t.splits!.length}
-                          compact
-                        />
-                        {hasReimbursement && <ReimbursementBadge />}
-                      </>
+                    {split ? (
+                      <CategoryBadge name={split.subName} color={getCategoryColor(split.groupName, allGroupNames)} />
                     ) : t.category ? (
                       <CategoryBadge name={t.category.subName} color={getCategoryColor(t.category.groupName, allGroupNames)} />
                     ) : null}
@@ -1462,7 +1497,7 @@ export default function TransactionsPage() {
               <span className="text-[13px] font-semibold text-content-2">{formatDateHeader(g.date)}</span>
               <span className="font-mono text-xs tabular-nums" style={{ color: g.net < 0 ? 'var(--positive)' : 'var(--text-3)' }}>{g.net < 0 ? `+${fmt(Math.abs(g.net))}` : fmt(g.net)}</span>
             </div>
-            {g.rows.map((t) => renderRow(t))}
+            {g.rows.map((r) => renderRow(r.t, r.split))}
           </div>
         ))}
         {transactions.length === 0 && <div className="text-center py-10 text-content-3 text-sm">No transactions found for this period</div>}
@@ -1581,13 +1616,28 @@ export default function TransactionsPage() {
 
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[13px] font-semibold text-content-2">Category</span>
-                      <button onClick={openSplit} className="text-[13px] font-semibold text-primary inline-flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg>{isSplit ? 'Edit split' : 'Split'}</button>
+                      {!isSplit && <button onClick={openSplit} className="text-[13px] font-semibold text-primary inline-flex items-center gap-1.5">{splitIcon(13)}Split</button>}
                     </div>
                     {isSplit ? (
-                      <button onClick={openSplit} className="w-full flex items-center justify-between px-3.5 py-3 rounded-[11px] bg-surface-2 border border-line hover:border-line-strong text-[15px] mb-6">
-                        <span>Split across {detail.splits!.length} categories</span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
-                      </button>
+                      <div className="mb-6 rounded-[12px] border p-4" style={{ borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--line))', background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}>
+                        <div className="flex items-center gap-2 mb-3" style={{ color: 'var(--primary)' }}>
+                          {splitIcon(15)}
+                          <span className="text-[13px] font-bold">Split across {detail.splits!.length} categories</span>
+                        </div>
+                        <div className="flex flex-col gap-2 mb-3.5">
+                          {detail.splits!.map((s) => {
+                            const { text, className } = fmtTransaction(s.amount, s.type);
+                            return (
+                              <div key={s.id} className="flex items-center gap-2 text-sm">
+                                <span className="text-[15px] leading-none">{getCategoryEmoji(s.groupName)}</span>
+                                <span className="flex-1 truncate text-content">{s.subName}</span>
+                                <span className={`tabular-nums font-semibold ${className}`}>{text}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <button onClick={openSplit} className="w-full h-10 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Edit split</button>
+                      </div>
                     ) : (
                       <div className="relative mb-6">
                         <select value={detail.category?.id ?? ''} onChange={(e) => e.target.value && updateTxnField(detail, { categoryId: parseInt(e.target.value) })}
