@@ -62,7 +62,10 @@ interface BudgetSummary {
 interface AnnualRow {
   categoryId: number;
   subName: string;
-  planned: number[]; // 12 months
+  planned: number[]; // 12 months, effective (recurring folded in)
+  manual: number[]; // 12 months, raw stored
+  overridden: boolean[]; // 12 months
+  recurring: (RecMeta | null)[]; // 12 months
 }
 interface AnnualGroup {
   groupName: string;
@@ -643,7 +646,7 @@ export default function BudgetPage() {
                             const targetMonth = `${yr}-${String(m + 1).padStart(2, '0')}`;
                             return (
                               <div key={m} className="w-[104px] shrink-0 px-2.5 py-1.5 flex justify-end" style={{ background: colTint(m) }}>
-                                <button onClick={() => { if (canEditBudgets && !past) openEdit(sub.categoryId, g.groupName, `${sub.subName} · ${MONTHS[m]} ${yr}`, v, targetMonth); }}
+                                <button onClick={() => { if (canEditBudgets && !past) openEdit(sub.categoryId, g.groupName, `${sub.subName} · ${MONTHS[m]} ${yr}`, v, targetMonth, sub.recurring[m], sub.manual[m], sub.overridden[m]); }}
                                   disabled={!canEditBudgets || past}
                                   className="min-w-16 text-right text-sm tabular-nums px-2.5 py-1.5 rounded-lg enabled:hover:border-primary"
                                   style={{ border: past ? '1px solid transparent' : '1px solid var(--line-strong)', color: past ? 'var(--text-3)' : 'var(--text)' }}>

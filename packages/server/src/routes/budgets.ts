@@ -342,14 +342,31 @@ router.get('/annual', (req: Request, res: Response) => {
       });
     };
 
-    const income = allCategories.filter((c) => c.type === 'income')
-      .map((c) => ({ categoryId: c.id, subName: c.sub_name, planned: effectivePlannedFor(c) }));
+    // Per-category, per-month meta so the year view's edit modal has the same
+    // recurring floor / manual / override data the month view gets from /summary.
+    type AnnualSub = {
+      categoryId: number; subName: string; planned: number[]; manual: number[];
+      overridden: boolean[]; recurring: ({ amount: number; itemCount: number; items: { label: string; cadence: string }[] } | null)[];
+    };
+    const buildSub = (c: { id: number; sub_name: string }): AnnualSub => ({
+      categoryId: c.id,
+      subName: c.sub_name,
+      planned: effectivePlannedFor(c),
+      manual: plannedFor(c.id),
+      overridden: overrideFor(c.id),
+      recurring: Array.from({ length: 12 }, (_, m) => {
+        const f = monthFloors[m].get(c.id);
+        return f ? { amount: f.amount, itemCount: f.itemCount, items: f.items } : null;
+      }),
+    });
+
+    const income = allCategories.filter((c) => c.type === 'income').map(buildSub);
 
     const buildGroups = (type: string) => {
-      const gm = new Map<string, { groupName: string; subs: { categoryId: number; subName: string; planned: number[] }[] }>();
+      const gm = new Map<string, { groupName: string; subs: AnnualSub[] }>();
       for (const c of allCategories.filter((c) => c.type === type)) {
         if (!gm.has(c.group_name)) gm.set(c.group_name, { groupName: c.group_name, subs: [] });
-        gm.get(c.group_name)!.subs.push({ categoryId: c.id, subName: c.sub_name, planned: effectivePlannedFor(c) });
+        gm.get(c.group_name)!.subs.push(buildSub(c));
       }
       return Array.from(gm.values()).sort((a, b) => a.groupName.localeCompare(b.groupName));
     };
