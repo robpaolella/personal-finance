@@ -196,6 +196,16 @@ function TransactionForm({
     return firstSplitCat?.type === 'income' ? 'income' : 'expense';
   })();
 
+  // Split legs inherit the parent's single sign, so only offer categories in the
+  // SAME direction (income → income; expense/savings → expense/savings).
+  // Offering a cross-type category would persist a leg whose stored sign
+  // contradicts its category (e.g. an income leg stored positive). The opposite
+  // direction is reached only through SplitEditor's dedicated reimbursement row.
+  const splitLegCategories = useMemo(
+    () => filteredCategories.filter((c) => (derivedType === 'income' ? c.type === 'income' : c.type !== 'income')),
+    [filteredCategories, derivedType],
+  );
+
   // Group filtered categories for the dropdown
   const groupedCategories = useMemo(() => {
     const groups: { group: string; cats: Category[] }[] = [];
@@ -418,7 +428,7 @@ function TransactionForm({
           <SplitEditor
             totalAmount={parseFloat(amount) || 0}
             initialSplits={splits ?? undefined}
-            categories={filteredCategories}
+            categories={splitLegCategories}
             allCategories={categories}
             txType={derivedType}
             onApply={handleSplitApply}
@@ -565,6 +575,10 @@ export default function TransactionsPage() {
   const [detailMerchant, setDetailMerchant] = useState('');
   const [detailStatement, setDetailStatement] = useState('');
   const [detailAmount, setDetailAmount] = useState('');
+  // True while the detail Amount field has focus — used to avoid re-seeding the
+  // amount buffer out from under an in-progress edit when a concurrent field
+  // commit (e.g. a category change PUT) resolves.
+  const amountFieldFocused = useRef(false);
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitDraft, setSplitDraft] = useState<{ categoryId: number | ''; amount: string }[]>([]);
 
@@ -734,10 +748,11 @@ export default function TransactionsPage() {
         // Entered (display) amount → stored sign from category, preserving the
         // user's entered sign so refunds/reversals survive.
         newAmount = catType === 'income' ? -changes.amount : changes.amount;
-      } else if (changes.categoryId != null) {
-        // Category changed without an amount edit → re-derive base sign.
-        newAmount = catType === 'income' ? -Math.abs(t.amount) : Math.abs(t.amount);
       }
+      // A category-only change is a relabel, not a re-sign: the stored sign
+      // already encodes money direction (positive = out, negative = in)
+      // independent of category, so the amount is left untouched. This keeps
+      // refunds/reversals/withdrawals intact when recategorized.
       body.categoryId = categoryId;
       body.amount = newAmount;
     }
@@ -745,8 +760,46 @@ export default function TransactionsPage() {
       await apiFetch(`/transactions/${t.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       setEditCell(null); setCellSearch('');
       if (changes.merchant !== undefined) loadMerchants(); // pick up any newly-created merchant
-      // Refetch so the open panel reflects the true stored row (sign, splits, account…).
-      if (detail && detail.id === t.id) await refreshDetail(t.id);
+      // Merge the committed change into the open panel LOCALLY (no refetch) so an
+      // in-progress edit the user may have started in another field isn't
+      // clobbered by a whole-panel reseed.
+      if (detail && detail.id === t.id) {
+        const newCat = (!isSplit && changes.categoryId != null)
+          ? categories.find((c) => c.id === changes.categoryId)
+          : undefined;
+        const newAcct = changes.accountId !== undefined
+          ? accounts.find((a) => a.id === changes.accountId)
+          : undefined;
+        setDetail((prev) => {
+          if (!prev || prev.id !== t.id) return prev;
+          return {
+            ...prev,
+            amount: isSplit ? prev.amount : newAmount,
+            date: changes.date ?? prev.date,
+            note: changes.note !== undefined ? changes.note : prev.note,
+            description: changes.description ?? prev.description,
+            merchant: changes.merchant !== undefined
+              ? (changes.merchant.trim() ? { id: prev.merchant?.id ?? -1, name: changes.merchant.trim() } : null)
+              : prev.merchant,
+            account: newAcct
+              ? { id: newAcct.id, name: newAcct.name, lastFour: newAcct.last_four, owner: newAcct.owner, owners: newAcct.owners, isShared: newAcct.isShared }
+              : prev.account,
+            category: (!isSplit && changes.categoryId != null)
+              ? (newCat ? { id: newCat.id, groupName: newCat.group_name, subName: newCat.sub_name, displayName: newCat.display_name, type: newCat.type } : null)
+              : prev.category,
+          };
+        });
+        // Keep the amount input in sync only when its DISPLAYED value could have
+        // changed (an amount edit, or a category change that flips the
+        // income/expense sign convention) — never touch the merchant/statement/
+        // note buffers here, so a field being typed in isn't overwritten. Also
+        // skip while the amount field itself has focus, so a concurrent
+        // category-change PUT resolving mid-edit can't clobber live typing.
+        if (!isSplit && (changes.amount !== undefined || changes.categoryId != null) && !amountFieldFocused.current) {
+          const dispType = newCat?.type ?? detail.category?.type ?? 'expense';
+          setDetailAmount(String(dispType === 'income' ? -newAmount : newAmount));
+        }
+      }
       await loadTransactions();
     } catch {
       addToast('Failed to update transaction', 'error');
@@ -807,6 +860,25 @@ export default function TransactionsPage() {
       await refreshDetail(detail.id); // keep the panel open, showing the new split
       await loadTransactions();
     } catch { addToast('Failed to save split', 'error'); }
+  };
+
+  // Convert a split transaction back to a single category (the only editor is the
+  // detail panel now, so this is the un-split path). The parent amount is kept
+  // as-is; the category becomes the first assigned split's category, which the
+  // user can then re-pick from the (now single) category select.
+  const removeSplitFromDetail = async () => {
+    if (!detail || !detail.splits?.length) return;
+    const catId = detail.splits.find((s) => s.categoryId)?.categoryId ?? detail.splits[0].categoryId;
+    try {
+      await apiFetch(`/transactions/${detail.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: detail.account.id, date: detail.date, description: detail.description, note: detail.note, amount: detail.amount, categoryId: catId }),
+      });
+      setSplitOpen(false);
+      addToast('Split removed');
+      await refreshDetail(detail.id);
+      await loadTransactions();
+    } catch { addToast('Failed to remove split', 'error'); }
   };
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
@@ -980,6 +1052,24 @@ export default function TransactionsPage() {
   const groupedAll = Array.from(
     categories.reduce((m, c) => { if (!m.has(c.group_name)) m.set(c.group_name, []); m.get(c.group_name)!.push(c); return m; }, new Map<string, Category[]>()).entries()
   );
+  // The detail split modal applies one sign to every leg, so its category picker
+  // must offer only same-direction categories (income → income;
+  // expense/savings → expense/savings) — otherwise a leg is stored with a sign
+  // that contradicts its category. Direction comes from the transaction's
+  // category type (not its money-sign, so refunds/reversals stay in-family).
+  const detailBaseType: 'income' | 'expense' =
+    ((detail?.category?.type ?? detail?.splits?.[0]?.type) === 'income') ? 'income' : 'expense';
+  // Always keep any category already assigned to a split leg selectable — a
+  // reimbursement/expense leg on an income split (created via the Add form's
+  // reimbursement row) or legacy mixed data would otherwise render as a blank,
+  // un-reselectable dropdown and could be silently converted on save.
+  const draftCatIds = new Set(splitDraft.map((r) => r.categoryId).filter((v): v is number => v !== ''));
+  const splitModalGroups = groupedAll
+    .map(([group, subs]) => [
+      group,
+      subs.filter((c) => c.type !== 'transfer' && ((detailBaseType === 'income' ? c.type === 'income' : c.type !== 'income') || draftCatIds.has(c.id))),
+    ] as [string, Category[]])
+    .filter(([, subs]) => subs.length > 0);
   const splitAlloc = splitDraft.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
   const splitRemainingVal = detail ? Math.abs(detail.amount) - splitAlloc : 0;
   const splitValid = splitDraft.filter((r) => r.categoryId !== '' && parseFloat(r.amount) > 0).length >= 2 && Math.abs(splitRemainingVal) < 0.01;
@@ -1580,7 +1670,13 @@ export default function TransactionsPage() {
                 const fieldCls = 'w-full h-12 px-3.5 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] outline-none';
                 const labelCls = 'text-[13px] font-semibold text-content-2 mb-2';
                 const commitMerchant = () => { const v = detailMerchant.trim(); if (v && v !== vendorLabel(detail)) updateTxnField(detail, { merchant: v }); };
-                const commitStatement = () => { if (detailStatement !== (detail.description ?? '')) updateTxnField(detail, { description: detailStatement }); };
+                const commitStatement = () => {
+                  const v = detailStatement.trim();
+                  // Never wipe the raw bank text to empty — a merchant-less row
+                  // would lose its only vendor label. Clearing reverts.
+                  if (!v) { setDetailStatement(detail.description ?? ''); return; }
+                  if (v !== (detail.description ?? '')) updateTxnField(detail, { description: v });
+                };
                 const commitAmount = () => {
                   if (isSplit) return;
                   const entered = parseFloat(detailAmount);
@@ -1609,7 +1705,7 @@ export default function TransactionsPage() {
                         <span className="text-[12px]">set by splits</span>
                       </div>
                     ) : (
-                      <div className="mb-6">
+                      <div className="mb-6" onFocus={() => { amountFieldFocused.current = true; }} onBlur={() => { amountFieldFocused.current = false; }}>
                         <CurrencyInput allowNegative value={detailAmount} onChange={setDetailAmount} onBlur={commitAmount} className={fieldCls} />
                       </div>
                     )}
@@ -1637,6 +1733,7 @@ export default function TransactionsPage() {
                           })}
                         </div>
                         <button onClick={openSplit} className="w-full h-10 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Edit split</button>
+                        {canEdit && <button onClick={removeSplitFromDetail} className="w-full h-9 mt-2 rounded-[10px] border border-line-strong bg-surface text-content-2 font-semibold text-[13px] hover:bg-surface-2">Remove split</button>}
                       </div>
                     ) : (
                       <div className="relative mb-6">
@@ -1711,7 +1808,7 @@ export default function TransactionsPage() {
                     <select value={r.categoryId} onChange={(e) => setSplitDraft((d) => d.map((x, j) => j === i ? { ...x, categoryId: e.target.value ? parseInt(e.target.value) : '' } : x))}
                       className="w-full h-12 pl-3.5 pr-9 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] font-semibold outline-none appearance-none cursor-pointer">
                       <option value="">Category…</option>
-                      {groupedAll.map(([group, subs]) => (<optgroup key={group} label={group}>{subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}</optgroup>))}
+                      {splitModalGroups.map(([group, subs]) => (<optgroup key={group} label={group}>{subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}</optgroup>))}
                     </select>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-4 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
                   </div>
