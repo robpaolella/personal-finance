@@ -23,11 +23,11 @@ interface Transaction {
 }
 interface HistoryPoint { date: string; netWorth: number }
 interface AccountHoldings { accountId: number; holdings: { symbol: string; description: string; marketValue: number; costBasis: number }[] }
-interface PayCycle { id: number; label: string; frequency: string; amount: number }
+interface RecurringSummary { id: number; label: string; freq_kind: string; amount: number | null; type: 'income' | 'expense'; status: string }
 
 const txnVendor = (t: Transaction) => t.merchant?.name ?? t.description;
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const FREQ: Record<string, string> = { weekly: 'Every week', biweekly: 'Every 2 weeks', semi_monthly: 'Twice a month', monthly: 'Every month' };
+const FREQ: Record<string, string> = { weekly: 'Every week', biweekly: 'Every 2 weeks', semi_monthly: 'Twice a month', monthly: 'Every month', every_n_months: 'Every few months', custom_months: 'Custom months' };
 
 function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -58,7 +58,7 @@ export default function DashboardPage() {
   const [nwRange, setNwRange] = useState('1m');
   const [nwPoints, setNwPoints] = useState<HistoryPoint[]>([]);
   const [holdings, setHoldings] = useState<AccountHoldings[]>([]);
-  const [cycles, setCycles] = useState<PayCycle[]>([]);
+  const [cycles, setCycles] = useState<RecurringSummary[]>([]);
   const [error, setError] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -74,7 +74,7 @@ export default function DashboardPage() {
       setError(true);
     }
     apiFetch<{ data: { accountHoldings: AccountHoldings[] } }>('/simplefin/holdings').then((r) => setHoldings(r.data.accountHoldings)).catch(() => {});
-    apiFetch<{ data: PayCycle[] }>('/pay-cycles').then((r) => setCycles(r.data)).catch(() => {});
+    apiFetch<{ data: RecurringSummary[] }>('/recurring').then((r) => setCycles(r.data.filter((x) => x.status === 'active'))).catch(() => {});
   }, [currentMonth, currentYear]);
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -221,16 +221,20 @@ export default function DashboardPage() {
               <div className="text-content-3 text-sm py-2">No recurring income or bills set up yet.</div>
             ) : (
               <div className="flex flex-col gap-2">
-                {cycles.slice(0, 4).map((c) => (
+                {cycles.slice(0, 4).map((c) => {
+                  const isIncome = c.type === 'income';
+                  const col = isIncome ? green : 'var(--negative)';
+                  return (
                   <div key={c.id} className="flex items-center gap-3">
-                    <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: 'color-mix(in srgb, var(--positive) 16%, transparent)', color: green }}>🔁</span>
+                    <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: `color-mix(in srgb, ${isIncome ? 'var(--positive)' : 'var(--negative)'} 16%, transparent)`, color: col }}>🔁</span>
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-sm truncate">{c.label}</div>
-                      <div className="text-[12px] text-content-3">{FREQ[c.frequency] ?? c.frequency}</div>
+                      <div className="text-[12px] text-content-3">{FREQ[c.freq_kind] ?? c.freq_kind}</div>
                     </div>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: green }}>+{fmtWhole(c.amount)}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: col }}>{isIncome ? '+' : '−'}{fmtWhole(c.amount ?? 0)}</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>

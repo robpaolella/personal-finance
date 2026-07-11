@@ -6,7 +6,7 @@
  *
  * Exits non-zero on the first failed assertion.
  */
-import { computePaydaysInMonth, yearlyBaseline, projectPayCycles, type PayCycleForMath } from './payCycleMath.js';
+import { computePaydaysInMonth, type PayCycleForMath } from './payCycleMath.js';
 
 let failures = 0;
 function check(name: string, cond: boolean, detail?: unknown): void {
@@ -42,7 +42,6 @@ const countsForYear = (c: PayCycleForMath, year: number) =>
   check('total = 26', counts.reduce((a, b) => a + b, 0) === 26);
   check('Jan paydays', eq(computePaydaysInMonth(c, 2026, 1), ['2026-01-02', '2026-01-16', '2026-01-30']));
   check('Jul paydays', eq(computePaydaysInMonth(c, 2026, 7), ['2026-07-03', '2026-07-17', '2026-07-31']));
-  check('yearlyBaseline = 2', yearlyBaseline(c, 2026) === 2);
 }
 
 // 2. Weekly anchor 2026-01-02 — 5-check months Jan/May/Jul/Oct (52/yr)
@@ -95,35 +94,6 @@ const countsForYear = (c: PayCycleForMath, year: number) =>
   check('2026 fully zero', countsForYear(c, 2026).every((x) => x === 0));
 }
 
-// 8. projectPayCycles: two earners sum into one category total; extra-check flag
-{
-  const cycles: PayCycleForMath[] = [
-    base({ id: 1, label: 'A', user_id: 1, ownerName: 'Robert', frequency: 'biweekly', amount: 1750, anchor_date: '2026-01-02' }),
-    base({ id: 2, label: 'B', user_id: 2, ownerName: 'Sarah', frequency: 'biweekly', amount: 1600, anchor_date: '2026-01-09' }),
-  ];
-  const july = projectPayCycles(cycles, '2026-07');
-  const thp = july.categoryTotals.find((t) => t.categoryId === 100)!;
-  console.log('projectPayCycles July 2026 (two earners, Take Home Pay):');
-  // Robert: 3 x 1750 = 5250 ; Sarah: 2 x 1600 = 3200 ; sum 8450
-  check('summed projectedAmount = 8450', thp.projectedAmount === 8450, thp.projectedAmount);
-  check('cycleIds = [1,2]', eq(thp.cycleIds.sort(), [1, 2]));
-  check('hasExtraPaycheck = true (Robert has 3 in Jul)', thp.hasExtraPaycheck === true);
-
-  const august = projectPayCycles(cycles, '2026-08');
-  const thpAug = august.categoryTotals.find((t) => t.categoryId === 100)!;
-  check('August hasExtraPaycheck = false', thpAug.hasExtraPaycheck === false);
-}
-
-// 9. A partial boundary month (mid-year effective_start) must NOT deflate the
-//    baseline and wrongly flag ordinary months as extra (review regression).
-{
-  const c = base({ frequency: 'biweekly', amount: 1750, anchor_date: '2026-01-02', effective_start: '2026-01-17' });
-  console.log('Mid-year start (effective_start 2026-01-17):');
-  check('yearlyBaseline = 2 (not deflated to 1)', yearlyBaseline(c, 2026) === 2);
-  check('Jan (partial, 1 check) NOT flagged extra', projectPayCycles([c], '2026-01').categoryTotals[0].hasExtraPaycheck === false);
-  check('Feb (normal, 2 checks) NOT flagged extra', projectPayCycles([c], '2026-02').categoryTotals[0].hasExtraPaycheck === false);
-  check('Jul (3 checks) IS flagged extra', projectPayCycles([c], '2026-07').categoryTotals[0].hasExtraPaycheck === true);
-}
 
 // 10. every_n_months — quarterly anchored 2026-02-10, day 10, across a year boundary
 {
