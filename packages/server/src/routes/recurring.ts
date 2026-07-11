@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { db, sqlite } from '../db/index.js';
-import { recurringItems, categories, merchants, accounts, users } from '../db/schema.js';
-import { eq, asc } from 'drizzle-orm';
+import { db } from '../db/index.js';
+import { recurringItems, categories, merchants, accounts, users, budgets } from '../db/schema.js';
+import { eq, and, asc } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 import { sanitizeString } from '../utils/sanitize.js';
 import { findOrCreateMerchant } from '../db/merchants.js';
@@ -277,26 +277,88 @@ router.get('/budget-floors', (req: Request, res: Response) => {
   }
 });
 
+// POST /api/recurring/budget-preview — authoritative "what will the budget become"
+// for a PROSPECTIVE (not-yet-saved) item. Uses the real engine + existing active
+// items + the first month the new item actually occurs, so the Add modal's
+// set/add decision shows correct dollars (a client estimate can't — it ignores
+// other items, occurrence counts, start_date, and the per-category fold mode).
+router.post('/budget-preview', requirePermission('budgets.edit'), (req: Request, res: Response) => {
+  try {
+    const b = req.body as Record<string, unknown>;
+    const categoryId = Number(b.categoryId);
+    const amount = Number(b.amount);
+    const freq_kind = b.freqKind as string;
+    if (!Number.isInteger(categoryId) || !(amount > 0) || !KINDS.includes(freq_kind as RecurrenceKind)) {
+      return res.json({ data: { applicable: false } });
+    }
+    const start = (typeof b.startDate === 'string' && isValidYmd(b.startDate)) ? b.startDate : null;
+    const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : null);
+    const math: PayCycleForMath = {
+      id: -1, label: '', user_id: null, ownerName: null, category_id: categoryId,
+      sub_name: '', group_name: '', frequency: freq_kind as PayCycleForMath['frequency'],
+      amount, anchor_date: start,
+      day_of_month_1: num(b.dayOfMonth1), day_of_month_2: num(b.dayOfMonth2), day_of_month: num(b.day),
+      interval: num(b.interval), months: Array.isArray(b.months) ? (b.months as unknown[]).map(Number) : null,
+      effective_start: start, effective_end: null, is_active: 1,
+    };
+
+    const cat = db.select().from(categories).where(eq(categories.id, categoryId)).get();
+    if (!cat) return res.json({ data: { applicable: false } });
+    const mode: 'set' | 'add' = cat.recurring_budget_mode === 'add' ? 'add' : 'set';
+
+    // First month (within 24) the new item actually occurs — that's where a
+    // set/add choice has a visible effect. Fall back to the current month.
+    const now = new Date();
+    let target = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    let newCount = 0;
+    for (let k = 0; k < 24; k++) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + k, 1));
+      const y = d.getUTCFullYear(), mo = d.getUTCMonth() + 1;
+      const c = computePaydaysInMonth(math, y, mo).length;
+      if (c > 0) { target = `${y}-${String(mo).padStart(2, '0')}`; newCount = c; break; }
+    }
+
+    const newContribution = +(amount * newCount).toFixed(2);
+    const existingFloor = getRecurringFloors(target).get(categoryId)?.amount ?? 0;
+    const manualRow = db.select({ amount: budgets.amount }).from(budgets)
+      .where(and(eq(budgets.category_id, categoryId), eq(budgets.month, target))).get();
+    const manual = manualRow?.amount ?? 0;
+    const floorWith = +(existingFloor + newContribution).toFixed(2);
+    const currentEffective = mode === 'add' ? +(manual + existingFloor).toFixed(2) : Math.max(manual, existingFloor);
+
+    res.json({ data: {
+      // The set/add choice only changes the number when there's a manual budget in
+      // the affected month (otherwise both equal the recurring floor).
+      applicable: manual > 0,
+      month: target,
+      occurs: newCount > 0,
+      currentMode: mode,
+      manual,
+      recurTotal: newContribution, // this recurring's monthly total in the affected month
+      currentEffective,
+      resultSet: Math.max(manual, floorWith),
+      resultAdd: +(manual + floorWith).toFixed(2),
+    } });
+  } catch (err) {
+    console.error('POST /recurring/budget-preview error:', err);
+    res.status(500).json({ error: 'Failed to compute budget preview' });
+  }
+});
+
 // POST /api/recurring
 router.post('/', requirePermission('budgets.edit'), (req: Request, res: Response) => {
   try {
     const result = validate(req.body);
     if ('error' in result) return res.status(400).json({ error: result.error });
+    // Optional: how recurring folds into this category's budget, resolved inline
+    // in the Add modal when the category already has a budget (set | add).
+    const bm = (req.body as { budgetMode?: unknown }).budgetMode;
+    if (bm === 'set' || bm === 'add') {
+      db.update(categories).set({ recurring_budget_mode: bm }).where(eq(categories.id, result.value.category_id)).run();
+    }
     const now = new Date().toISOString();
     const inserted = db.insert(recurringItems).values({ ...result.value, created_at: now, updated_at: now }).run();
-    const id = Number(inserted.lastInsertRowid);
-    const catId = result.value.category_id;
-    // Budget conflict: the FIRST recurring item on a category that already has a
-    // manual budget row — the fold mode (set/add) hasn't been chosen for it yet,
-    // so the client should ask the user how to handle it.
-    const otherCount = (sqlite.prepare('SELECT COUNT(*) as n FROM recurring_items WHERE category_id = ? AND id != ?').get(catId, id) as { n: number }).n;
-    const hasBudget = !!sqlite.prepare('SELECT 1 FROM budgets WHERE category_id = ? LIMIT 1').get(catId);
-    const cat = db.select().from(categories).where(eq(categories.id, catId)).get();
-    res.status(201).json({
-      data: baseSelect().where(eq(recurringItems.id, id)).get(),
-      budgetConflict: otherCount === 0 && hasBudget,
-      categoryMode: cat?.recurring_budget_mode === 'add' ? 'add' : 'set',
-    });
+    res.status(201).json({ data: baseSelect().where(eq(recurringItems.id, Number(inserted.lastInsertRowid))).get() });
   } catch (err) {
     console.error('POST /recurring error:', err);
     res.status(500).json({ error: 'Failed to create recurring item' });
