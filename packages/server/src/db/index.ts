@@ -116,6 +116,7 @@ sqlite.exec(`
     category_id INTEGER NOT NULL REFERENCES categories(id),
     month TEXT NOT NULL,
     amount REAL NOT NULL,
+    override INTEGER NOT NULL DEFAULT 0,
     UNIQUE(category_id, month)
   );
 

@@ -54,6 +54,7 @@ router.post('/', requirePermission('budgets.edit'), (req: Request, res: Response
       res.status(400).json({ error: 'categoryId, month, and amount are required' });
       return;
     }
+    const override = req.body.override ? 1 : 0; // per-month sub-floor override
 
     // Check if exists
     const existing = db.select().from(budgets)
@@ -62,15 +63,15 @@ router.post('/', requirePermission('budgets.edit'), (req: Request, res: Response
 
     if (existing) {
       db.update(budgets)
-        .set({ amount })
+        .set({ amount, override })
         .where(eq(budgets.id, existing.id))
         .run();
-      res.json({ data: { ...existing, amount } });
+      res.json({ data: { ...existing, amount, override } });
     } else {
       const result = db.insert(budgets)
-        .values({ category_id: categoryId, month, amount })
+        .values({ category_id: categoryId, month, amount, override })
         .run();
-      res.status(201).json({ data: { id: result.lastInsertRowid, category_id: categoryId, month, amount } });
+      res.status(201).json({ data: { id: result.lastInsertRowid, category_id: categoryId, month, amount, override } });
     }
   } catch (err) {
     console.error('POST /budgets error:', err);
@@ -147,13 +148,14 @@ router.get('/summary', (req: Request, res: Response) => {
     // recurring. `manual` is the raw stored amount (for editing); `budgeted` is the
     // effective amount used for display + all totals.
     const floors = getRecurringFloors(month);
-    type RecMeta = { amount: number; itemCount: number; labels: string[]; mode: 'set' | 'add' };
-    const foldBudget = (c: { id: number; recurring_budget_mode: string | null }, stored: number): { budgeted: number; manual: number; recurring: RecMeta | null } => {
+    type RecMeta = { amount: number; itemCount: number; items: { label: string; cadence: string }[]; mode: 'set' | 'add' };
+    const foldBudget = (c: { id: number; recurring_budget_mode: string | null }, stored: number, overridden: boolean): { budgeted: number; manual: number; recurring: RecMeta | null; overridden: boolean } => {
       const f = floors.get(c.id);
-      if (!f) return { budgeted: stored, manual: stored, recurring: null };
+      if (!f) return { budgeted: stored, manual: stored, recurring: null, overridden: false };
       const mode: 'set' | 'add' = c.recurring_budget_mode === 'add' ? 'add' : 'set';
-      const budgeted = mode === 'add' ? +(stored + f.amount).toFixed(2) : Math.max(stored, f.amount);
-      return { budgeted, manual: stored, recurring: { amount: f.amount, itemCount: f.itemCount, labels: f.labels, mode } };
+      // override bypasses the floor for this month (intentional sub-floor budget).
+      const budgeted = overridden ? stored : (mode === 'add' ? +(stored + f.amount).toFixed(2) : Math.max(stored, f.amount));
+      return { budgeted, manual: stored, recurring: { amount: f.amount, itemCount: f.itemCount, items: f.items, mode }, overridden };
     };
 
     // Get actuals from transactions — optionally filtered by owner
@@ -193,13 +195,14 @@ router.get('/summary', (req: Request, res: Response) => {
       const actual = actualMap.get(c.id) ?? 0;
       // Income transactions are stored negative, so actual income = abs(negative total)
       const actualIncome = actual < 0 ? Math.abs(actual) : 0;
-      const fold = foldBudget(c, budget?.amount ?? 0);
+      const fold = foldBudget(c, budget?.amount ?? 0, !!budget?.override);
       return {
         categoryId: c.id,
         subName: c.sub_name,
         budgeted: fold.budgeted,
         manual: fold.manual,
         recurring: fold.recurring,
+        overridden: fold.overridden,
         budgetId: budget?.id ?? null,
         actual: actualIncome,
       };
@@ -207,7 +210,7 @@ router.get('/summary', (req: Request, res: Response) => {
 
     // Build expense summary grouped by parent
     const expenseCategories = allCategories.filter((c) => c.type === 'expense');
-    type SubRow = { categoryId: number; subName: string; budgeted: number; manual: number; recurring: RecMeta | null; budgetId: number | null; actual: number };
+    type SubRow = { categoryId: number; subName: string; budgeted: number; manual: number; recurring: RecMeta | null; overridden: boolean; budgetId: number | null; actual: number };
     const groupMap = new Map<string, { groupName: string; subs: SubRow[] }>();
 
     for (const c of expenseCategories) {
@@ -218,13 +221,14 @@ router.get('/summary', (req: Request, res: Response) => {
       const actual = actualMap.get(c.id) ?? 0;
       // Net expense amount (refunds reduce the total)
       const actualExpense = actual;
-      const fold = foldBudget(c, budget?.amount ?? 0);
+      const fold = foldBudget(c, budget?.amount ?? 0, !!budget?.override);
       groupMap.get(c.group_name)!.subs.push({
         categoryId: c.id,
         subName: c.sub_name,
         budgeted: fold.budgeted,
         manual: fold.manual,
         recurring: fold.recurring,
+        overridden: fold.overridden,
         budgetId: budget?.id ?? null,
         actual: actualExpense,
       });
@@ -244,13 +248,14 @@ router.get('/summary', (req: Request, res: Response) => {
       }
       const budget = budgetMap.get(c.id);
       const actual = actualMap.get(c.id) ?? 0;
-      const fold = foldBudget(c, budget?.amount ?? 0);
+      const fold = foldBudget(c, budget?.amount ?? 0, !!budget?.override);
       savingsGroupMap.get(c.group_name)!.subs.push({
         categoryId: c.id,
         subName: c.sub_name,
         budgeted: fold.budgeted,
         manual: fold.manual,
         recurring: fold.recurring,
+        overridden: fold.overridden,
         budgetId: budget?.id ?? null,
         actual,
       });
@@ -310,26 +315,31 @@ router.get('/annual', (req: Request, res: Response) => {
       .all();
 
     const yearBudgets = sqlite.prepare(
-      'SELECT category_id, month, amount FROM budgets WHERE month LIKE ?'
-    ).all(`${year}-%`) as { category_id: number; month: string; amount: number }[];
+      'SELECT category_id, month, amount, override FROM budgets WHERE month LIKE ?'
+    ).all(`${year}-%`) as { category_id: number; month: string; amount: number; override: number }[];
 
     const plannedMap = new Map<number, number[]>();
+    const overrideMap = new Map<number, boolean[]>();
     for (const b of yearBudgets) {
       const mi = parseInt(b.month.slice(5, 7), 10) - 1;
       if (mi < 0 || mi > 11) continue;
       if (!plannedMap.has(b.category_id)) plannedMap.set(b.category_id, new Array(12).fill(0));
+      if (!overrideMap.has(b.category_id)) overrideMap.set(b.category_id, new Array(12).fill(false));
       plannedMap.get(b.category_id)![mi] = b.amount;
+      overrideMap.get(b.category_id)![mi] = !!b.override;
     }
     const plannedFor = (id: number) => plannedMap.get(id) ?? new Array(12).fill(0);
+    const overrideFor = (id: number) => overrideMap.get(id) ?? new Array(12).fill(false);
 
     // Recurring overlay, per month, so the year view agrees with the month view.
     const monthFloors = Array.from({ length: 12 }, (_, i) => getRecurringFloors(`${year}-${String(i + 1).padStart(2, '0')}`));
     const effectivePlannedFor = (c: { id: number; recurring_budget_mode: string | null }): number[] => {
       const raw = plannedFor(c.id);
+      const ovr = overrideFor(c.id);
       const mode = c.recurring_budget_mode === 'add' ? 'add' : 'set';
       return raw.map((v, m) => {
         const f = monthFloors[m].get(c.id)?.amount ?? 0;
-        if (!f) return v;
+        if (!f || ovr[m]) return v; // override bypasses the floor for that month
         return mode === 'add' ? +(v + f).toFixed(2) : Math.max(v, f);
       });
     };

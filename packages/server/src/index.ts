@@ -25,6 +25,7 @@ import { migrateNotifications } from './db/migrate-notifications.js';
 import { migrateTransfersCategory } from './db/migrate-transfers-category.js';
 import { migrateSplitMerchant } from './db/migrate-split-merchant.js';
 import { migrateRecurringItems } from './db/migrate-recurring-items.js';
+import { migrateBudgetOverride } from './db/migrate-budget-override.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -79,6 +80,7 @@ migrateSyncStatus(sqlite);
 migrateNotifications(sqlite);
 migrateTransfersCategory(sqlite);
 migrateRecurringItems(sqlite); // after categories/merchants/accounts/users (FK targets)
+migrateBudgetOverride(sqlite);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));

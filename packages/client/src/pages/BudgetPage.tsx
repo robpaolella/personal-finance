@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 // Recurring overlay meta on a budget row (null when no recurring items apply).
-interface RecMeta { amount: number; itemCount: number; labels: string[]; mode: 'set' | 'add' }
+interface RecMeta { amount: number; itemCount: number; items: { label: string; cadence: string }[]; mode: 'set' | 'add' }
 
 interface IncomeRow {
   categoryId: number;
@@ -21,6 +21,7 @@ interface IncomeRow {
   budgeted: number; // effective (recurring folded in)
   manual: number;   // raw stored amount (for editing)
   recurring: RecMeta | null;
+  overridden: boolean; // per-month sub-floor override active
   budgetId: number | null;
   actual: number;
 }
@@ -31,6 +32,7 @@ interface ExpenseSub {
   budgeted: number; // effective (recurring folded in)
   manual: number;   // raw stored amount (for editing)
   recurring: RecMeta | null;
+  overridden: boolean; // per-month sub-floor override active
   budgetId: number | null;
   actual: number;
 }
@@ -151,6 +153,7 @@ export default function BudgetPage() {
   const [editModal, setEditModal] = useState<{ categoryId: number; groupName: string; subName: string; emoji: string; planned: number; targetMonth: string; recurring: RecMeta | null; manual: number } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [applyFuture, setApplyFuture] = useState(false);
+  const [editOverride, setEditOverride] = useState(false); // per-month sub-floor override
 
   const [importOpen, setImportOpen] = useState(false);
   const [importStep, setImportStep] = useState(0);
@@ -199,50 +202,51 @@ export default function BudgetPage() {
 
   useEffect(() => { if (view === 'year') loadAnnual(); }, [view, loadAnnual]);
 
-  const openEdit = (categoryId: number, groupName: string, subName: string, planned: number, targetMonth: string = monthStr(month), recurring: RecMeta | null = null, manual?: number) => {
-    const m = manual ?? planned;
-    // Always edit the raw MANUAL amount (never the floored effective). The floor is
-    // applied per-month at display, so storing the manual keeps "Apply to rest of
-    // year" correct for cadences whose floor varies by month (e.g. quarterly).
-    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned, targetMonth, recurring, manual: m });
-    setEditValue(m ? String(m) : '');
+  const openEdit = (categoryId: number, groupName: string, subName: string, planned: number, targetMonth: string = monthStr(month), recurring: RecMeta | null = null, manual?: number, overridden = false) => {
+    // Input edits the TOTAL monthly budget (recurring floor + extra). Seed with the
+    // current effective total (planned). On save we back out the stored manual per
+    // fold mode so the floor stays applied per-month; an override bypasses the floor.
+    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned, targetMonth, recurring, manual: manual ?? planned });
+    setEditValue(planned ? String(planned) : '');
     setApplyFuture(false);
+    setEditOverride(overridden);
   };
 
   const closeEdit = () => setEditModal(null);
-
-  // Toggle how recurring folds into this category's budget (persists per-category).
-  const setRecurringMode = async (mode: 'set' | 'add') => {
-    if (!editModal || !editModal.recurring || editModal.recurring.mode === mode) return;
-    try {
-      await apiFetch(`/categories/${editModal.categoryId}/recurring-mode`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
-      });
-      // The input edits the manual amount in both modes; only the preview differs.
-      setEditModal({ ...editModal, recurring: { ...editModal.recurring, mode } });
-      setEditValue(editModal.manual ? String(editModal.manual) : '');
-      await loadData();
-    } catch { addToast('Failed to change recurring mode', 'error'); }
-  };
 
   const saveEdit = async () => {
     if (!editModal) return;
     const val = parseFloat(editValue || '0');
     if (isNaN(val) || val < 0) { closeEdit(); return; }
-    // Store the raw manual amount as-is; the recurring floor is applied per-month
-    // at display (set = max(manual, floor), add = manual + floor). Clamping the
-    // stored value here would bake THIS month's floor into every applied month.
+    const rec = editModal.recurring;
+    const floor = rec?.amount ?? 0;
+    const mode = rec?.mode ?? 'set';
+    const below = !!rec && val < floor;
+    const overriding = below && editOverride;
+
+    // What to store as the month's manual amount + whether to bypass the floor:
+    // - overriding: save the raw sub-floor value; set override=1; THIS MONTH ONLY.
+    // - below (not overriding): clamp up to the floor.
+    // - at/above: store the manual derived per fold mode (set=total, add=total-floor).
+    let stored: number; let override = 0; let applyForward = applyFuture;
+    if (overriding) {
+      stored = val; override = 1; applyForward = false;
+    } else {
+      const total = below ? floor : val;
+      stored = mode === 'add' ? +(total - floor).toFixed(2) : total;
+    }
+
     const [by, bm] = editModal.targetMonth.split('-').map(Number); // year, month (1-12)
     const months: string[] = [editModal.targetMonth];
-    if (applyFuture) {
-      // apply through December of the target month's year
+    if (applyForward) {
       for (let m = bm; m <= 11; m++) months.push(`${by}-${String(m + 1).padStart(2, '0')}`);
     }
     await Promise.all(months.map((mo) =>
       apiFetch('/budgets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categoryId: editModal.categoryId, month: mo, amount: val }),
+        // Override is this-month-only; future months (apply-forward) reset to non-override.
+        body: JSON.stringify({ categoryId: editModal.categoryId, month: mo, amount: stored, override: mo === editModal.targetMonth ? override : 0 }),
       })
     ));
     closeEdit();
@@ -526,7 +530,7 @@ export default function BudgetPage() {
                                   <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
                                     <span className="text-sm font-medium truncate">{r.subName}</span>
                                     {r.recurring && (
-                                      <span title={`Recurring: ${r.recurring.labels.join(', ')} — ${r.recurring.mode === 'add' ? 'added on top' : 'sets the minimum'}`}
+                                      <span title={`Recurring: ${r.recurring.items.map((i) => i.label).join(', ')} — ${r.recurring.mode === 'add' ? 'added on top' : 'sets the minimum'}`}
                                         className="shrink-0 inline-flex items-center gap-1 px-1.5 h-[18px] rounded-md text-[10px] font-bold tabular-nums"
                                         style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
                                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
@@ -537,7 +541,7 @@ export default function BudgetPage() {
                                   <div style={{ maxWidth: 320 }}><BudgetBar value={r.actual} max={r.budgeted} /></div>
                                 </div>
                                 <div className="flex justify-end">
-                                  <button onClick={(e) => { e.stopPropagation(); if (canEditBudgets) openEdit(r.categoryId, g.groupName, r.subName, r.budgeted, undefined, r.recurring, r.manual); }}
+                                  <button onClick={(e) => { e.stopPropagation(); if (canEditBudgets) openEdit(r.categoryId, g.groupName, r.subName, r.budgeted, undefined, r.recurring, r.manual, r.overridden); }}
                                     disabled={!canEditBudgets}
                                     className="min-w-16 text-right text-sm font-semibold text-content tabular-nums px-2.5 py-1.5 rounded-lg border border-line-strong bg-surface-2 enabled:hover:border-primary disabled:cursor-default">
                                     {fmtWhole(r.budgeted)}
@@ -665,61 +669,85 @@ export default function BudgetPage() {
       )}
 
       {/* ===== Edit budget popup ===== */}
-      {editModal && (
+      {editModal && (() => {
+        const rec = editModal.recurring;
+        const floor = rec?.amount ?? 0;
+        const val = parseFloat(editValue) || 0;
+        const below = !!rec && val < floor;
+        const overriding = below && editOverride;
+        const extra = Math.max(0, +(val - floor).toFixed(2));
+        const inputBorder = overriding ? 'var(--line-strong)' : below ? 'var(--warning)' : 'var(--primary)';
+        let helper = ''; let helperColor = 'var(--text-3)';
+        if (overriding) { helper = `Overriding for this month only — budgeting ${fmt(floor - val)} below the recurring floor (e.g. a month with no paycheck). The floor returns next month.`; helperColor = 'var(--text-2)'; }
+        else if (below) { helper = `Below the ${fmt(floor)} recurring minimum. Set it to the minimum, or override this one month.`; helperColor = 'var(--warning)'; }
+        else if (rec && extra === 0) { helper = `Covers the ${fmt(floor)} recurring exactly — no extra room.`; helperColor = 'var(--text-3)'; }
+        else if (rec) { helper = `${fmt(floor)} recurring + ${fmt(extra)} extra`; helperColor = 'var(--text-2)'; }
+        const clearToFloor = () => { setEditValue(String(floor)); setEditOverride(false); };
+        return (
         <div onClick={closeEdit} className="fixed inset-0 z-[80] flex items-center justify-center p-6" style={{ background: 'rgba(6,8,12,.6)', backdropFilter: 'blur(3px)' }}>
-          <div onClick={(e) => e.stopPropagation()} className="w-[440px] max-w-full bg-surface border border-line-strong rounded-card shadow-md overflow-hidden">
-            <div className="flex items-center justify-between px-6 pt-5 pb-1">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="w-9 h-9 shrink-0 rounded-[9px] bg-surface-2 border border-line flex items-center justify-center text-[17px] leading-none">{editModal.emoji}</span>
-                <span className="text-[19px] font-extrabold tracking-tight truncate">{editModal.subName}</span>
-              </div>
-              <button onClick={closeEdit} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          <div onClick={(e) => e.stopPropagation()} className="w-[560px] max-w-full bg-elevated border border-line-strong rounded-[20px] shadow-md overflow-hidden">
+            <div className="flex items-center gap-3.5 px-[22px] pt-5 pb-1">
+              <span className="w-11 h-11 shrink-0 rounded-[12px] bg-surface-2 border border-line flex items-center justify-center text-[22px] leading-none">{editModal.emoji}</span>
+              <span className="text-[22px] font-extrabold tracking-[-0.01em] flex-1 truncate">{editModal.subName}</span>
+              <button onClick={closeEdit} className="shrink-0 flex items-center justify-center text-content-3 hover:text-content"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6 18 18"/><path d="M18 6 6 18"/></svg></button>
             </div>
-            <div className="px-6 pt-3.5 pb-1">
-              <div className="text-[13px] font-semibold text-content-2 mb-2">
-                {editModal.recurring && editModal.recurring.mode === 'add' ? 'Additional budget (on top of recurring)' : 'Budgeted amount'}
-              </div>
-              <div className="flex items-center px-4 rounded-[12px] bg-surface-2 border-2 border-primary" style={{ height: 52, boxShadow: '0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent)' }}>
-                <span className="text-lg text-content-3 font-semibold">$</span>
-                <input autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal"
+            <div className="px-[22px] pt-[18px] pb-[22px]">
+              <div className="text-[12px] font-bold uppercase tracking-[0.05em] text-content-3 mb-[9px]">Monthly budget</div>
+              <div className="flex items-center gap-0.5 h-16 px-[18px] rounded-[14px] bg-surface" style={{ border: `2px solid ${inputBorder}`, transition: 'border-color .15s' }}>
+                <span className="text-[26px] text-content-3 font-semibold">$</span>
+                <input autoFocus value={editValue} onChange={(e) => { setEditValue(e.target.value.replace(/[^0-9.]/g, '')); setEditOverride(false); }} inputMode="decimal"
                   onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') closeEdit(); }}
-                  className="flex-1 ml-1.5 bg-transparent border-none outline-none text-content text-lg font-bold tabular-nums" />
+                  className="flex-1 min-w-0 h-full bg-transparent border-none outline-none text-content text-[30px] font-extrabold tracking-[-0.01em] tabular-nums px-2" />
               </div>
-            </div>
-            {editModal.recurring && (
-              <div className="px-6 pt-3 pb-1">
-                <div className="rounded-[11px] border p-3.5" style={{ borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--line))', background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}>
-                  <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--primary)' }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
-                    <span className="text-[13px] font-bold">{fmt(editModal.recurring.amount)} recurring this month</span>
+              {rec && (
+                <div className="mt-2.5 min-h-[20px]">
+                  <div className="text-[13px] leading-[1.45]" style={{ color: helperColor }}>{helper}</div>
+                  {below && (
+                    <div className="flex items-center gap-[18px] mt-[9px] text-[12.5px] font-bold">
+                      {!overriding && <button type="button" onClick={clearToFloor} style={{ color: 'var(--primary)' }}>Set to minimum</button>}
+                      {!overriding && <button type="button" onClick={() => setEditOverride(true)} style={{ color: 'var(--text-2)' }}>Override for this month</button>}
+                      {overriding && <button type="button" onClick={clearToFloor} style={{ color: 'var(--primary)' }}>Undo override</button>}
+                    </div>
+                  )}
+                </div>
+              )}
+              {rec && (
+                <div className="mt-[18px] rounded-[14px] border p-4" style={{ borderColor: 'color-mix(in srgb, var(--primary) 32%, var(--line))', background: 'color-mix(in srgb, var(--primary) 9%, var(--surface))' }}>
+                  <div className="flex items-center gap-2.5" style={{ color: 'var(--primary)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                    <span className="text-[15px] font-extrabold tabular-nums">{fmt(floor)} recurring this month</span>
+                    {overriding && <span className="text-[11px] font-bold uppercase tracking-[0.04em] px-2 py-[3px] rounded-md" style={{ color: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 16%, transparent)' }}>Overridden</span>}
                   </div>
-                  <div className="text-[12px] text-content-2 mb-2.5">{editModal.recurring.labels.join(', ')}</div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[12px] font-semibold text-content-2 mr-1">Fold in as</span>
-                    <button onClick={() => setRecurringMode('set')} className={`h-8 px-3 rounded-[9px] text-[12px] font-bold border ${editModal.recurring.mode === 'set' ? 'bg-primary text-on-primary border-primary' : 'bg-surface-2 text-content-2 border-line'}`}>Set (min)</button>
-                    <button onClick={() => setRecurringMode('add')} className={`h-8 px-3 rounded-[9px] text-[12px] font-bold border ${editModal.recurring.mode === 'add' ? 'bg-primary text-on-primary border-primary' : 'bg-surface-2 text-content-2 border-line'}`}>Add on top</button>
+                  <div className="mt-2 flex flex-col gap-1.5" style={{ marginLeft: 27 }}>
+                    {rec.items.map((it, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[13px]" style={{ color: 'var(--text-2)' }}>
+                        <span className="w-[5px] h-[5px] rounded-full shrink-0" style={{ background: 'var(--text-3)' }} />
+                        <span className="truncate">{it.label} · {it.cadence}</span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-[11px] text-content-3 mt-2">
-                    {editModal.recurring.mode === 'set'
-                      ? `Effective budget ${fmt(Math.max(parseFloat(editValue || '0') || 0, editModal.recurring.amount))} — recurring ${fmt(editModal.recurring.amount)} is the minimum.`
-                      : `Added on top of ${fmt(editModal.recurring.amount)} recurring → total ${fmt((parseFloat(editValue || '0') || 0) + editModal.recurring.amount)}.`}
+                  <div className="mt-3.5 pt-3 border-t text-[13px] leading-[1.5]" style={{ marginLeft: 27, borderColor: 'color-mix(in srgb, var(--primary) 20%, var(--line))', color: 'var(--text-3)' }}>
+                    {overriding
+                      ? 'Overridden this month, so recurring is not fully covered by the budget. The minimum returns automatically next month.'
+                      : 'This is the minimum budget for the category — recurring is always covered, and anything above it is extra spending room.'}
                   </div>
                 </div>
-              </div>
-            )}
-            <div onClick={() => setApplyFuture((v) => !v)} className="flex items-center gap-3 px-6 py-3.5 cursor-pointer">
-              <span className="w-[22px] h-[22px] shrink-0 rounded-[7px] flex items-center justify-center border-[1.5px]" style={{ borderColor: applyFuture ? 'var(--primary)' : 'var(--line-strong)', background: applyFuture ? 'var(--primary)' : 'var(--surface)' }}>
-                {applyFuture && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}
-              </span>
-              <span className="text-sm font-semibold">Apply to the rest of {month.getFullYear()}</span>
+              )}
+              <label onClick={() => setApplyFuture((v) => !v)} className="flex items-center gap-3 mt-5 cursor-pointer select-none">
+                <span className="w-[22px] h-[22px] shrink-0 rounded-[7px] flex items-center justify-center" style={{ border: `2px solid ${applyFuture ? 'var(--primary)' : 'var(--line-strong)'}`, background: applyFuture ? 'var(--primary)' : 'transparent', transition: '.12s' }}>
+                  {applyFuture && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--on-primary)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5L20 6"/></svg>}
+                </span>
+                <span className="text-[15px] font-semibold">Apply to the rest of {month.getFullYear()}</span>
+              </label>
             </div>
-            <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-line">
-              <button onClick={closeEdit} className="h-[42px] px-[18px] rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
-              <button onClick={saveEdit} className="h-[42px] px-[22px] rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm hover:bg-primary-hover">Save</button>
+            <div className="flex items-center justify-end gap-2.5 px-[22px] py-4 border-t border-line">
+              <button onClick={closeEdit} className="h-11 px-5 rounded-[11px] border border-line-strong bg-surface-2 text-content font-bold text-sm">Cancel</button>
+              <button onClick={saveEdit} className="h-11 px-[26px] rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm hover:bg-primary-hover">Save</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Import Wizard Modal */}
       <ResponsiveModal

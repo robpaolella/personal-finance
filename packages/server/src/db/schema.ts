@@ -120,6 +120,9 @@ export const budgets = sqliteTable('budgets', {
   category_id: integer('category_id').notNull().references(() => categories.id),
   month: text('month').notNull(),
   amount: real('amount').notNull(),
+  // Per-month override: intentionally budget BELOW the recurring floor this month
+  // (e.g. a month with no paycheck). When 1, the recurring floor is not applied.
+  override: integer('override').notNull().default(0),
 }, (table) => [
   uniqueIndex('budgets_category_month_idx').on(table.category_id, table.month),
 ]);
