@@ -23,6 +23,7 @@ import { migrateTxnCategorize } from './db/migrate-txn-categorize.js';
 import { migrateSyncStatus } from './db/migrate-sync-status.js';
 import { migrateNotifications } from './db/migrate-notifications.js';
 import { migrateTransfersCategory } from './db/migrate-transfers-category.js';
+import { migrateSplitMerchant } from './db/migrate-split-merchant.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -69,6 +70,7 @@ migrateDismissedTransfers(sqlite);
 migratePayCycles(sqlite);
 migrateSavingsCategories(sqlite);
 migrateMerchants(sqlite); // after splits — splits rebuilds the transactions table
+migrateSplitMerchant(sqlite); // after splits (table) + merchants (FK target)
 migrateAccountInstitution(sqlite);
 migrateTxnCategorize(sqlite);
 migrateSyncStatus(sqlite);

@@ -11,6 +11,7 @@ import CurrencyInput from '../components/CurrencyInput';
 import Calendar from '../components/Calendar';
 import PermissionGate from '../components/PermissionGate';
 import { CategoryBadge } from '../components/badges';
+import { SegmentedControl } from '../components/primitives';
 import InlineNotification from '../components/InlineNotification';
 import ResponsiveModal from '../components/ResponsiveModal';
 import SplitEditor from '../components/SplitEditor';
@@ -52,6 +53,10 @@ interface TransactionSplit {
   displayName: string;
   type: string;
   amount: number;
+  // Per-split (full-Monarch model): the leg's OWN merchant (null = inherit
+  // parent) and its own note.
+  merchant: TransactionMerchant | null;
+  note: string | null;
 }
 
 interface TransactionMerchant {
@@ -80,6 +85,21 @@ interface Merchant {
 /** Display label for a transaction's vendor: merchant name, or raw statement as fallback. */
 function vendorLabel(t: { merchant?: TransactionMerchant | null; description: string }): string {
   return t.merchant?.name ?? t.description;
+}
+
+/** Vendor label for a split leg: its own merchant, else the parent's, else raw statement. */
+function splitVendorLabel(t: Transaction, split: TransactionSplit): string {
+  return split.merchant?.name ?? t.merchant?.name ?? t.description;
+}
+
+/**
+ * Merchant name to SEED an editable split field: own merchant, else the parent's,
+ * else empty. Unlike splitVendorLabel it never falls back to the raw statement, so
+ * re-saving an inheriting leg (parent merchant null) sends '' → stays inherited
+ * rather than creating a merchant named after the statement text.
+ */
+function legMerchantSeed(t: Transaction, split: TransactionSplit): string {
+  return split.merchant?.name ?? t.merchant?.name ?? '';
 }
 
 interface Account {
@@ -579,8 +599,21 @@ export default function TransactionsPage() {
   // amount buffer out from under an in-progress edit when a concurrent field
   // commit (e.g. a category change PUT) resolves.
   const amountFieldFocused = useRef(false);
+  // When a split leg is open in the detail panel, this is its split id (the
+  // panel still holds the parent `detail`); null = viewing the parent itself.
+  const [detailSplitId, setDetailSplitId] = useState<number | null>(null);
+  // Mirror of detailSplitId that's always current, so an in-flight refreshDetail
+  // re-seeds the leg that's open NOW (not the one open when the PATCH fired).
+  const detailSplitIdRef = useRef<number | null>(null);
+  // Which split-child text field has focus, so a concurrent PATCH's refresh
+  // doesn't clobber an in-progress edit in the sibling field.
+  const splitFieldFocused = useRef<'merchant' | 'note' | null>(null);
+  const [detailSplitNote, setDetailSplitNote] = useState('');
+  const [detailSplitMerchant, setDetailSplitMerchant] = useState('');
   const [splitOpen, setSplitOpen] = useState(false);
-  const [splitDraft, setSplitDraft] = useState<{ categoryId: number | ''; amount: string }[]>([]);
+  const [splitMode, setSplitMode] = useState<'$' | '%'>('$');
+  const [splitOrigExpanded, setSplitOrigExpanded] = useState(false);
+  const [splitDraft, setSplitDraft] = useState<{ id?: number; categoryId: number | ''; amount: string; merchant: string; note?: string; pctRaw?: string }[]>([]);
 
   const getDateRange = useCallback((): { startDate?: string; endDate?: string } => {
     const now = new Date();
@@ -739,7 +772,9 @@ export default function TransactionsPage() {
     if (changes.merchant !== undefined) body.merchant = changes.merchant;
     if (isSplit) {
       // Amount + splits are driven by the split modal; other fields still edit.
-      body.splits = t.splits!.map((s) => ({ categoryId: s.categoryId, amount: s.amount }));
+      // Carry each leg's id + merchant + note so an upsert-by-id save preserves
+      // per-leg data (and stable ids) when a parent field is edited.
+      body.splits = t.splits!.map((s) => ({ id: s.id, categoryId: s.categoryId, amount: s.amount, merchant: s.merchant?.name, note: s.note }));
       body.amount = t.amount;
     } else {
       const categoryId = changes.categoryId ?? t.category?.id ?? null;
@@ -813,15 +848,35 @@ export default function TransactionsPage() {
   };
   const seedDetail = (t: Transaction) => { setDetail(t); setDetailNote(t.note ?? ''); setDetailMerchant(vendorLabel(t)); setDetailStatement(t.description ?? ''); setDetailAmount(displayAmount(t)); };
   const refreshDetail = async (id: number) => {
-    try { const res = await apiFetch<{ data: Transaction }>(`/transactions/${id}`); seedDetail(res.data); } catch { /* leave panel as-is */ }
+    try {
+      const res = await apiFetch<{ data: Transaction }>(`/transactions/${id}`);
+      seedDetail(res.data);
+      // Re-seed the leg that's open NOW (via the ref), and skip any field the user
+      // is currently editing so an in-flight refresh can't clobber live typing.
+      const activeId = detailSplitIdRef.current;
+      const active = activeId != null ? (res.data.splits ?? []).find((s) => s.id === activeId) : undefined;
+      if (active) {
+        if (splitFieldFocused.current !== 'merchant') setDetailSplitMerchant(legMerchantSeed(res.data, active));
+        if (splitFieldFocused.current !== 'note') setDetailSplitNote(active.note ?? '');
+      } else if (activeId != null) {
+        setDetailSplitId(null); // leg gone (unsplit/merged) → fall back to parent view
+        detailSplitIdRef.current = null;
+      }
+    } catch { /* leave panel as-is */ }
   };
-  const openDetail = (t: Transaction) => seedDetail(t);
+  const openDetail = (t: Transaction, split?: TransactionSplit) => {
+    setDetailSplitId(split?.id ?? null);
+    detailSplitIdRef.current = split?.id ?? null;
+    seedDetail(t);
+    if (split) { setDetailSplitMerchant(legMerchantSeed(t, split)); setDetailSplitNote(split.note ?? ''); }
+  };
+  const closeDetail = () => { setDetail(null); setDetailSplitId(null); detailSplitIdRef.current = null; };
 
   const deleteFromDetail = async () => {
     if (!detail) return;
     try {
       await apiFetch(`/transactions/${detail.id}`, { method: 'DELETE' });
-      setDetail(null);
+      closeDetail();
       addToast('Transaction deleted');
       await loadTransactions();
     } catch { addToast('Failed to delete transaction', 'error'); }
@@ -829,14 +884,17 @@ export default function TransactionsPage() {
 
   const openSplit = () => {
     if (!detail) return;
+    const parentMerch = detail.merchant?.name ?? '';
     const rows = (detail.splits && detail.splits.length > 0)
-      ? detail.splits.map((s) => ({ categoryId: s.categoryId as number | '', amount: Math.abs(s.amount).toFixed(2) }))
-      // New split: start every row at $0 so nothing is pre-filled and you never
-      // have to go back and correct a row that was seeded with the full amount.
+      ? detail.splits.map((s) => ({ id: s.id, categoryId: s.categoryId as number | '', amount: Math.abs(s.amount).toFixed(2), merchant: splitVendorLabel(detail, s), note: s.note ?? '' }))
+      // New split: start every row at $0 (nothing pre-filled) and default each
+      // leg's merchant to the parent's (Monarch-style), which the user can change.
       : [
-          { categoryId: (detail.category?.id ?? '') as number | '', amount: '' },
-          { categoryId: '' as number | '', amount: '' },
+          { categoryId: (detail.category?.id ?? '') as number | '', amount: '', merchant: parentMerch, note: '' },
+          { categoryId: '' as number | '', amount: '', merchant: parentMerch, note: '' },
         ];
+    setSplitMode('$');
+    setSplitOrigExpanded(false);
     setSplitDraft(rows);
     setSplitOpen(true);
   };
@@ -845,13 +903,15 @@ export default function TransactionsPage() {
     if (!detail) return;
     const sign = detail.amount < 0 ? -1 : 1;
     const rows = splitDraft.filter((r) => r.categoryId !== '' && parseFloat(r.amount) > 0);
+    // Omit `merchant` so the parent merchant is untouched; the server uses it as
+    // the baseline for the NULL-inherit rule on each leg.
     const body = {
       accountId: detail.account.id,
       date: detail.date,
       description: detail.description,
       note: detail.note,
       amount: detail.amount,
-      splits: rows.map((r) => ({ categoryId: r.categoryId, amount: +(Math.abs(parseFloat(r.amount)) * sign).toFixed(2) })),
+      splits: rows.map((r) => ({ id: r.id, categoryId: r.categoryId, amount: +(Math.abs(parseFloat(r.amount)) * sign).toFixed(2), merchant: r.merchant, note: r.note })),
     };
     try {
       await apiFetch(`/transactions/${detail.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -875,15 +935,30 @@ export default function TransactionsPage() {
         body: JSON.stringify({ accountId: detail.account.id, date: detail.date, description: detail.description, note: detail.note, amount: detail.amount, categoryId: catId }),
       });
       setSplitOpen(false);
+      setDetailSplitId(null); detailSplitIdRef.current = null; // back to the single-category parent view
       addToast('Split removed');
       await refreshDetail(detail.id);
       await loadTransactions();
     } catch { addToast('Failed to remove split', 'error'); }
   };
 
+  // Edit ONE split leg's category / merchant / note from the split-child detail
+  // panel (amount is managed only in the modal). PATCHes just that leg.
+  const patchSplitField = async (changes: { categoryId?: number; merchant?: string; note?: string | null }) => {
+    if (!detail || detailSplitId == null) return;
+    try {
+      await apiFetch(`/transactions/${detail.id}/splits/${detailSplitId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes),
+      });
+      await refreshDetail(detail.id);
+      await loadTransactions();
+    } catch { addToast('Failed to update split', 'error'); }
+  };
+
   useEffect(() => { loadMeta(); }, [loadMeta]);
   useEffect(() => { setLimit(PAGE); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax]);
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
+  useEffect(() => { detailSplitIdRef.current = detailSplitId; }, [detailSplitId]);
 
   // Infinite scroll: when the sentinel nears the viewport, load one more batch.
   // Re-arms after each fetch (transactions.length changes); stops when all loaded.
@@ -1094,11 +1169,11 @@ export default function TransactionsPage() {
     // Split sub-row: parent merchant + this split's own category + amount + marker.
     if (split) {
       const scolor = getCategoryColorHex(split.groupName);
-      const sinitial = (vendorLabel(t)?.trim()?.[0] ?? '?').toUpperCase();
+      const sinitial = (splitVendorLabel(t, split)?.trim()?.[0] ?? '?').toUpperCase();
       const { text: sAmt, className: sClass } = fmtTransaction(split.amount, split.type);
       return (
         <div key={`${t.id}-split-${split.id}`}
-          onClick={() => { if (bulkMode) toggleSelect(t.id); else if (canEdit) openDetail(t); }}
+          onClick={() => { if (bulkMode) toggleSelect(t.id); else if (canEdit) openDetail(t, split); }}
           className="flex items-center gap-3.5 px-6 border-b border-line cursor-pointer hover:bg-surface-2/40"
           style={{ height: 44, background: checked ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : undefined, boxShadow: 'inset 3px 0 0 color-mix(in srgb, var(--primary) 30%, transparent)' }}>
           {bulkMode && (
@@ -1108,7 +1183,7 @@ export default function TransactionsPage() {
           )}
           <div className="flex-[1.4] min-w-0 flex items-center gap-2.5 pl-1">
             <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${scolor} 16%, transparent)`, color: scolor }}>{sinitial}</span>
-            <span className="font-semibold text-[15px] truncate">{vendorLabel(t)}</span>
+            <span className="font-semibold text-[15px] truncate">{splitVendorLabel(t, split)}</span>
             <span className="shrink-0 inline-flex items-center justify-center w-[18px] h-[18px] rounded-md" style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }} title="Part of a split transaction">{splitIcon(11)}</span>
           </div>
           <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-content-2 px-2">
@@ -1511,11 +1586,11 @@ export default function TransactionsPage() {
             const { text: amtText, className: amtClass } = fmtTransaction(split ? split.amount : t.amount, catType);
             return (
               <div key={split ? `${t.id}-split-${split.id}` : t.id}
-                onClick={() => { if (hasPermission('transactions.edit')) openDetail(t); }}
+                onClick={() => { if (hasPermission('transactions.edit')) openDetail(t, split); }}
                 className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-3.5 py-2.5 flex justify-between items-center ${hasPermission('transactions.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{vendorLabel(t)}</span>
+                    <span className="text-[13px] font-medium text-[var(--text-primary)] truncate">{split ? splitVendorLabel(t, split) : vendorLabel(t)}</span>
                     {split && <span className="shrink-0 inline-flex items-center justify-center w-[16px] h-[16px] rounded-md" style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }} title="Part of a split transaction">{splitIcon(10)}</span>}
                   </div>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -1654,11 +1729,11 @@ export default function TransactionsPage() {
       {/* ===== Detail side panel ===== */}
       {detail && (
         <>
-          <div onClick={() => setDetail(null)} className="fixed inset-0 z-[70]" style={{ background: 'rgba(6,8,12,.5)', backdropFilter: 'blur(2px)' }} />
+          <div onClick={closeDetail} className="fixed inset-0 z-[70]" style={{ background: 'rgba(6,8,12,.5)', backdropFilter: 'blur(2px)' }} />
           <div className="fixed top-0 right-0 bottom-0 z-[71] w-[440px] max-w-full bg-surface border-l border-line-strong shadow-md flex flex-col">
             <div className="flex items-center justify-between gap-1.5 px-5 py-3 border-b border-line">
               <span className="text-[15px] font-extrabold tracking-tight">Transaction</span>
-              <button onClick={() => setDetail(null)} className="w-9 h-9 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+              <button onClick={closeDetail} className="w-9 h-9 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6">
               {(() => {
@@ -1686,6 +1761,87 @@ export default function TransactionsPage() {
                 // Accounts grouped by owner for the select.
                 const acctGroups = new Map<string, Account[]>();
                 for (const a of accounts) { const k = a.isShared ? 'Shared' : (a.owners?.[0]?.displayName || a.owner); if (!acctGroups.has(k)) acctGroups.set(k, []); acctGroups.get(k)!.push(a); }
+
+                // ===== Split-CHILD view: one leg opened as its own transaction =====
+                const activeSplit = detailSplitId != null ? (detail.splits?.find((s) => s.id === detailSplitId) ?? null) : null;
+                if (activeSplit) {
+                  const scolor = getCategoryColorHex(activeSplit.groupName);
+                  const { text: sAmt, className: sClass } = fmtTransaction(activeSplit.amount, activeSplit.type);
+                  const sLabel = splitVendorLabel(detail, activeSplit);
+                  const sInitial = (sLabel?.trim()?.[0] ?? '?').toUpperCase();
+                  const childDir: 'income' | 'expense' = activeSplit.type === 'income' ? 'income' : 'expense';
+                  // Same-direction categories only (+ always keep the current one), so a
+                  // PATCH can't leave the leg's sign contradicting its category.
+                  const childGroups = groupedAll
+                    .map(([g, subs]) => [g, subs.filter((c) => c.type !== 'transfer' && ((childDir === 'income' ? c.type === 'income' : c.type !== 'income') || c.id === activeSplit.categoryId))] as [string, Category[]])
+                    .filter(([, subs]) => subs.length > 0);
+                  const mSeed = legMerchantSeed(detail, activeSplit);
+                  // Compare to the seed (own-or-parent, no statement fallback) and allow
+                  // clearing → '' → inherit the parent merchant again.
+                  const commitSplitMerchant = () => { splitFieldFocused.current = null; const v = detailSplitMerchant.trim(); if (v !== mSeed) patchSplitField({ merchant: v }); };
+                  const commitSplitNote = () => { splitFieldFocused.current = null; if ((activeSplit.note ?? '') !== detailSplitNote) patchSplitField({ note: detailSplitNote }); };
+                  const roCls = `${fieldCls} mb-6 flex items-center text-content-2`;
+                  const dateLabel = new Date(detail.date + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                  return (
+                    <>
+                      <div className="flex items-center gap-4 mb-5">
+                        <span className="shrink-0 rounded-full flex items-center justify-center font-bold text-xl" style={{ width: 52, height: 52, background: `color-mix(in srgb, ${scolor} 16%, transparent)`, color: scolor }}>{sInitial}</span>
+                        <div className="min-w-0">
+                          <div className={`text-[28px] font-extrabold tracking-tight tabular-nums leading-none ${sClass}`}>{sAmt}</div>
+                          <div className="text-[12px] text-content-3 mt-1 truncate">{accountLabel(detail.account)}</div>
+                        </div>
+                      </div>
+
+                      {/* This-is-a-split callout */}
+                      <div className="mb-6 rounded-[12px] border p-4 flex items-start gap-3" style={{ borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--line))', background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}>
+                        <span className="shrink-0 mt-0.5" style={{ color: 'var(--primary)' }}>{splitIcon(16)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] text-content-2 leading-snug">
+                            This is a split of <span className="font-bold text-content">{fmt(Math.abs(detail.amount))}</span> from <span className="font-bold text-content">{vendorLabel(detail)}</span> on {dateLabel}.
+                          </div>
+                          <button onClick={openSplit} className="mt-2.5 h-9 px-3.5 rounded-[9px] bg-primary text-on-primary font-bold text-[13px] shadow-sm">Open splits</button>
+                        </div>
+                      </div>
+
+                      <div className={labelCls}>Merchant</div>
+                      <input value={detailSplitMerchant} onChange={(e) => setDetailSplitMerchant(e.target.value)} onFocus={() => { splitFieldFocused.current = 'merchant'; }} onBlur={commitSplitMerchant}
+                        list="txn-merchant-list" placeholder="Set merchant…" className={`${fieldCls} font-semibold mb-6`} />
+                      <datalist id="txn-merchant-list">{merchants.map((m) => <option key={m.id} value={m.name} />)}</datalist>
+
+                      <div className={labelCls}>Amount</div>
+                      <div className={`${fieldCls} mb-6 flex items-center justify-between`}>
+                        <span className={`tabular-nums font-semibold ${sClass}`}>{sAmt}</span>
+                        <button onClick={openSplit} className="text-[12px] font-semibold text-primary">Edit in splits</button>
+                      </div>
+
+                      <div className={labelCls}>Category</div>
+                      <div className="relative mb-6">
+                        <select value={activeSplit.categoryId} onChange={(e) => e.target.value && patchSplitField({ categoryId: parseInt(e.target.value) })}
+                          className="w-full h-12 pl-3.5 pr-9 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] outline-none appearance-none cursor-pointer">
+                          {childGroups.map(([group, subs]) => (
+                            <optgroup key={group} label={group}>{subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}</optgroup>
+                          ))}
+                        </select>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-4 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
+                      </div>
+
+                      <div className={labelCls}>Account <span className="font-normal text-content-3">(from original)</span></div>
+                      <div className={roCls}>{accountLabel(detail.account)}</div>
+
+                      <div className={labelCls}>Date <span className="font-normal text-content-3">(from original)</span></div>
+                      <div className={`${roCls} tabular-nums`}>{dateLabel}</div>
+
+                      <div className={labelCls}>Statement <span className="font-normal text-content-3">(from original)</span></div>
+                      <div className={`${roCls} truncate`}><span className="truncate">{detail.description}</span></div>
+
+                      <div className={labelCls}>Notes</div>
+                      <textarea value={detailSplitNote} onChange={(e) => setDetailSplitNote(e.target.value)} onFocus={() => { splitFieldFocused.current = 'note'; }} onBlur={commitSplitNote}
+                        placeholder="Add notes to this split…"
+                        className="w-full min-h-[76px] resize-y p-3 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none mb-2" />
+                    </>
+                  );
+                }
+
                 return (
                   <>
                     <div className="flex items-center gap-4 mb-6">
@@ -1720,20 +1876,21 @@ export default function TransactionsPage() {
                           {splitIcon(15)}
                           <span className="text-[13px] font-bold">Split across {detail.splits!.length} categories</span>
                         </div>
-                        <div className="flex flex-col gap-2 mb-3.5">
+                        <div className="flex flex-col gap-1 mb-3.5">
                           {detail.splits!.map((s) => {
                             const { text, className } = fmtTransaction(s.amount, s.type);
                             return (
-                              <div key={s.id} className="flex items-center gap-2 text-sm">
+                              <button key={s.id} onClick={() => openDetail(detail, s)}
+                                className="flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2">
                                 <span className="text-[15px] leading-none">{getCategoryEmoji(s.groupName)}</span>
-                                <span className="flex-1 truncate text-content">{s.subName}</span>
+                                <span className="flex-1 truncate text-content">{splitVendorLabel(detail, s)} · {s.subName}</span>
                                 <span className={`tabular-nums font-semibold ${className}`}>{text}</span>
-                              </div>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-content-3 shrink-0"><path d="m9 6 6 6-6 6"/></svg>
+                              </button>
                             );
                           })}
                         </div>
-                        <button onClick={openSplit} className="w-full h-10 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Edit split</button>
-                        {canEdit && <button onClick={removeSplitFromDetail} className="w-full h-9 mt-2 rounded-[10px] border border-line-strong bg-surface text-content-2 font-semibold text-[13px] hover:bg-surface-2">Remove split</button>}
+                        <button onClick={openSplit} className="w-full h-10 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Open splits</button>
                       </div>
                     ) : (
                       <div className="relative mb-6">
@@ -1787,56 +1944,130 @@ export default function TransactionsPage() {
       )}
 
       {/* ===== Split modal ===== */}
-      {splitOpen && detail && (
+      {splitOpen && detail && (() => {
+        const absTotal = Math.abs(detail.amount);
+        const balanced = Math.abs(splitRemainingVal) < 0.01;
+        const isExistingSplit = !!(detail.splits && detail.splits.length > 0);
+        const oColor = getCategoryColorHex(detail.category?.groupName);
+        const oInitial = (vendorLabel(detail)?.trim()?.[0] ?? '?').toUpperCase();
+        const pctOf = (amt: string) => {
+          const a = parseFloat(amt);
+          if (!a || !absTotal) return '';
+          const p = (a / absTotal) * 100;
+          return Number.isInteger(Math.round(p * 10) / 10) ? String(Math.round(p)) : p.toFixed(1);
+        };
+        const setRow = (i: number, patch: Partial<{ categoryId: number | ''; amount: string; merchant: string; pctRaw: string }>) =>
+          setSplitDraft((d) => d.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+        return (
         <div onClick={() => setSplitOpen(false)} className="fixed inset-0 z-[80] flex items-center justify-center p-6" style={{ background: 'rgba(6,8,12,.6)', backdropFilter: 'blur(3px)' }}>
-          <div onClick={(e) => e.stopPropagation()} className="w-[560px] max-w-full max-h-[88vh] bg-surface border border-line-strong rounded-card shadow-md overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 pt-5 pb-1">
+          <div onClick={(e) => e.stopPropagation()} className="w-[620px] max-w-full max-h-[90vh] bg-surface border border-line-strong rounded-card shadow-md overflow-hidden flex flex-col">
+            <div className="flex items-start justify-between px-6 pt-5 pb-3 border-b border-line">
               <div>
                 <div className="text-[19px] font-extrabold tracking-tight">Split transaction</div>
-                <div className="text-[13px] text-content-3 mt-0.5">Divide this transaction across categories</div>
+                <div className="text-[13px] text-content-3 mt-0.5">Splitting creates individual transactions you can categorize and manage separately.</div>
               </div>
-              <button onClick={() => setSplitOpen(false)} className="w-9 h-9 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+              <button onClick={() => setSplitOpen(false)} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
-            <div className="flex items-center justify-between mx-6 mt-3.5 mb-1 px-4 py-3.5 rounded-[12px] bg-surface-2 border border-line">
-              <span className="text-sm font-semibold text-content-2">Total to split</span>
-              <span className="text-lg font-extrabold tabular-nums">{fmt(Math.abs(detail.amount))}</span>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-3.5">
+
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {/* ORIGINAL — expandable card */}
+              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-content-3 mb-2">Original</div>
+              <div className="rounded-[12px] border border-line bg-surface-2 mb-5">
+                <button onClick={() => setSplitOrigExpanded((v) => !v)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2.2" strokeLinecap="round" className="shrink-0 transition-transform" style={{ transform: splitOrigExpanded ? 'rotate(90deg)' : 'none' }}><path d="m9 6 6 6-6 6"/></svg>
+                  <span className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold text-[13px]" style={{ background: `color-mix(in srgb, ${oColor} 16%, transparent)`, color: oColor }}>{oInitial}</span>
+                  <span className="font-semibold text-[15px] truncate flex-1">{vendorLabel(detail)}</span>
+                  <span className="flex items-center gap-1.5 text-[13px] text-content-2 shrink-0">
+                    {detail.category && <><span className="text-[15px] leading-none">{getCategoryEmoji(detail.category.groupName)}</span><span className="truncate max-w-[120px]">{detail.category.subName}</span></>}
+                  </span>
+                  <span className="font-bold tabular-nums text-[15px] shrink-0 ml-2">{fmt(absTotal)}</span>
+                </button>
+                {splitOrigExpanded && (
+                  <div className="px-3.5 pb-3.5 pt-1 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line">
+                    <div><div className="text-[11px] font-semibold text-content-3 mb-0.5">Original statement</div><div className="text-[13px] text-content-2 break-words">{detail.description || '—'}</div></div>
+                    <div><div className="text-[11px] font-semibold text-content-3 mb-0.5">Notes</div><div className="text-[13px] text-content-2 break-words">{detail.note || 'No notes'}</div></div>
+                  </div>
+                )}
+              </div>
+
+              {/* SPLITS header + $/% toggle */}
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-content-3">Splits</span>
+                <SegmentedControl
+                  options={[{ label: 'By Amount', value: '$' }, { label: 'By Percent', value: '%' }]}
+                  value={splitMode}
+                  onChange={(v) => { setSplitMode(v as '$' | '%'); setSplitDraft((d) => d.map((x) => ({ ...x, pctRaw: undefined }))); }}
+                />
+              </div>
+
+              <datalist id="split-merchant-list">{merchants.map((m) => <option key={m.id} value={m.name} />)}</datalist>
               {splitDraft.map((r, i) => (
-                <div key={i} className="flex items-center gap-2.5 mb-3">
+                <div key={r.id ?? `new-${i}`} className="flex items-center gap-2 mb-2.5">
+                  {/* Merchant */}
+                  <input value={r.merchant} onChange={(e) => setRow(i, { merchant: e.target.value })}
+                    list="split-merchant-list" placeholder="Merchant"
+                    className="w-[150px] shrink-0 h-11 px-3 rounded-[10px] bg-surface-2 border border-line text-content text-[14px] font-medium outline-none" />
+                  {/* Category */}
                   <div className="relative flex-1 min-w-0">
-                    <select value={r.categoryId} onChange={(e) => setSplitDraft((d) => d.map((x, j) => j === i ? { ...x, categoryId: e.target.value ? parseInt(e.target.value) : '' } : x))}
-                      className="w-full h-12 pl-3.5 pr-9 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] font-semibold outline-none appearance-none cursor-pointer">
+                    <select value={r.categoryId} onChange={(e) => setRow(i, { categoryId: e.target.value ? parseInt(e.target.value) : '' })}
+                      className="w-full h-11 pl-3 pr-8 rounded-[10px] bg-surface-2 border border-line text-content text-[14px] font-medium outline-none appearance-none cursor-pointer">
                       <option value="">Category…</option>
                       {splitModalGroups.map(([group, subs]) => (<optgroup key={group} label={group}>{subs.map((c) => <option key={c.id} value={c.id}>{c.sub_name}</option>)}</optgroup>))}
                     </select>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-3 top-4 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className="absolute right-2.5 top-3 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
                   </div>
-                  <div className="relative w-[130px] shrink-0">
-                    <span className="absolute left-3.5 top-3.5 text-[15px] text-content-3 font-semibold">$</span>
-                    <input value={r.amount} onChange={(e) => setSplitDraft((d) => d.map((x, j) => j === i ? { ...x, amount: e.target.value.replace(/[^0-9.]/g, '') } : x))} inputMode="decimal" placeholder="0.00"
-                      className="w-full h-12 pl-7 pr-3 rounded-[11px] bg-surface-2 border border-line text-content text-[15px] font-semibold text-right tabular-nums outline-none" />
+                  {/* Amount ($ or %) */}
+                  <div className="relative w-[104px] shrink-0">
+                    {splitMode === '$' ? (
+                      <>
+                        <span className="absolute left-3 top-3 text-[14px] text-content-3 font-semibold">$</span>
+                        <input value={r.amount} onChange={(e) => setRow(i, { amount: e.target.value.replace(/[^0-9.]/g, ''), pctRaw: undefined })} inputMode="decimal" placeholder="0.00"
+                          className="w-full h-11 pl-6 pr-2.5 rounded-[10px] bg-surface-2 border border-line text-content text-[14px] font-semibold text-right tabular-nums outline-none" />
+                      </>
+                    ) : (
+                      <>
+                        {/* Keep the raw keystrokes (pctRaw) so a decimal point / leading zero
+                            isn't swallowed by re-deriving the value from the rounded amount. */}
+                        <input value={r.pctRaw ?? pctOf(r.amount)} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ''); const p = parseFloat(raw) || 0; setRow(i, { pctRaw: raw, amount: (absTotal * p / 100).toFixed(2) }); }} inputMode="decimal" placeholder="0"
+                          className="w-full h-11 pl-3 pr-6 rounded-[10px] bg-surface-2 border border-line text-content text-[14px] font-semibold text-right tabular-nums outline-none" />
+                        <span className="absolute right-2.5 top-3 text-[14px] text-content-3 font-semibold pointer-events-none">%</span>
+                      </>
+                    )}
                   </div>
-                  {splitDraft.length > 2 && (
-                    <button onClick={() => setSplitDraft((d) => d.filter((_, j) => j !== i))} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-[10px] text-content-3 hover:bg-surface-2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-                  )}
+                  {splitDraft.length > 2 ? (
+                    <button onClick={() => setSplitDraft((d) => d.filter((_, j) => j !== i))} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-[10px] text-content-3 hover:bg-surface-2 hover:text-negative"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                  ) : <span className="w-9 shrink-0" />}
                 </div>
               ))}
-              <button onClick={() => setSplitDraft((d) => [...d, { categoryId: '', amount: '' }])} className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[11px] border border-dashed border-line-strong text-primary text-sm font-bold mt-0.5">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>Add split
-              </button>
+              {/* Add-a-split pill + LEFT TO SPLIT indicator */}
+              <div className="flex items-center justify-between mt-2">
+                <button onClick={() => setSplitDraft((d) => [...d, { categoryId: '', amount: '', merchant: detail.merchant?.name ?? '' }])} className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[11px] border border-dashed border-line-strong text-primary text-sm font-bold">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>Add a split
+                </button>
+                <div className="flex items-center gap-2">
+                  {balanced && <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--positive)' }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg></span>}
+                  <div className="text-right leading-tight">
+                    <div className="text-[17px] font-extrabold tabular-nums" style={{ color: balanced ? 'var(--positive)' : 'var(--negative)' }}>{fmt(Math.abs(splitRemainingVal))}</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-content-3">{splitRemainingVal < -0.005 ? 'Over by' : 'Left to split'}</div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-between px-6 py-3 border-t border-line">
-              <span className="text-sm font-semibold text-content-2">Remaining</span>
-              <span className="text-base font-extrabold tabular-nums" style={{ color: Math.abs(splitRemainingVal) < 0.01 ? 'var(--positive)' : 'var(--negative)' }}>{fmt(splitRemainingVal)}</span>
-            </div>
-            <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-line">
-              <button onClick={() => setSplitOpen(false)} className="h-[42px] px-[18px] rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
-              <button onClick={saveSplit} disabled={!splitValid} className="h-[42px] px-[22px] rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50">Save split</button>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-t border-line">
+              {isExistingSplit && canEdit ? (
+                <button onClick={removeSplitFromDetail} className="h-[42px] px-[16px] rounded-[11px] font-bold text-sm" style={{ color: 'var(--negative)', background: 'transparent' }}>Unsplit</button>
+              ) : <span />}
+              <div className="flex items-center gap-2.5">
+                <button onClick={() => setSplitOpen(false)} className="h-[42px] px-[18px] rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
+                <button onClick={saveSplit} disabled={!splitValid} className="h-[42px] px-[22px] rounded-[11px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50">Save</button>
+              </div>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Infinite scroll: sentinel loads the next batch as it nears the viewport */}
       <div ref={loadMoreRef} />

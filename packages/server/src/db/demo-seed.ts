@@ -27,6 +27,8 @@ db.exec(`
     transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
     category_id INTEGER NOT NULL REFERENCES categories(id),
     amount REAL NOT NULL,
+    merchant_id INTEGER REFERENCES merchants(id),
+    note TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   )
 `);

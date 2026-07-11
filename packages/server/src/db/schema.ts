@@ -104,6 +104,10 @@ export const transactionSplits = sqliteTable('transaction_splits', {
   transaction_id: integer('transaction_id').notNull().references(() => transactions.id, { onDelete: 'cascade' }),
   category_id: integer('category_id').notNull().references(() => categories.id),
   amount: real('amount').notNull(),
+  // Per-split (full-Monarch model): each split leg can carry its OWN merchant
+  // and note. NULL merchant_id = inherit the parent transaction's merchant.
+  merchant_id: integer('merchant_id').references(() => merchants.id),
+  note: text('note'),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
 

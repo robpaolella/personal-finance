@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
 import { transactions, accounts, categories, transactionSplits, merchants } from '../db/schema.js';
 import { eq, and, gte, lte, like, or, sql, desc, asc, inArray } from 'drizzle-orm';
-import { sanitize } from '../utils/sanitize.js';
+import { sanitize, sanitizeString } from '../utils/sanitize.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
 import { findOrCreateMerchant } from '../db/merchants.js';
@@ -10,8 +10,21 @@ import { findOrCreateMerchant } from '../db/merchants.js';
 const router = Router();
 
 interface SplitInput {
+  id?: number;
   categoryId: number;
   amount: number;
+  merchant?: string;
+  note?: string | null;
+}
+
+// Resolve a split leg's stored merchant_id. A leg whose merchant matches the
+// parent's is stored as NULL (= inherit parent), so a later parent rename keeps
+// propagating; only a genuinely different merchant is stored explicitly.
+function resolveLegMerchantId(merchant: string | undefined, parentMerchantId: number | null): number | null {
+  const clean = merchant ? sanitizeString(merchant) : '';
+  if (!clean) return null;
+  const legId = findOrCreateMerchant(clean);
+  return legId != null && legId !== parentMerchantId ? legId : null;
 }
 
 function validateSplits(splits: SplitInput[], totalAmount: number): string | null {
@@ -27,33 +40,68 @@ function validateSplits(splits: SplitInput[], totalAmount: number): string | nul
   return null;
 }
 
-function saveSplits(transactionId: number, splits: SplitInput[]): void {
-  // Delete existing splits
-  db.delete(transactionSplits).where(eq(transactionSplits.transaction_id, transactionId)).run();
-  // Insert new splits
+// Upsert splits by id (stable ids across saves so a split-child detail panel
+// stays open on the same leg, and per-leg merchant/note survive parent-field
+// edits). Rows with a known id are updated; rows without are inserted; existing
+// legs absent from the incoming set are deleted.
+function saveSplits(transactionId: number, splits: SplitInput[], parentMerchantId: number | null): void {
+  const existing = sqlite.prepare(
+    'SELECT id FROM transaction_splits WHERE transaction_id = ?'
+  ).all(transactionId) as { id: number }[];
+  const existingIds = new Set(existing.map((r) => r.id));
+  const kept = new Set<number>();
+
   for (const s of splits) {
-    db.insert(transactionSplits).values({
-      transaction_id: transactionId,
-      category_id: s.categoryId,
-      amount: s.amount,
-    }).run();
+    const merchantId = resolveLegMerchantId(s.merchant, parentMerchantId);
+    const noteClean = s.note != null ? sanitizeString(s.note) : '';
+    const note = noteClean ? noteClean : null;
+    if (s.id && existingIds.has(s.id)) {
+      db.update(transactionSplits).set({
+        category_id: s.categoryId,
+        amount: s.amount,
+        merchant_id: merchantId,
+        note,
+      }).where(eq(transactionSplits.id, s.id)).run();
+      kept.add(s.id);
+    } else {
+      const res = db.insert(transactionSplits).values({
+        transaction_id: transactionId,
+        category_id: s.categoryId,
+        amount: s.amount,
+        merchant_id: merchantId,
+        note,
+      }).run();
+      kept.add(Number(res.lastInsertRowid));
+    }
+  }
+
+  for (const id of existingIds) {
+    if (!kept.has(id)) db.delete(transactionSplits).where(eq(transactionSplits.id, id)).run();
   }
 }
 
-function getSplitsForTransactions(transactionIds: number[]): Map<number, { id: number; categoryId: number; groupName: string; subName: string; displayName: string; type: string; amount: number }[]> {
+type SplitDto = {
+  id: number; categoryId: number; groupName: string; subName: string; displayName: string;
+  type: string; amount: number; merchant: { id: number; name: string } | null; note: string | null;
+};
+
+function getSplitsForTransactions(transactionIds: number[]): Map<number, SplitDto[]> {
   if (transactionIds.length === 0) return new Map();
   const rows = sqlite.prepare(`
-    SELECT ts.id, ts.transaction_id, ts.category_id, ts.amount,
-           c.group_name, c.sub_name, c.display_name, c.type
+    SELECT ts.id, ts.transaction_id, ts.category_id, ts.amount, ts.merchant_id, ts.note,
+           c.group_name, c.sub_name, c.display_name, c.type,
+           m.name AS merchant_name
     FROM transaction_splits ts
     JOIN categories c ON ts.category_id = c.id
+    LEFT JOIN merchants m ON ts.merchant_id = m.id
     WHERE ts.transaction_id IN (${transactionIds.map(() => '?').join(',')})
     ORDER BY ts.id
   `).all(...transactionIds) as {
     id: number; transaction_id: number; category_id: number; amount: number;
+    merchant_id: number | null; note: string | null; merchant_name: string | null;
     group_name: string; sub_name: string; display_name: string; type: string;
   }[];
-  const map = new Map<number, { id: number; categoryId: number; groupName: string; subName: string; displayName: string; type: string; amount: number }[]>();
+  const map = new Map<number, SplitDto[]>();
   for (const r of rows) {
     if (!map.has(r.transaction_id)) map.set(r.transaction_id, []);
     map.get(r.transaction_id)!.push({
@@ -64,6 +112,9 @@ function getSplitsForTransactions(transactionIds: number[]): Map<number, { id: n
       displayName: r.display_name,
       type: r.type,
       amount: r.amount,
+      // Own merchant only (null = inherit parent); the client does the fallback.
+      merchant: r.merchant_id != null ? { id: r.merchant_id, name: r.merchant_name ?? '' } : null,
+      note: r.note,
     });
   }
   return map;
@@ -105,10 +156,33 @@ router.get('/', (req: Request, res: Response) => {
     if (startDate) conditions.push(gte(transactions.date, startDate));
     if (endDate) conditions.push(lte(transactions.date, endDate));
     if (accountId) conditions.push(eq(transactions.account_id, parseInt(accountId, 10)));
-    if (merchantId) conditions.push(eq(transactions.merchant_id, parseInt(merchantId, 10)));
+    // Merchant filters match the parent's merchant OR any split leg's effective
+    // merchant (own, or the parent's when the leg inherits) — so a merchant that
+    // appears only on a split leg still filters, mirroring the one-row-per-leg list.
+    // A split parent keeps a vestigial merchant_id that no displayed leg row may
+    // resolve to, so the parent-merchant equality is restricted to NON-split rows;
+    // split rows match only via each leg's effective (own-or-inherited) merchant.
+    // This keeps the filter consistent with the merchants-page count + the display.
+    if (merchantId) {
+      const mId = parseInt(merchantId, 10);
+      conditions.push(
+        or(
+          sql`(${transactions.merchant_id} = ${mId} AND NOT EXISTS (SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = ${transactions.id}))`,
+          sql`EXISTS (SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = ${transactions.id} AND COALESCE(ts.merchant_id, ${transactions.merchant_id}) = ${mId})`
+        )!
+      );
+    }
     if (merchantIds) {
       const mIdList = merchantIds.split(',').map(Number).filter((n) => !isNaN(n));
-      if (mIdList.length) conditions.push(inArray(transactions.merchant_id, mIdList));
+      if (mIdList.length) {
+        const mPlaceholders = mIdList.map((n) => sql`${n}`);
+        conditions.push(
+          or(
+            sql`(${transactions.merchant_id} IN (${sql.join(mPlaceholders, sql`, `)}) AND NOT EXISTS (SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = ${transactions.id}))`,
+            sql`EXISTS (SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = ${transactions.id} AND COALESCE(ts.merchant_id, ${transactions.merchant_id}) IN (${sql.join(mPlaceholders, sql`, `)}))`
+          )!
+        );
+      }
     }
     if (categoryId) {
       const catId = parseInt(categoryId, 10);
@@ -167,6 +241,10 @@ router.get('/', (req: Request, res: Response) => {
           like(transactions.description, `%${search}%`),
           like(transactions.note, `%${search}%`),
           like(merchants.name, `%${search}%`),
+          // Also match a split leg's OWN merchant, so search agrees with the
+          // merchant filter (which resolves each leg's effective merchant).
+          sql`EXISTS (SELECT 1 FROM transaction_splits ts JOIN merchants sm ON ts.merchant_id = sm.id WHERE ts.transaction_id = ${transactions.id} AND sm.name LIKE ${'%' + search + '%'})`,
+          sql`EXISTS (SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = ${transactions.id} AND ts.note LIKE ${'%' + search + '%'})`,
         )!
       );
     }
@@ -387,18 +465,22 @@ router.post('/', requirePermission('transactions.create'), (req: Request, res: R
     const merchantId = findOrCreateMerchant((merchant && merchant.trim()) ? merchant : description);
 
     if (splits && splits.length > 0) {
-      const result = db.insert(transactions).values({
-        account_id: accountId,
-        date,
-        description,
-        note: note || null,
-        category_id: null,
-        merchant_id: merchantId,
-        amount: parsedAmount,
-      }).run();
-
-      const txnId = Number(result.lastInsertRowid);
-      saveSplits(txnId, splits);
+      // Parent + legs must be all-or-nothing, or a failed leg insert leaves an
+      // orphaned category_id=NULL parent whose legs no longer sum to the total.
+      const txnId = sqlite.transaction(() => {
+        const result = db.insert(transactions).values({
+          account_id: accountId,
+          date,
+          description,
+          note: note || null,
+          category_id: null,
+          merchant_id: merchantId,
+          amount: parsedAmount,
+        }).run();
+        const id = Number(result.lastInsertRowid);
+        saveSplits(id, splits, merchantId);
+        return id;
+      })();
       res.status(201).json({ data: { id: txnId } });
     } else {
       const result = db.insert(transactions).values({
@@ -442,21 +524,22 @@ router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: R
     const merchantId = merchant !== undefined ? findOrCreateMerchant(merchant) : existing[0].merchant_id;
 
     if (splits && splits.length > 0) {
-      // Switching to split mode
-      db.update(transactions)
-        .set({
-          account_id: accountId ?? existing[0].account_id,
-          date: date ?? existing[0].date,
-          description: description ?? existing[0].description,
-          note: note !== undefined ? note : existing[0].note,
-          category_id: null,
-          merchant_id: merchantId,
-          amount: newAmount,
-        })
-        .where(eq(transactions.id, id))
-        .run();
-
-      saveSplits(id, splits);
+      // Switching to / staying in split mode — parent + legs are all-or-nothing.
+      sqlite.transaction(() => {
+        db.update(transactions)
+          .set({
+            account_id: accountId ?? existing[0].account_id,
+            date: date ?? existing[0].date,
+            description: description ?? existing[0].description,
+            note: note !== undefined ? note : existing[0].note,
+            category_id: null,
+            merchant_id: merchantId,
+            amount: newAmount,
+          })
+          .where(eq(transactions.id, id))
+          .run();
+        saveSplits(id, splits, merchantId);
+      })();
     } else if (categoryId) {
       // Switching to single category (or staying single) — clear any existing splits
       db.delete(transactionSplits).where(eq(transactionSplits.transaction_id, id)).run();
@@ -493,6 +576,46 @@ router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: R
   } catch (err) {
     console.error('PUT /transactions/:id error:', err);
     res.status(500).json({ error: 'Failed to update transaction' });
+  }
+});
+
+// PATCH /api/transactions/:txnId/splits/:splitId — edit ONE split leg's
+// category / merchant / note. Amount is intentionally NOT editable here (it is
+// managed in the split modal so the splits-sum-to-parent invariant holds); this
+// backs the split-child detail panel and touches only the one leg.
+router.patch('/:txnId/splits/:splitId', requirePermission('transactions.edit'), (req: Request, res: Response) => {
+  try {
+    const txnId = parseInt(req.params.txnId as string, 10);
+    const splitId = parseInt(req.params.splitId as string, 10);
+    const { categoryId, merchant, note } = req.body as { categoryId?: number; merchant?: string; note?: string | null };
+
+    const leg = sqlite.prepare(
+      'SELECT id FROM transaction_splits WHERE id = ? AND transaction_id = ?'
+    ).get(splitId, txnId) as { id: number } | undefined;
+    if (!leg) return res.status(404).json({ error: 'Split not found' });
+
+    const parent = db.select().from(transactions).where(eq(transactions.id, txnId)).all();
+    if (parent.length === 0) return res.status(404).json({ error: 'Transaction not found' });
+
+    const set: { category_id?: number; merchant_id?: number | null; note?: string | null } = {};
+    if (categoryId !== undefined) {
+      if (!categoryId) return res.status(400).json({ error: 'categoryId cannot be empty' });
+      set.category_id = categoryId;
+    }
+    if (merchant !== undefined) {
+      set.merchant_id = resolveLegMerchantId(merchant, parent[0].merchant_id);
+    }
+    if (note !== undefined) {
+      const clean = note != null ? sanitizeString(note) : '';
+      set.note = clean ? clean : null;
+    }
+    if (Object.keys(set).length === 0) return res.json({ data: { id: splitId } });
+
+    db.update(transactionSplits).set(set).where(eq(transactionSplits.id, splitId)).run();
+    res.json({ data: { id: splitId } });
+  } catch (err) {
+    console.error('PATCH /transactions/:txnId/splits/:splitId error:', err);
+    res.status(500).json({ error: 'Failed to update split' });
   }
 });
 

@@ -1,27 +1,31 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
-import { merchants, transactions } from '../db/schema.js';
-import { eq, sql, asc } from 'drizzle-orm';
+import { merchants, transactions, transactionSplits } from '../db/schema.js';
+import { eq, sql } from 'drizzle-orm';
 import { sanitize } from '../utils/sanitize.js';
 import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
-// GET /api/merchants — all merchants with transaction counts, A→Z
+// GET /api/merchants — all merchants with transaction counts, A→Z.
+// txn_count counts DISPLAYED rows: non-split transactions with this merchant,
+// plus split legs whose effective merchant (own, or the parent's when inherited)
+// is this merchant — so a merchant that appears only on a leg still counts.
 router.get('/', (_req: Request, res: Response) => {
   try {
-    const rows = db
-      .select({
-        id: merchants.id,
-        name: merchants.name,
-        created_at: merchants.created_at,
-        txn_count: sql<number>`count(${transactions.id})`,
-      })
-      .from(merchants)
-      .leftJoin(transactions, eq(transactions.merchant_id, merchants.id))
-      .groupBy(merchants.id)
-      .orderBy(asc(merchants.name))
-      .all();
+    const rows = sqlite.prepare(`
+      SELECT m.id, m.name, m.created_at,
+        (SELECT COUNT(*) FROM transactions t
+           WHERE t.merchant_id = m.id
+             AND NOT EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = t.id))
+        +
+        (SELECT COUNT(*) FROM transaction_splits ts
+           JOIN transactions tp ON ts.transaction_id = tp.id
+           WHERE COALESCE(ts.merchant_id, tp.merchant_id) = m.id)
+        AS txn_count
+      FROM merchants m
+      ORDER BY m.name ASC
+    `).all();
     res.json({ data: rows });
   } catch (err) {
     console.error('GET /merchants error:', err);
@@ -66,6 +70,8 @@ router.post('/merge', requirePermission('transactions.edit'), (req: Request, res
 
     const run = sqlite.transaction(() => {
       db.update(transactions).set({ merchant_id: targetId }).where(eq(transactions.merchant_id, sourceId)).run();
+      // Repoint split legs too, or the FK (foreign_keys=ON) blocks the delete.
+      db.update(transactionSplits).set({ merchant_id: targetId }).where(eq(transactionSplits.merchant_id, sourceId)).run();
       db.delete(merchants).where(eq(merchants.id, sourceId)).run();
     });
     run();
@@ -85,6 +91,8 @@ router.delete('/:id', requirePermission('transactions.edit'), (req: Request, res
 
     const run = sqlite.transaction(() => {
       db.update(transactions).set({ merchant_id: null }).where(eq(transactions.merchant_id, id)).run();
+      // Unlink split legs too (they'd otherwise dangle / block the FK delete).
+      db.update(transactionSplits).set({ merchant_id: null }).where(eq(transactionSplits.merchant_id, id)).run();
       db.delete(merchants).where(eq(merchants.id, id)).run();
     });
     run();

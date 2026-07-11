@@ -98,6 +98,10 @@ export interface TransactionSplit {
   transaction_id: number;
   category_id: number;
   amount: number;
+  // Per-split (full-Monarch model): each leg can carry its own merchant + note.
+  // NULL merchant_id = inherit the parent transaction's merchant.
+  merchant_id: number | null;
+  note: string | null;
   created_at: string;
 }
 

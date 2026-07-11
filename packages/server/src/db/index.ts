@@ -100,10 +100,15 @@ sqlite.exec(`
     transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
     category_id INTEGER NOT NULL REFERENCES categories(id),
     amount REAL NOT NULL,
+    merchant_id INTEGER REFERENCES merchants(id),
+    note TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_splits_txn ON transaction_splits(transaction_id);
   CREATE INDEX IF NOT EXISTS idx_splits_cat ON transaction_splits(category_id);
+  -- idx_splits_merchant is created in migrate-split-merchant.ts (AFTER the
+  -- merchant_id column is added), so this DDL — which runs before migrations —
+  -- never references a column that doesn't yet exist on an upgraded DB.
 
   CREATE TABLE IF NOT EXISTS budgets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
