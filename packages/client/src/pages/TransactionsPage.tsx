@@ -1673,7 +1673,7 @@ export default function TransactionsPage() {
       {/* ===== Bulk-edit sidebar (multi-select) ===== */}
       {bulkEditOpen && (
         <>
-          <div onClick={() => setBulkEditOpen(false)} className="fixed inset-0 z-[70]" style={{ background: 'rgba(6,8,12,.5)', backdropFilter: 'blur(2px)' }} />
+          <div onClick={() => setBulkEditOpen(false)} className="fixed inset-0 z-[70]" style={{ background: 'rgba(6,8,12,.5)' }} />
           <div className="fixed top-0 right-0 bottom-0 z-[71] w-[440px] max-w-full bg-surface border-l border-line-strong shadow-md flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-line">
               <div>
@@ -1729,7 +1729,7 @@ export default function TransactionsPage() {
       {/* ===== Detail side panel ===== */}
       {detail && (
         <>
-          <div onClick={closeDetail} className="fixed inset-0 z-[70]" style={{ background: 'rgba(6,8,12,.5)', backdropFilter: 'blur(2px)' }} />
+          <div onClick={closeDetail} className="fixed inset-0 z-[70]" style={{ background: 'rgba(6,8,12,.5)' }} />
           <div className="fixed top-0 right-0 bottom-0 z-[71] w-[440px] max-w-full bg-surface border-l border-line-strong shadow-md flex flex-col">
             <div className="flex items-center justify-between gap-1.5 px-5 py-3 border-b border-line">
               <span className="text-[15px] font-extrabold tracking-tight">Transaction</span>
