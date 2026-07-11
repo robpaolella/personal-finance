@@ -12,10 +12,15 @@ import { SegmentedControl, BudgetBar } from '../components/primitives';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
+// Recurring overlay meta on a budget row (null when no recurring items apply).
+interface RecMeta { amount: number; itemCount: number; labels: string[]; mode: 'set' | 'add' }
+
 interface IncomeRow {
   categoryId: number;
   subName: string;
-  budgeted: number;
+  budgeted: number; // effective (recurring folded in)
+  manual: number;   // raw stored amount (for editing)
+  recurring: RecMeta | null;
   budgetId: number | null;
   actual: number;
 }
@@ -23,7 +28,9 @@ interface IncomeRow {
 interface ExpenseSub {
   categoryId: number;
   subName: string;
-  budgeted: number;
+  budgeted: number; // effective (recurring folded in)
+  manual: number;   // raw stored amount (for editing)
+  recurring: RecMeta | null;
   budgetId: number | null;
   actual: number;
 }
@@ -141,7 +148,7 @@ export default function BudgetPage() {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnbudgeted, setShowUnbudgeted] = useState<Record<string, boolean>>({});
-  const [editModal, setEditModal] = useState<{ categoryId: number; groupName: string; subName: string; emoji: string; planned: number; targetMonth: string } | null>(null);
+  const [editModal, setEditModal] = useState<{ categoryId: number; groupName: string; subName: string; emoji: string; planned: number; targetMonth: string; recurring: RecMeta | null; manual: number } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [applyFuture, setApplyFuture] = useState(false);
 
@@ -192,18 +199,39 @@ export default function BudgetPage() {
 
   useEffect(() => { if (view === 'year') loadAnnual(); }, [view, loadAnnual]);
 
-  const openEdit = (categoryId: number, groupName: string, subName: string, planned: number, targetMonth: string = monthStr(month)) => {
-    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned, targetMonth });
-    setEditValue(planned ? String(planned) : '');
+  const openEdit = (categoryId: number, groupName: string, subName: string, planned: number, targetMonth: string = monthStr(month), recurring: RecMeta | null = null, manual?: number) => {
+    const m = manual ?? planned;
+    // In 'add' mode the input edits the discretionary (manual) amount; otherwise
+    // it edits the effective budget (which the recurring floor may have raised).
+    const startVal = recurring && recurring.mode === 'add' ? m : planned;
+    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned, targetMonth, recurring, manual: m });
+    setEditValue(startVal ? String(startVal) : '');
     setApplyFuture(false);
   };
 
   const closeEdit = () => setEditModal(null);
 
+  // Toggle how recurring folds into this category's budget (persists per-category).
+  const setRecurringMode = async (mode: 'set' | 'add') => {
+    if (!editModal || !editModal.recurring || editModal.recurring.mode === mode) return;
+    try {
+      await apiFetch(`/categories/${editModal.categoryId}/recurring-mode`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }),
+      });
+      const floor = editModal.recurring.amount;
+      const startVal = mode === 'add' ? editModal.manual : Math.max(editModal.manual, floor);
+      setEditModal({ ...editModal, recurring: { ...editModal.recurring, mode } });
+      setEditValue(startVal ? String(startVal) : '');
+      await loadData();
+    } catch { addToast('Failed to change recurring mode', 'error'); }
+  };
+
   const saveEdit = async () => {
     if (!editModal) return;
-    const val = parseFloat(editValue || '0');
+    let val = parseFloat(editValue || '0');
     if (isNaN(val) || val < 0) { closeEdit(); return; }
+    // 'set' mode: the budget can't drop below the month's recurring commitments.
+    if (editModal.recurring && editModal.recurring.mode === 'set') val = Math.max(val, editModal.recurring.amount);
     const [by, bm] = editModal.targetMonth.split('-').map(Number); // year, month (1-12)
     const months: string[] = [editModal.targetMonth];
     if (applyFuture) {
@@ -495,11 +523,21 @@ export default function BudgetPage() {
                             return (
                               <div key={r.categoryId} className="grid gap-3 pr-6 py-3 border-b border-line items-center" style={{ gridTemplateColumns: 'minmax(0,1fr) 82px 82px 92px', paddingLeft: 52 }}>
                                 <div className="min-w-0">
-                                  <div className="text-sm font-medium mb-1.5 truncate">{r.subName}</div>
+                                  <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
+                                    <span className="text-sm font-medium truncate">{r.subName}</span>
+                                    {r.recurring && (
+                                      <span title={`Recurring: ${r.recurring.labels.join(', ')} — ${r.recurring.mode === 'add' ? 'added on top' : 'sets the minimum'}`}
+                                        className="shrink-0 inline-flex items-center gap-1 px-1.5 h-[18px] rounded-md text-[10px] font-bold tabular-nums"
+                                        style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
+                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                                        {fmt(r.recurring.amount)}
+                                      </span>
+                                    )}
+                                  </div>
                                   <div style={{ maxWidth: 320 }}><BudgetBar value={r.actual} max={r.budgeted} /></div>
                                 </div>
                                 <div className="flex justify-end">
-                                  <button onClick={(e) => { e.stopPropagation(); if (canEditBudgets) openEdit(r.categoryId, g.groupName, r.subName, r.budgeted); }}
+                                  <button onClick={(e) => { e.stopPropagation(); if (canEditBudgets) openEdit(r.categoryId, g.groupName, r.subName, r.budgeted, undefined, r.recurring, r.manual); }}
                                     disabled={!canEditBudgets}
                                     className="min-w-16 text-right text-sm font-semibold text-content tabular-nums px-2.5 py-1.5 rounded-lg border border-line-strong bg-surface-2 enabled:hover:border-primary disabled:cursor-default">
                                     {fmtWhole(r.budgeted)}
@@ -638,7 +676,9 @@ export default function BudgetPage() {
               <button onClick={closeEdit} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-[9px] text-content-2 hover:bg-surface-2"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
             <div className="px-6 pt-3.5 pb-1">
-              <div className="text-[13px] font-semibold text-content-2 mb-2">Budgeted amount</div>
+              <div className="text-[13px] font-semibold text-content-2 mb-2">
+                {editModal.recurring && editModal.recurring.mode === 'add' ? 'Additional budget (on top of recurring)' : 'Budgeted amount'}
+              </div>
               <div className="flex items-center px-4 rounded-[12px] bg-surface-2 border-2 border-primary" style={{ height: 52, boxShadow: '0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent)' }}>
                 <span className="text-lg text-content-3 font-semibold">$</span>
                 <input autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal"
@@ -646,6 +686,27 @@ export default function BudgetPage() {
                   className="flex-1 ml-1.5 bg-transparent border-none outline-none text-content text-lg font-bold tabular-nums" />
               </div>
             </div>
+            {editModal.recurring && (
+              <div className="px-6 pt-3 pb-1">
+                <div className="rounded-[11px] border p-3.5" style={{ borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--line))', background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}>
+                  <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--primary)' }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                    <span className="text-[13px] font-bold">{fmt(editModal.recurring.amount)} recurring this month</span>
+                  </div>
+                  <div className="text-[12px] text-content-2 mb-2.5">{editModal.recurring.labels.join(', ')}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-semibold text-content-2 mr-1">Fold in as</span>
+                    <button onClick={() => setRecurringMode('set')} className={`h-8 px-3 rounded-[9px] text-[12px] font-bold border ${editModal.recurring.mode === 'set' ? 'bg-primary text-on-primary border-primary' : 'bg-surface-2 text-content-2 border-line'}`}>Set (min)</button>
+                    <button onClick={() => setRecurringMode('add')} className={`h-8 px-3 rounded-[9px] text-[12px] font-bold border ${editModal.recurring.mode === 'add' ? 'bg-primary text-on-primary border-primary' : 'bg-surface-2 text-content-2 border-line'}`}>Add on top</button>
+                  </div>
+                  <div className="text-[11px] text-content-3 mt-2">
+                    {editModal.recurring.mode === 'set'
+                      ? `Minimum ${fmt(editModal.recurring.amount)} — the budget can't go below your recurring commitments.`
+                      : `Added on top of ${fmt(editModal.recurring.amount)} recurring → total ${fmt((parseFloat(editValue || '0') || 0) + editModal.recurring.amount)}.`}
+                  </div>
+                </div>
+              </div>
+            )}
             <div onClick={() => setApplyFuture((v) => !v)} className="flex items-center gap-3 px-6 py-3.5 cursor-pointer">
               <span className="w-[22px] h-[22px] shrink-0 rounded-[7px] flex items-center justify-center border-[1.5px]" style={{ borderColor: applyFuture ? 'var(--primary)' : 'var(--line-strong)', background: applyFuture ? 'var(--primary)' : 'var(--surface)' }}>
                 {applyFuture && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}

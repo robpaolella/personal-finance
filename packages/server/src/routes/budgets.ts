@@ -3,6 +3,7 @@ import { db, sqlite } from '../db/index.js';
 import { budgets, categories } from '../db/schema.js';
 import { eq, and, asc } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
+import { getRecurringFloors } from '../services/recurringBudget.js';
 import type { BudgetImportItem } from '@ledger/shared/src/types.js';
 
 const router = Router();
@@ -141,6 +142,20 @@ router.get('/summary', (req: Request, res: Response) => {
       .all();
     const budgetMap = new Map(monthBudgets.map((b) => [b.category_id, b]));
 
+    // Recurring overlay: each category's recurring total for the month folds into
+    // its budget — 'set' = floor (max of manual & recurring), 'add' = manual +
+    // recurring. `manual` is the raw stored amount (for editing); `budgeted` is the
+    // effective amount used for display + all totals.
+    const floors = getRecurringFloors(month);
+    type RecMeta = { amount: number; itemCount: number; labels: string[]; mode: 'set' | 'add' };
+    const foldBudget = (c: { id: number; recurring_budget_mode: string | null }, stored: number): { budgeted: number; manual: number; recurring: RecMeta | null } => {
+      const f = floors.get(c.id);
+      if (!f) return { budgeted: stored, manual: stored, recurring: null };
+      const mode: 'set' | 'add' = c.recurring_budget_mode === 'add' ? 'add' : 'set';
+      const budgeted = mode === 'add' ? +(stored + f.amount).toFixed(2) : Math.max(stored, f.amount);
+      return { budgeted, manual: stored, recurring: { amount: f.amount, itemCount: f.itemCount, labels: f.labels, mode } };
+    };
+
     // Get actuals from transactions — optionally filtered by owner
     // Uses UNION to combine non-split transactions with split amounts
     const ownerClause = owner !== 'all'
@@ -178,10 +193,13 @@ router.get('/summary', (req: Request, res: Response) => {
       const actual = actualMap.get(c.id) ?? 0;
       // Income transactions are stored negative, so actual income = abs(negative total)
       const actualIncome = actual < 0 ? Math.abs(actual) : 0;
+      const fold = foldBudget(c, budget?.amount ?? 0);
       return {
         categoryId: c.id,
         subName: c.sub_name,
-        budgeted: budget?.amount ?? 0,
+        budgeted: fold.budgeted,
+        manual: fold.manual,
+        recurring: fold.recurring,
         budgetId: budget?.id ?? null,
         actual: actualIncome,
       };
@@ -189,10 +207,8 @@ router.get('/summary', (req: Request, res: Response) => {
 
     // Build expense summary grouped by parent
     const expenseCategories = allCategories.filter((c) => c.type === 'expense');
-    const groupMap = new Map<string, {
-      groupName: string;
-      subs: { categoryId: number; subName: string; budgeted: number; budgetId: number | null; actual: number }[];
-    }>();
+    type SubRow = { categoryId: number; subName: string; budgeted: number; manual: number; recurring: RecMeta | null; budgetId: number | null; actual: number };
+    const groupMap = new Map<string, { groupName: string; subs: SubRow[] }>();
 
     for (const c of expenseCategories) {
       if (!groupMap.has(c.group_name)) {
@@ -202,10 +218,13 @@ router.get('/summary', (req: Request, res: Response) => {
       const actual = actualMap.get(c.id) ?? 0;
       // Net expense amount (refunds reduce the total)
       const actualExpense = actual;
+      const fold = foldBudget(c, budget?.amount ?? 0);
       groupMap.get(c.group_name)!.subs.push({
         categoryId: c.id,
         subName: c.sub_name,
-        budgeted: budget?.amount ?? 0,
+        budgeted: fold.budgeted,
+        manual: fold.manual,
+        recurring: fold.recurring,
         budgetId: budget?.id ?? null,
         actual: actualExpense,
       });
@@ -218,20 +237,20 @@ router.get('/summary', (req: Request, res: Response) => {
     // Build savings summary grouped by parent. Savings contributions are
     // outflows (positive), same sign/handling as expenses, but their own section.
     const savingsCategories = allCategories.filter((c) => c.type === 'savings');
-    const savingsGroupMap = new Map<string, {
-      groupName: string;
-      subs: { categoryId: number; subName: string; budgeted: number; budgetId: number | null; actual: number }[];
-    }>();
+    const savingsGroupMap = new Map<string, { groupName: string; subs: SubRow[] }>();
     for (const c of savingsCategories) {
       if (!savingsGroupMap.has(c.group_name)) {
         savingsGroupMap.set(c.group_name, { groupName: c.group_name, subs: [] });
       }
       const budget = budgetMap.get(c.id);
       const actual = actualMap.get(c.id) ?? 0;
+      const fold = foldBudget(c, budget?.amount ?? 0);
       savingsGroupMap.get(c.group_name)!.subs.push({
         categoryId: c.id,
         subName: c.sub_name,
-        budgeted: budget?.amount ?? 0,
+        budgeted: fold.budgeted,
+        manual: fold.manual,
+        recurring: fold.recurring,
         budgetId: budget?.id ?? null,
         actual,
       });

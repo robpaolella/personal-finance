@@ -6,6 +6,7 @@ import { requirePermission } from '../middleware/permissions.js';
 import { sanitizeString } from '../utils/sanitize.js';
 import { findOrCreateMerchant } from '../db/merchants.js';
 import { computePaydaysInMonth, type PayCycleForMath } from '../utils/payCycleMath.js';
+import { getRecurringFloors } from '../services/recurringBudget.js';
 import type {
   RecurrenceKind, RecurringOccurrence, RecurringMonthView, RecurringBudgetFloor,
 } from '@ledger/shared/src/types.js';
@@ -263,21 +264,9 @@ router.get('/budget-floors', (req: Request, res: Response) => {
   try {
     const month = req.query.month as string;
     if (!month || !MONTH_RE.test(month)) return res.status(400).json({ error: 'month (YYYY-MM) is required' });
-    const [year, mon] = month.split('-').map(Number);
-    const rows = baseSelect().all() as Row[];
-    const byCat = new Map<number, RecurringBudgetFloor>();
-    for (const r of rows) {
-      if (r.status !== 'active') continue;
-      const count = computePaydaysInMonth(toMath(r), year, mon).length;
-      if (count === 0) continue;
-      const add = (r.amount ?? 0) * count;
-      const cur = byCat.get(r.category_id) ?? { categoryId: r.category_id, amount: 0, itemCount: 0, labels: [] };
-      cur.amount = +(cur.amount + add).toFixed(2);
-      cur.itemCount += 1;
-      cur.labels.push(r.label);
-      byCat.set(r.category_id, cur);
-    }
-    res.json({ data: [...byCat.values()] });
+    const floors = getRecurringFloors(month);
+    const data: RecurringBudgetFloor[] = [...floors.entries()].map(([categoryId, f]) => ({ categoryId, ...f }));
+    res.json({ data });
   } catch (err) {
     console.error('GET /recurring/budget-floors error:', err);
     res.status(500).json({ error: 'Failed to compute budget floors' });
