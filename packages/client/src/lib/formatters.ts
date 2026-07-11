@@ -50,6 +50,10 @@ export function fmtTransaction(amount: number, categoryType: string): { text: st
   const formatted = fmt(abs);
   const isOutflow = categoryType === 'expense' || categoryType === 'savings';
 
+  if (categoryType === 'transfer') {
+    // Transfers are neutral (both legs net to zero) — show the magnitude, no color.
+    return { text: formatted, className: 'text-content-2' };
+  }
   if (amount >= 0 && isOutflow) {
     // Case 1: regular expense / savings contribution — neutral, no prefix
     return { text: formatted, className: 'text-content' };
