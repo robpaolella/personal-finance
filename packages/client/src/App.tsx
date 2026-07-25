@@ -7,6 +7,7 @@ import TwoFASetupPage from './pages/TwoFASetupPage';
 import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import BudgetPage from './pages/BudgetPage';
+import CategoryDetailPage from './pages/CategoryDetailPage';
 import ReportsPage from './pages/ReportsPage';
 import AccountsPage from './pages/AccountsPage';
 import ImportPage from './pages/ImportPage';
@@ -15,12 +16,14 @@ import MockupPage from './pages/MockupPage';
 import QAPage from './pages/QAPage';
 import RecurringPage from './pages/RecurringPage';
 import InvestmentsPage from './pages/InvestmentsPage';
+import ReviewsPage from './pages/ReviewsPage';
 import MobileHeader from './components/MobileHeader';
 import BottomTabBar from './components/BottomTabBar';
 import LedgerLogo from './components/LedgerLogo';
 import { NAV_ITEMS, UTILITY_ITEMS } from './lib/navItems';
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { apiFetch } from './lib/api';
+import { loadCategoryEmojis } from './lib/categoryMeta';
 import { useIsMobile } from './hooks/useIsMobile';
 
 function getInitialTheme(): 'light' | 'dark' {
@@ -75,6 +78,7 @@ function AppShell() {
   const isMobile = useIsMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('ledger-sidebar-collapsed') === 'true');
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [reviewCount, setReviewCount] = useState(0);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(prev => {
@@ -95,6 +99,20 @@ function AppShell() {
     window.addEventListener('permission-denied', handlePermissionDenied);
     return () => window.removeEventListener('permission-denied', handlePermissionDenied);
   }, [handlePermissionDenied]);
+
+  // Stored per-category emoji overrides: load once at app start so every page
+  // reflects them on cold entry. The Categories settings page refreshes the
+  // shared map directly as it edits (setCategoryEmojiOverrides).
+  useEffect(() => { loadCategoryEmojis(); }, []);
+
+  // Sidebar Review badge = open-review count; refetch on navigation AND on a
+  // 'reviews-changed' event (approving/flagging on the current page doesn't change the route).
+  useEffect(() => {
+    const refetch = () => apiFetch<{ data: { open: number } }>('/reviews/count').then((r) => setReviewCount(r.data.open)).catch(() => {});
+    refetch();
+    window.addEventListener('reviews-changed', refetch);
+    return () => window.removeEventListener('reviews-changed', refetch);
+  }, [location.pathname]);
 
   return (
     <div className="flex app-shell-height bg-bg font-sans">
@@ -156,8 +174,16 @@ function AppShell() {
                 }`}
                 style={{ padding: sidebarCollapsed ? '9px 0' : '9px 12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
               >
-                <span className="shrink-0 flex">{item.icon}</span>
+                <span className="shrink-0 flex relative">
+                  {item.icon}
+                  {item.to === '/reviews' && reviewCount > 0 && sidebarCollapsed && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary" />
+                  )}
+                </span>
                 {!sidebarCollapsed && item.label}
+                {item.to === '/reviews' && reviewCount > 0 && !sidebarCollapsed && (
+                  <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-on-primary text-[11px] font-bold inline-flex items-center justify-center">{reviewCount}</span>
+                )}
               </NavLink>
             );
           })}
@@ -250,9 +276,11 @@ function AppShell() {
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/budget" element={<BudgetPage />} />
+            <Route path="/budget/category" element={<CategoryDetailPage />} />
             <Route path="/recurring" element={<RecurringPage />} />
             <Route path="/investments" element={<InvestmentsPage />} />
             <Route path="/import" element={<ImportPage />} />
+            <Route path="/reviews" element={<ReviewsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

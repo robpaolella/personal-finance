@@ -104,11 +104,14 @@ export function SegmentedControl<T extends string>({
 /* ------ BudgetBar ------
  * Tri-state progress: under → positive, ≥80% → warning, over → negative. */
 export function BudgetBar({
-  value, max, className = '',
-}: { value: number; max: number; className?: string }) {
+  value, max, className = '', positive = false,
+}: { value: number; max: number; className?: string; positive?: boolean }) {
   const ratio = max > 0 ? value / max : 0;
   const pct = Math.min(Math.max(ratio, 0), 1) * 100;
+  // `positive` forces green regardless of ratio — income progress is never a
+  // warning/over state the way expense overspend is.
   const color =
+    positive ? 'var(--positive)' :
     ratio > 1 ? 'var(--negative)' :
     ratio >= 0.8 ? 'var(--warning)' :
     'var(--positive)';

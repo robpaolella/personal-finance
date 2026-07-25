@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtWhole } from '../lib/formatters';
 import Spinner from '../components/Spinner';
-import { getCategoryEmoji } from '../lib/categoryMeta';
+import { getCategoryEmoji, useCategoryEmojis } from '../lib/categoryMeta';
 import { SegmentedControl, BudgetBar } from '../components/primitives';
 import { useAuth } from '../context/AuthContext';
 
@@ -93,6 +94,8 @@ function nextMonth(d: Date): Date {
 
 export default function BudgetPage() {
   const { hasPermission } = useAuth();
+  useCategoryEmojis(); // re-render when stored category emojis load/change
+  const navigate = useNavigate();
   const canEditBudgets = hasPermission('budgets.edit');
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [view, setView] = useState<'month' | 'year'>('month');
@@ -126,7 +129,7 @@ export default function BudgetPage() {
     // Input edits the TOTAL monthly budget (recurring floor + extra). Seed with the
     // current effective total (planned). On save we back out the stored manual per
     // fold mode so the floor stays applied per-month; an override bypasses the floor.
-    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(groupName), planned, targetMonth, recurring, manual: manual ?? planned });
+    setEditModal({ categoryId, groupName, subName, emoji: getCategoryEmoji(subName.split(' · ')[0]), planned, targetMonth, recurring, manual: manual ?? planned });
     setEditValue(planned ? String(planned) : '');
     setApplyFuture(false);
     setEditOverride(overridden);
@@ -180,14 +183,18 @@ export default function BudgetPage() {
 
   const isMonth = view === 'month';
   const now = new Date();
-  const isTodayNow = isMonth
-    ? (month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth())
-    : (month.getFullYear() === now.getFullYear());
   const periodLabel = isMonth ? `${shortMonth(month)} ${month.getFullYear()}` : String(month.getFullYear());
   const subtitle = isMonth ? monthLabel(month) : String(month.getFullYear());
   const goPrev = () => setMonth(isMonth ? prevMonth(month) : new Date(month.getFullYear() - 1, month.getMonth(), 1));
   const goNext = () => setMonth(isMonth ? nextMonth(month) : new Date(month.getFullYear() + 1, month.getMonth(), 1));
   const goToday = () => setMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+
+  // Drill into a category detail page. Section keys are plural ('expenses'),
+  // but the categories.type column is singular ('expense').
+  const dbType = (key: string) => (key === 'expenses' ? 'expense' : key);
+  const drillGroup = (groupName: string, sectionKey: string) =>
+    navigate(`/budget/category?group=${encodeURIComponent(groupName)}&type=${encodeURIComponent(dbType(sectionKey))}`);
+  const drillSub = (categoryId: number) => navigate(`/budget/category?categoryId=${categoryId}`);
 
   // Three sections built from the summary (income is a single 'Income' group).
   const sections = [
@@ -216,12 +223,13 @@ export default function BudgetPage() {
   return (
     <div>
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
-        <div>
-          <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight m-0">Budget</h1>
-          <p className="page-subtitle text-content-3 text-[13px] m-0 mt-0.5">{subtitle}</p>
+      <div className="sticky top-0 z-20 -mt-4 md:-mt-7 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-6 bg-bg border-b border-line flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-baseline gap-2.5">
+          <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight leading-tight m-0">Budget</h1>
+          <p className="page-subtitle text-content-3 text-[13px] m-0">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
+          <button onClick={goToday} className="h-10 px-4 rounded-[11px] bg-surface border border-line-strong text-content font-semibold text-sm hover:bg-surface-2">Today</button>
           <div className="flex items-center gap-0.5 h-10 px-1 bg-surface border border-line-strong rounded-[11px]">
             <button onClick={goPrev} className="w-8 h-8 flex items-center justify-center rounded-lg text-content-2 hover:bg-surface-2" aria-label="Previous">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -231,9 +239,6 @@ export default function BudgetPage() {
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </button>
           </div>
-          {!isTodayNow && (
-            <button onClick={goToday} className="h-10 px-4 rounded-[11px] bg-surface border border-line-strong text-content font-semibold text-sm hover:bg-surface-2">Today</button>
-          )}
           <SegmentedControl value={view} onChange={setView}
             options={[{ value: 'month', label: 'Month' }, { value: 'year', label: 'Year' }]} />
         </div>
@@ -274,13 +279,16 @@ export default function BudgetPage() {
                   const rows = showUn ? g.subs : g.subs.filter((r) => r.budgeted > 0 || r.actual > 0);
                   return (
                     <div key={groupKey}>
-                      <div onClick={() => setCollapsedGroups((s) => ({ ...s, [groupKey]: !s[groupKey] }))}
-                        className="grid gap-3 px-6 py-3.5 border-b border-line cursor-pointer items-center hover:bg-surface-2/50"
+                      <div className="grid gap-3 px-6 py-3.5 border-b border-line items-center"
                         style={{ gridTemplateColumns: 'minmax(0,1fr) 82px 82px 92px' }}>
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-content-3 shrink-0" style={{ transform: gCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform .15s' }}><path d="m9 6 6 6-6 6"/></svg>
-                          <span className="w-8 h-8 shrink-0 rounded-[9px] bg-surface-2 border border-line flex items-center justify-center text-base leading-none">{getCategoryEmoji(g.groupName)}</span>
-                          <span className="font-bold text-[15px] truncate">{g.groupName}</span>
+                          <button type="button" onClick={() => setCollapsedGroups((s) => ({ ...s, [groupKey]: !s[groupKey] }))}
+                            aria-label={gCollapsed ? 'Expand' : 'Collapse'} className="shrink-0 w-7 h-7 -m-1 flex items-center justify-center rounded-full text-content-3 hover:text-content hover:bg-surface-2 transition-colors">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: gCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform .15s' }}><path d="m9 6 6 6-6 6"/></svg>
+                          </button>
+                          <button type="button" onClick={() => drillGroup(g.groupName, sec.key)} className="flex items-center gap-2.5 min-w-0 text-left group/drill">
+                            <span className="font-bold text-[15px] truncate group-hover/drill:underline">{g.groupName}</span>
+                          </button>
                         </div>
                         <span className="text-right font-bold text-[15px] tabular-nums">{fmtWhole(gPlanned)}</span>
                         <span className="text-right text-[15px] text-content-2 tabular-nums">{fmtWhole(gActual)}</span>
@@ -294,7 +302,9 @@ export default function BudgetPage() {
                               <div key={r.categoryId} className="grid gap-3 pr-6 py-3 border-b border-line items-center" style={{ gridTemplateColumns: 'minmax(0,1fr) 82px 82px 92px', paddingLeft: 52 }}>
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
-                                    <span className="text-sm font-medium truncate">{r.subName}</span>
+                                    <span className="shrink-0 text-[15px] leading-none">{getCategoryEmoji(r.subName)}</span>
+                                    <button type="button" onClick={() => drillSub(r.categoryId)}
+                                      className="text-sm font-medium truncate text-left hover:underline">{r.subName}</button>
                                     {r.recurring && (
                                       <span title={`Recurring (minimum): ${r.recurring.items.map((i) => i.label).join(', ')}`}
                                         className="shrink-0 inline-flex items-center gap-1 px-1.5 h-[18px] rounded-md text-[10px] font-bold tabular-nums"
@@ -304,7 +314,7 @@ export default function BudgetPage() {
                                       </span>
                                     )}
                                   </div>
-                                  <div style={{ maxWidth: 320 }}><BudgetBar value={r.actual} max={r.budgeted} /></div>
+                                  <BudgetBar value={r.actual} max={r.budgeted} positive={sec.key === 'income'} />
                                 </div>
                                 <div className="flex justify-end">
                                   <button onClick={(e) => { e.stopPropagation(); if (canEditBudgets) openEdit(r.categoryId, g.groupName, r.subName, r.budgeted, undefined, r.recurring, r.manual, r.overridden); }}
@@ -340,7 +350,7 @@ export default function BudgetPage() {
         </div>
 
         {/* Summary rail */}
-        <div className="flex flex-col gap-4 lg:sticky lg:top-2">
+        <div className="flex flex-col gap-4 lg:sticky lg:top-[88px]">
           <div className="rounded-card border shadow-sm p-6 text-center" style={{ borderColor: 'color-mix(in srgb, var(--positive) 35%, var(--line))', background: 'color-mix(in srgb, var(--positive) 12%, var(--surface))' }}>
             <div className="text-[34px] font-extrabold tracking-tight tabular-nums" style={{ color: totals.leftToBudget < 0 ? 'var(--negative)' : 'var(--positive)' }}>{fmtWhole(totals.leftToBudget)}</div>
             <div className="text-sm text-content-2 mt-1">Left to budget</div>
@@ -368,13 +378,15 @@ export default function BudgetPage() {
       ) : annualData ? (
       /* ===== YEAR VIEW ===== */
       <div className="bg-surface rounded-card border border-line shadow-sm overflow-x-auto">
-        <div style={{ minWidth: 'max-content' }}>
+        <div>
           {/* month header */}
           <div className="flex items-center border-b border-line bg-surface-2">
             <div className="w-[250px] shrink-0 px-6 py-3 font-mono text-[11px] uppercase tracking-wide text-content-3 sticky left-0 bg-surface-2 z-[2]">Category</div>
             {MONTHS.map((mn, m) => (
-              <div key={m} className="w-[104px] shrink-0 px-3 py-3 text-right font-mono text-[11px] uppercase tracking-wide"
-                style={{ color: (isCurYear && m === curMi) ? 'var(--primary)' : 'var(--text-3)', background: colTint(m), fontWeight: (isCurYear && m === curMi) ? 800 : 600 }}>{mn} {yr}</div>
+              <button key={m} type="button" title={`View ${mn} ${yr}`}
+                onClick={() => { setMonth(new Date(yr, m, 1)); setView('month'); }}
+                className="flex-1 min-w-0 px-3 py-3 text-right font-mono text-[11px] uppercase tracking-wide cursor-pointer hover:underline"
+                style={{ color: (isCurYear && m === curMi) ? 'var(--primary)' : 'var(--text-3)', background: colTint(m), fontWeight: (isCurYear && m === curMi) ? 800 : 600 }}>{mn} {yr}</button>
             ))}
           </div>
           {annualSections.map((sec) => {
@@ -384,7 +396,7 @@ export default function BudgetPage() {
                 <div className="flex items-center border-t border-b border-line bg-surface-2">
                   <div className="w-[250px] shrink-0 px-6 py-2.5 text-xs font-bold uppercase tracking-wide text-content-2 sticky left-0 bg-surface-2 z-[2]">{sec.label}</div>
                   {secTotals.map((v, m) => (
-                    <div key={m} className="w-[104px] shrink-0 px-3 py-2.5 text-right text-xs font-bold text-content-2 tabular-nums" style={{ background: colTint(m) }}>{fmtWhole(v)}</div>
+                    <div key={m} className="flex-1 min-w-0 px-3 py-2.5 text-right text-xs font-bold text-content-2 tabular-nums" style={{ background: colTint(m) }}>{fmtWhole(v)}</div>
                   ))}
                 </div>
                 {sec.groups.map((g) => {
@@ -393,24 +405,31 @@ export default function BudgetPage() {
                   const gTotals = sumCols(g.subs);
                   return (
                     <div key={groupKey}>
-                      <div onClick={() => setCollapsedGroups((s) => ({ ...s, [groupKey]: !s[groupKey] }))} className="flex items-center border-b border-line cursor-pointer">
+                      <div className="flex items-center border-b border-line">
                         <div className="w-[250px] shrink-0 px-6 py-3 flex items-center gap-2.5 sticky left-0 bg-surface z-[1]">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-content-3 shrink-0" style={{ transform: gCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform .15s' }}><path d="m9 6 6 6-6 6"/></svg>
-                          <span className="text-[15px] leading-none">{getCategoryEmoji(g.groupName)}</span>
-                          <span className="font-bold text-sm truncate">{g.groupName}</span>
+                          <button type="button" onClick={() => setCollapsedGroups((s) => ({ ...s, [groupKey]: !s[groupKey] }))}
+                            aria-label={gCollapsed ? 'Expand' : 'Collapse'} className="shrink-0 w-7 h-7 -m-1 flex items-center justify-center rounded-full text-content-3 hover:text-content hover:bg-surface-2 transition-colors">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: gCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform .15s' }}><path d="m9 6 6 6-6 6"/></svg>
+                          </button>
+                          <button type="button" onClick={() => drillGroup(g.groupName, sec.key)} className="flex items-center gap-2.5 min-w-0 text-left group/drill">
+                            <span className="font-bold text-sm truncate group-hover/drill:underline">{g.groupName}</span>
+                          </button>
                         </div>
                         {gTotals.map((v, m) => (
-                          <div key={m} className="w-[104px] shrink-0 px-3 py-3 text-right text-sm font-semibold tabular-nums" style={{ background: colTint(m) }}>{fmtWhole(v)}</div>
+                          <div key={m} className="flex-1 min-w-0 px-3 py-3 text-right text-sm font-semibold tabular-nums" style={{ background: colTint(m) }}>{fmtWhole(v)}</div>
                         ))}
                       </div>
                       {!gCollapsed && g.subs.map((sub) => (
                         <div key={sub.categoryId} className="flex items-center border-b border-line">
-                          <div className="w-[250px] shrink-0 px-6 py-2.5 text-sm text-content-2 truncate sticky left-0 bg-surface z-[1]" style={{ paddingLeft: 52 }}>{sub.subName}</div>
+                          <div className="w-[250px] shrink-0 px-6 py-2.5 text-sm text-content-2 sticky left-0 bg-surface z-[1] flex items-center gap-1.5" style={{ paddingLeft: 52 }}>
+                            <span className="shrink-0 text-[15px] leading-none">{getCategoryEmoji(sub.subName)}</span>
+                            <button type="button" onClick={() => drillSub(sub.categoryId)} className="truncate text-left hover:underline">{sub.subName}</button>
+                          </div>
                           {sub.planned.map((v, m) => {
                             const past = isCurYear && m < curMi;
                             const targetMonth = `${yr}-${String(m + 1).padStart(2, '0')}`;
                             return (
-                              <div key={m} className="w-[104px] shrink-0 px-2.5 py-1.5 flex justify-end" style={{ background: colTint(m) }}>
+                              <div key={m} className="flex-1 min-w-0 px-2.5 py-1.5 flex justify-end" style={{ background: colTint(m) }}>
                                 <button onClick={() => { if (canEditBudgets && !past) openEdit(sub.categoryId, g.groupName, `${sub.subName} · ${MONTHS[m]} ${yr}`, v, targetMonth, sub.recurring[m], sub.manual[m], sub.overridden[m]); }}
                                   disabled={!canEditBudgets || past}
                                   className="min-w-16 text-right text-sm tabular-nums px-2.5 py-1.5 rounded-lg enabled:hover:border-primary"
@@ -442,7 +461,7 @@ export default function BudgetPage() {
         const below = !!rec && val < floor;
         const overriding = below && editOverride;
         const extra = Math.max(0, +(val - floor).toFixed(2));
-        const inputBorder = overriding ? 'var(--line-strong)' : below ? 'var(--warning)' : 'var(--primary)';
+        const inputBorder = below && !overriding ? 'var(--warning)' : 'var(--line-strong)';
         let helper = ''; let helperColor = 'var(--text-3)';
         if (overriding) { helper = `Overriding for this month only — budgeting ${fmt(floor - val)} below the recurring floor (e.g. a month with no paycheck). The floor returns next month.`; helperColor = 'var(--text-2)'; }
         else if (below) { helper = `Below the ${fmt(floor)} recurring minimum. Set it to the minimum, or override this one month.`; helperColor = 'var(--warning)'; }

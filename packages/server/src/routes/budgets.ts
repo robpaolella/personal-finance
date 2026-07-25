@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db, sqlite } from '../db/index.js';
 import { budgets, categories } from '../db/schema.js';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 import { getRecurringFloors } from '../services/recurringBudget.js';
 
@@ -133,6 +133,7 @@ router.get('/summary', (req: Request, res: Response) => {
 
     // Get all categories
     const allCategories = db.select().from(categories)
+      .where(sql`COALESCE(${categories.exclude_from_budget}, 0) = 0`)
       .orderBy(asc(categories.sort_order), asc(categories.sub_name))
       .all();
 
@@ -308,6 +309,7 @@ router.get('/annual', (req: Request, res: Response) => {
     const year = String(req.query.year || new Date().getFullYear());
 
     const allCategories = db.select().from(categories)
+      .where(sql`COALESCE(${categories.exclude_from_budget}, 0) = 0`)
       .orderBy(asc(categories.sort_order), asc(categories.sub_name))
       .all();
 
@@ -380,6 +382,130 @@ router.get('/annual', (req: Request, res: Response) => {
   } catch (err) {
     console.error('GET /budgets/annual error:', err);
     res.status(500).json({ error: 'Failed to fetch annual budget' });
+  }
+});
+
+// GET /api/budgets/category-detail?categoryId=42
+//   or /api/budgets/category-detail?group=Income&type=income[&end=YYYY-MM]
+// Monthly actual series (split-aware) for one leaf sub-category (categoryId) or a
+// whole group (group + DB type), plus the category's current effective monthly
+// plan (floor model). Drives the Budget Category Detail drill-down page.
+router.get('/category-detail', (req: Request, res: Response) => {
+  try {
+    const categoryIdParam = req.query.categoryId != null ? Number(req.query.categoryId) : null;
+    const groupParam = (req.query.group as string) || null;
+    const typeParam = (req.query.type as string) || null;
+
+    // Resolve the target category set + breadcrumb identity.
+    let cats: { id: number; group_name: string; sub_name: string; display_name: string; type: string }[];
+    let category: { groupName: string; subName: string | null; displayName: string; type: string };
+
+    if (categoryIdParam != null && !Number.isNaN(categoryIdParam)) {
+      const c = db.select().from(categories).where(eq(categories.id, categoryIdParam)).all()[0];
+      if (!c) { res.status(404).json({ error: 'Category not found' }); return; }
+      cats = [c];
+      category = { groupName: c.group_name, subName: c.sub_name, displayName: c.display_name, type: c.type };
+    } else if (groupParam) {
+      const rows = typeParam
+        ? db.select().from(categories).where(and(eq(categories.group_name, groupParam), eq(categories.type, typeParam))).all()
+        : db.select().from(categories).where(eq(categories.group_name, groupParam)).all();
+      if (rows.length === 0) { res.status(404).json({ error: 'Group not found' }); return; }
+      cats = rows;
+      category = { groupName: groupParam, subName: null, displayName: groupParam, type: rows[0].type };
+    } else {
+      res.status(400).json({ error: 'categoryId or group query parameter is required' });
+      return;
+    }
+
+    const ids = cats.map((c) => c.id);
+    const isIncome = category.type === 'income';
+    const placeholders = ids.map(() => '?').join(',');
+
+    // ---- month window: ends at the current month (or ?end), clamped to [12, 36]
+    // months so the chart always has a readable span. ----
+    const now = new Date();
+    const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const endMonth = (req.query.end as string) || curMonth;
+    const addMonths = (ym: string, delta: number): string => {
+      const [y, m] = ym.split('-').map(Number);
+      const d = new Date(y, m - 1 + delta, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+    const monthsBetween = (a: string, b: string): number => {
+      const [ay, am] = a.split('-').map(Number);
+      const [by, bm] = b.split('-').map(Number);
+      return (by - ay) * 12 + (bm - am);
+    };
+
+    // Earliest activity month across the set (parent txns or split legs).
+    const earliest = (sqlite.prepare(`
+      SELECT min(ym) as ym FROM (
+        SELECT substr(t.date,1,7) as ym FROM transactions t
+          WHERE t.category_id IN (${placeholders})
+        UNION ALL
+        SELECT substr(t.date,1,7) as ym FROM transaction_splits ts
+          JOIN transactions t ON ts.transaction_id = t.id
+          WHERE t.category_id IS NULL AND ts.category_id IN (${placeholders})
+      )
+    `).get(...ids, ...ids) as { ym: string | null }).ym;
+
+    let startMonth = earliest || endMonth;
+    if (monthsBetween(startMonth, endMonth) > 35) startMonth = addMonths(endMonth, -35); // cap ≤36 bars
+    if (monthsBetween(startMonth, endMonth) < 11) startMonth = addMonths(endMonth, -11); // ≥12 bars
+    const months: string[] = [];
+    for (let ym = startMonth; monthsBetween(ym, endMonth) >= 0; ym = addMonths(ym, 1)) months.push(ym);
+
+    const startDate = `${startMonth}-01`;
+    const [ey, em] = endMonth.split('-').map(Number);
+    const endDate = `${endMonth}-${String(new Date(ey, em, 0).getDate()).padStart(2, '0')}`;
+
+    // ---- actual series (split-aware, mirrors /summary's UNION) ----
+    // Group by (ym, category_id) so income can clamp each sub-category's monthly
+    // net independently (net<0 ? -net : 0) BEFORE summing the group — matching how
+    // /summary aggregates income. Group-net-then-clamp would understate a group
+    // whose subs mix money-in and money-out.
+    const rows = sqlite.prepare(`
+      SELECT ym, category_id, coalesce(sum(amount), 0) as total FROM (
+        SELECT substr(t.date,1,7) as ym, t.category_id as category_id, t.amount as amount
+        FROM transactions t
+        WHERE t.category_id IN (${placeholders})
+          AND t.date >= ? AND t.date <= ?
+        UNION ALL
+        SELECT substr(t.date,1,7) as ym, ts.category_id as category_id, ts.amount as amount
+        FROM transaction_splits ts
+        JOIN transactions t ON ts.transaction_id = t.id
+        WHERE t.category_id IS NULL AND ts.category_id IN (${placeholders})
+          AND t.date >= ? AND t.date <= ?
+      )
+      GROUP BY ym, category_id
+    `).all(...ids, startDate, endDate, ...ids, startDate, endDate) as { ym: string; category_id: number; total: number }[];
+    // Income is stored negative (money in); expenses/savings positive (money out).
+    // Return a positive magnitude for the bars, matching the Budget page's actuals.
+    const monthTotals = new Map<string, number>();
+    for (const r of rows) {
+      const contrib = isIncome ? (r.total < 0 ? -r.total : 0) : r.total;
+      monthTotals.set(r.ym, (monthTotals.get(r.ym) ?? 0) + contrib);
+    }
+    const series = months.map((m) => ({ month: m, actual: monthTotals.get(m) ?? 0 }));
+
+    // ---- current effective monthly plan (floor model), summed over the set ----
+    const floors = getRecurringFloors(curMonth);
+    const curBudgets = sqlite.prepare(
+      `SELECT category_id, amount, override FROM budgets WHERE month = ? AND category_id IN (${placeholders})`
+    ).all(curMonth, ...ids) as { category_id: number; amount: number; override: number }[];
+    const bMap = new Map(curBudgets.map((b) => [b.category_id, b]));
+    let plannedPerMonth = 0;
+    for (const id of ids) {
+      const b = bMap.get(id);
+      const stored = b?.amount ?? 0;
+      const floor = floors.get(id)?.amount ?? 0;
+      plannedPerMonth += b?.override ? stored : Math.max(stored, floor);
+    }
+
+    res.json({ data: { category, plannedPerMonth, series } });
+  } catch (err) {
+    console.error('GET /budgets/category-detail error:', err);
+    res.status(500).json({ error: 'Failed to fetch category detail' });
   }
 });
 
