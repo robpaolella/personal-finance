@@ -16,7 +16,7 @@ interface Summary {
 interface SpendingGroup { groupName: string; totalSpent: number; totalBudgeted: number }
 interface MonthlyData { month: number; totalIncome: number; totalExpenses: number }
 interface Transaction {
-  id: number; date: string; description: string; merchant?: { id: number; name: string } | null; amount: number;
+  id: number; date: string; description: string; merchant?: { id: number; name: string; logoUrl?: string | null } | null; amount: number;
   account: { id: number; name: string; owners?: { id: number; displayName: string }[]; isShared?: boolean };
   category: { id: number; groupName: string; subName: string; type: string } | null;
   splits?: { type: string }[];
@@ -59,6 +59,7 @@ export default function DashboardPage() {
   const [nwPoints, setNwPoints] = useState<HistoryPoint[]>([]);
   const [holdings, setHoldings] = useState<AccountHoldings[]>([]);
   const [cycles, setCycles] = useState<RecurringSummary[]>([]);
+  const [reviewCounts, setReviewCounts] = useState<{ open: number; assignedToMe: number } | null>(null);
   const [error, setError] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -75,6 +76,7 @@ export default function DashboardPage() {
     }
     apiFetch<{ data: { accountHoldings: AccountHoldings[] } }>('/simplefin/holdings').then((r) => setHoldings(r.data.accountHoldings)).catch(() => {});
     apiFetch<{ data: RecurringSummary[] }>('/recurring').then((r) => setCycles(r.data.filter((x) => x.status === 'active'))).catch(() => {});
+    apiFetch<{ data: { open: number; assignedToMe: number; unassigned: number } }>('/reviews/count').then((r) => setReviewCounts({ open: r.data.open, assignedToMe: r.data.assignedToMe })).catch(() => {});
   }, [currentMonth, currentYear]);
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -115,9 +117,9 @@ export default function DashboardPage() {
   const green = 'var(--positive)';
 
   return (
-    <div className="max-w-[1280px] mx-auto px-4 md:px-8 pb-16">
-      <div className="sticky top-0 z-20 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-4 bg-bg/80 backdrop-blur border-b border-line">
-        <h1 className="text-xl font-extrabold tracking-tight">{greeting}</h1>
+    <div className="pb-16">
+      <div className="sticky top-0 z-20 -mt-4 md:-mt-7 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-6 bg-bg border-b border-line">
+        <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight leading-tight m-0">{greeting}</h1>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5 items-start">
@@ -202,7 +204,7 @@ export default function DashboardPage() {
                 const { text, className } = fmtTransaction(t.amount, type);
                 return (
                   <div key={t.id} onClick={() => navigate('/transactions')} className="flex items-center gap-3 py-2 border-b border-line last:border-0 cursor-pointer hover:bg-surface-2/40 -mx-2 px-2 rounded-lg">
-                    <VendorAvatar name={txnVendor(t)} color={getCategoryColorHex(t.category?.groupName)} size={32} />
+                    <VendorAvatar name={txnVendor(t)} src={t.merchant?.logoUrl || undefined} color={getCategoryColorHex(t.category?.groupName)} size={32} />
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-sm truncate">{txnVendor(t)}</div>
                       <div className="text-[12px] text-content-3 truncate">{t.category?.subName ?? 'Uncategorized'}</div>
@@ -213,6 +215,21 @@ export default function DashboardPage() {
               })}
               {recent.length === 0 && <div className="text-content-3 text-sm py-2">No recent transactions.</div>}
             </div>
+          </Card>
+
+          {/* Reviews */}
+          <Card title="Reviews" action={<button onClick={() => navigate('/reviews')} className="text-[13px] font-semibold text-primary">View →</button>}>
+            {reviewCounts && reviewCounts.open > 0 ? (
+              <div>
+                <div className="text-[30px] font-extrabold tabular-nums leading-none">{reviewCounts.open}</div>
+                <div className="text-[13px] text-content-2 mt-1">transaction{reviewCounts.open === 1 ? '' : 's'} need review</div>
+                {reviewCounts.assignedToMe > 0 && (
+                  <button onClick={() => navigate('/reviews?assignee=me')} className="mt-2 text-[13px] font-semibold text-primary">{reviewCounts.assignedToMe} assigned to you →</button>
+                )}
+              </div>
+            ) : (
+              <div className="text-content-3 text-sm py-2">All caught up.</div>
+            )}
           </Card>
 
           {/* Recurring */}
