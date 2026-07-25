@@ -14,6 +14,9 @@
  * server values take precedence and this becomes the fallback/seed source.
  */
 
+import { useSyncExternalStore } from 'react';
+import { apiFetch } from './api';
+
 export type CategoryToken =
   | 'c-teal' | 'c-green' | 'c-blue' | 'c-indigo' | 'c-violet'
   | 'c-fuchsia' | 'c-rose' | 'c-orange' | 'c-amber';
@@ -89,7 +92,51 @@ export function getCategoryMeta(name: string | null | undefined): CategoryMeta {
   return MAP.get(norm(name)) ?? { emoji: '🏷️', token: fallbackToken(name) };
 }
 
+// ── Stored per-category emoji overrides ─────────────────────────────────────
+// The Categories settings page writes a per-leaf `emoji` to the DB. That stored
+// value is the source of truth wherever a category (leaf) is shown; the RAW map
+// above is only the fallback/seed. Keyed by normalized `sub_name` AND
+// `display_name` so callers passing either resolve. Reactive via
+// useSyncExternalStore so pages re-render when the overrides load or change.
+const emojiOverrides = new Map<string, string>();
+let overridesVersion = 0;
+const overrideListeners = new Set<() => void>();
+
+export function setCategoryEmojiOverrides(
+  cats: Array<{ sub_name?: string | null; display_name?: string | null; emoji?: string | null }>,
+): void {
+  emojiOverrides.clear();
+  for (const c of cats) {
+    if (!c.emoji) continue;
+    if (c.sub_name) emojiOverrides.set(norm(c.sub_name), c.emoji);
+    if (c.display_name) emojiOverrides.set(norm(c.display_name), c.emoji);
+  }
+  overridesVersion++;
+  for (const l of overrideListeners) l();
+}
+
+/** Fetch the category list and register stored emoji overrides. Safe to re-call. */
+export async function loadCategoryEmojis(): Promise<void> {
+  try {
+    const r = await apiFetch<{ data: Array<{ sub_name: string; display_name: string; emoji: string | null }> }>('/categories');
+    setCategoryEmojiOverrides(r.data);
+  } catch { /* keep RAW fallbacks in place */ }
+}
+
+/** Subscribe a component to override changes so it re-renders when they load. */
+export function useCategoryEmojis(): number {
+  return useSyncExternalStore(
+    (cb) => { overrideListeners.add(cb); return () => { overrideListeners.delete(cb); }; },
+    () => overridesVersion,
+    () => overridesVersion,
+  );
+}
+
 export function getCategoryEmoji(name: string | null | undefined): string {
+  if (name) {
+    const stored = emojiOverrides.get(norm(name));
+    if (stored) return stored;
+  }
   return getCategoryMeta(name).emoji;
 }
 

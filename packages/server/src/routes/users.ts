@@ -578,6 +578,14 @@ router.delete('/:id/permanent', requireRole('admin'), permanentDeleteLimiter, (r
       ).get(id) as { cnt: number }).cnt;
       sqlite.prepare('UPDATE pay_cycles SET user_id = NULL WHERE user_id = ?').run(id);
 
+      // 4c. Notifications (no FK cascade) would block the user delete — remove them.
+      // Review rows keep their history: assignee/flagged_by/resolved_by are ON DELETE SET NULL.
+      sqlite.prepare('DELETE FROM notifications WHERE user_id = ?').run(id);
+
+      // 4d. Orphan owned recurring items — the FK is RESTRICT (no cascade), so
+      // preserve the projection + drop attribution, mirroring pay_cycles above.
+      sqlite.prepare('UPDATE recurring_items SET user_id = NULL WHERE user_id = ?').run(id);
+
       // 5. Delete the user row
       sqlite.prepare('DELETE FROM users WHERE id = ?').run(id);
 

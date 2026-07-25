@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
@@ -12,12 +12,18 @@ import BankSyncSection from '../components/BankSyncSection';
 import InlineNotification from '../components/InlineNotification';
 import TotpCodeInput from '../components/TotpCodeInput';
 import { OwnerBadge, SharedBadge, ClassificationBadge, initOwnerSlots, type AccountClassification } from '../components/badges';
-import { getCategoryColor } from '../lib/categoryColors';
-import ScrollableList from '../components/ScrollableList';
+import { VendorAvatar } from '../components/primitives';
+import { getCategoryEmoji, getCategoryColorVar, setCategoryEmojiOverrides } from '../lib/categoryMeta';
 import PermissionGate from '../components/PermissionGate';
 import ResponsiveModal from '../components/ResponsiveModal';
+import ImageCropModal from '../components/ImageCropModal';
+import InstitutionPicker from '../components/InstitutionPicker';
+import InstitutionManager from '../components/InstitutionManager';
 import Tooltip from '../components/Tooltip';
 import { useIsMobile } from '../hooks/useIsMobile';
+
+import MerchantsPanel from '../components/MerchantsPanel';
+const EmojiPickerPopover = lazy(() => import('../components/EmojiPickerPopover'));
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment', 'retirement', 'venmo', 'cash'];
 const CLASSIFICATIONS = ['liquid', 'investment', 'liability'];
@@ -44,6 +50,9 @@ interface Account {
   owners: AccountOwner[];
   isShared: boolean;
   is_active: number;
+  avatar_url?: string | null;
+  institution_id?: number | null;
+  institutionRef?: { id: number; name: string; logo_url: string | null; color: string | null } | null;
 }
 
 interface Category {
@@ -54,12 +63,18 @@ interface Category {
   type: string;
   is_deductible: number;
   sort_order: number;
+  emoji?: string | null;
+  exclude_from_budget?: number;
+  group_id?: number | null;
 }
 
-interface GroupedCategory {
-  group: string;
+interface Group {
+  id: number;
+  name: string;
   type: string;
-  subs: Category[];
+  color: string | null;
+  sort_order: number;
+  count: number;
 }
 
 // Sortable sub-category row for desktop
@@ -73,52 +88,24 @@ function SortableDesktopSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: 
   };
   return (
     <div ref={setNodeRef} style={style}
-      {...(canEdit ? { ...attributes, ...listeners } : {})}
       onClick={() => canEdit ? onEdit(cat) : null}
-      className={`relative flex items-center py-1 pl-[18px] text-[12px] text-[var(--text-secondary)] ${canEdit ? 'cursor-pointer hover:text-[var(--btn-secondary-text)] hover:bg-[var(--bg-hover)]' : ''} ${isDragging ? 'rounded-md bg-[var(--bg-hover)] border border-[var(--color-accent)] shadow-sm' : ''}`}>
-      {isDragging && (
-        <>
-          <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 text-[var(--color-accent)]">
-            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M5 0L10 6H0Z" fill="currentColor"/></svg>
-          </span>
-          <span className="absolute left-1/2 -bottom-2.5 -translate-x-1/2 text-[var(--color-accent)]">
-            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M5 6L0 0H10Z" fill="currentColor"/></svg>
-          </span>
-        </>
+      className={`group/row flex items-center gap-3.5 px-5 h-[52px] border-b border-line last:border-b-0 ${canEdit ? 'cursor-pointer hover:bg-surface-2' : ''} ${isDragging ? 'bg-surface-2' : ''}`}>
+      {canEdit && (
+        <span {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} title="Drag to reorder"
+          className="flex-none text-content-3 cursor-grab opacity-40 group-hover/row:opacity-100 transition-opacity touch-none">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+        </span>
       )}
-      <span>{cat.sub_name}</span>
+      <span className="flex-none text-[17px] leading-none w-[22px] text-center">{cat.emoji || getCategoryEmoji(cat.sub_name)}</span>
+      <span className="flex-1 text-[14.5px] font-semibold text-content">{cat.sub_name}</span>
+      {cat.exclude_from_budget ? (
+        <span className="flex-none h-[22px] px-[9px] rounded-[6px] bg-surface-2 border border-line text-content-3 text-[11px] font-semibold flex items-center">Excluded from budget</span>
+      ) : null}
+      <svg className="flex-none text-content-3" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
     </div>
   );
 }
 
-// Sortable sub-category row for mobile
-function SortableMobileSub({ cat, canEdit, onEdit }: { cat: Category; canEdit: boolean; onEdit: (c: Category) => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
-  const restrictedTransform = transform ? { ...transform, x: 0 } : transform;
-  const style = {
-    transform: CSS.Transform.toString(restrictedTransform),
-    transition,
-    ...(isDragging ? { zIndex: 10, position: 'relative' as const } : {}),
-  };
-  return (
-    <div ref={setNodeRef} style={style}
-      {...(canEdit ? { ...attributes, ...listeners } : {})}
-      onClick={() => canEdit ? onEdit(cat) : null}
-      className={`relative flex items-center py-1.5 pl-4 text-[12px] text-[var(--text-secondary)] border-b border-[var(--table-row-border)] last:border-b-0 ${canEdit ? 'active:text-[var(--btn-secondary-text)]' : ''} ${isDragging ? 'rounded-md bg-[var(--bg-hover)] border-[var(--color-accent)] shadow-sm' : ''}`}>
-      {isDragging && (
-        <>
-          <span className="absolute left-1/2 -top-2.5 -translate-x-1/2 text-[var(--color-accent)]">
-            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M5 0L10 6H0Z" fill="currentColor"/></svg>
-          </span>
-          <span className="absolute left-1/2 -bottom-2.5 -translate-x-1/2 text-[var(--color-accent)]">
-            <svg width="10" height="6" viewBox="0 0 10 6"><path d="M5 6L0 0H10Z" fill="currentColor"/></svg>
-          </span>
-        </>
-      )}
-      <span>{cat.sub_name}</span>
-    </div>
-  );
-}
 
 // --- Account Form ---
 function AccountForm({
@@ -127,12 +114,14 @@ function AccountForm({
   onSave,
   onDelete,
   onClose,
+  onAvatarChanged,
 }: {
   account?: Account;
   users: { id: number; displayName: string }[];
   onSave: (data: Record<string, unknown>) => void;
   onDelete?: () => Promise<string | null>;
   onClose: () => void;
+  onAvatarChanged?: () => void;
 }) {
   const [name, setName] = useState(account?.name ?? '');
   const [lastFour, setLastFour] = useState(account?.last_four ?? '');
@@ -145,6 +134,40 @@ function AccountForm({
   const [error, setError] = useState<string | null>(null);
   const [ownerDropdownOpen, setOwnerDropdownOpen] = useState(false);
   const ownerDropdownRef = useRef<HTMLDivElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(account?.avatar_url ?? null);
+  const [institutionId, setInstitutionId] = useState<number | null>(account?.institution_id ?? account?.institutionRef?.id ?? null);
+  const [institution, setInstitution] = useState<{ id: number; name: string; logo_url: string | null; color: string | null } | null>(account?.institutionRef ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const uploadAvatar = async (blob: Blob) => {
+    if (!account) return;
+    const fd = new FormData();
+    fd.append('file', blob, 'avatar.webp');
+    setUploading(true);
+    try {
+      const res = await apiFetch<{ data: { avatar_url: string } }>(`/accounts/${account.id}/avatar`, { method: 'POST', body: fd });
+      setAvatarUrl(res.data.avatar_url);
+      onAvatarChanged?.();
+    } catch {
+      setError('Failed to upload photo');
+    } finally { setUploading(false); }
+  };
+
+  // Preview precedence: per-account override → institution logo → monogram.
+  const previewSrc = avatarUrl || institution?.logo_url || null;
+
+  const removeAvatar = async () => {
+    if (!account) return;
+    try {
+      await apiFetch(`/accounts/${account.id}/avatar`, { method: 'DELETE' });
+      setAvatarUrl(null);
+      onAvatarChanged?.();
+    } catch {
+      setError('Failed to remove photo');
+    }
+  };
 
   useEffect(() => {
     if (error) { const t = setTimeout(() => setError(null), 5000); return () => clearTimeout(t); }
@@ -186,10 +209,31 @@ function AccountForm({
         <InlineNotification type="error" message={error} dismissible onDismiss={() => setError(null)} className="mb-3" />
       )}
       <div className="flex flex-col gap-3">
+        {account && (
+          <div className="flex items-center gap-3">
+            {previewSrc
+              ? <img src={previewSrc} alt="" className="flex-none rounded-full object-cover" style={{ width: 56, height: 56 }} />
+              : <span className="flex-none rounded-full inline-flex items-center justify-center font-bold" style={{ width: 56, height: 56, fontSize: 22, background: institution?.color ? `color-mix(in srgb, ${institution.color} 16%, transparent)` : 'var(--surface-2)', color: institution?.color || 'var(--content-2)' }}>{((institution?.name || name).trim()[0] || '?').toUpperCase()}</span>}
+            <div className="flex flex-col gap-1">
+              <input ref={fileRef} type="file" accept="image/*" hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) setCropFile(f); e.target.value = ''; }} />
+              <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()}
+                className="text-[12px] font-semibold text-primary text-left disabled:opacity-60">{uploading ? 'Uploading…' : (avatarUrl ? 'Change photo' : 'Upload photo')}</button>
+              {avatarUrl && <button type="button" onClick={removeAvatar} className="text-[12px] text-negative font-semibold text-left">Remove{institution?.logo_url ? ' (use institution logo)' : ''}</button>}
+            </div>
+          </div>
+        )}
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Account Name</label>
           <input value={name} onChange={(e) => setName(e.target.value)}
             className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Institution</label>
+          <InstitutionPicker
+            value={institutionId}
+            onChange={(id, inst) => { setInstitutionId(id); setInstitution(inst ?? null); }}
+          />
         </div>
         <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Last Four (optional)</label>
@@ -271,9 +315,161 @@ function AccountForm({
         </button>
         <button onClick={() => {
           if (selectedOwnerIds.size === 0) { setError('At least one owner is required'); return; }
-          onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds) });
+          onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds), institutionId });
         }}
           className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary">
+          Save
+        </button>
+      </div>
+      {cropFile && (
+        <ImageCropModal
+          file={cropFile}
+          title="Crop account photo"
+          onCancel={() => setCropFile(null)}
+          onCropped={async (blob) => { await uploadAvatar(blob); setCropFile(null); }}
+        />
+      )}
+    </ResponsiveModal>
+  );
+}
+
+// --- Category Form ---
+const SECTION_LABEL: Record<string, string> = { income: 'Income', expense: 'Expenses', savings: 'Savings' };
+
+function CategoryForm({
+  category,
+  groups,
+  initialGroupId,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  category?: Category;
+  groups: Group[];
+  initialGroupId?: number | null;
+  onSave: (data: Record<string, unknown>) => void;
+  onDelete?: () => Promise<string | null>;
+  onClose: () => void;
+}) {
+  const [emoji, setEmoji] = useState(category?.emoji || '🏷️');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerPos, setPickerPos] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
+  const boxRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  const [subName, setSubName] = useState(category?.sub_name ?? '');
+  const [groupId, setGroupId] = useState<number | null>(category?.group_id ?? initialGroupId ?? groups[0]?.id ?? null);
+  const [excludeFromBudget, setExcludeFromBudget] = useState(category?.exclude_from_budget === 1);
+  const [error, setError] = useState<string | null>(null);
+
+  const PICKER_W = 320;
+  const PICKER_H = 420;
+  const openPicker = () => {
+    const r = boxRef.current?.getBoundingClientRect();
+    if (r) {
+      const spaceBelow = window.innerHeight - r.bottom;
+      const top = spaceBelow < PICKER_H && r.top > PICKER_H ? r.top - PICKER_H - 6 : r.bottom + 6;
+      const left = Math.min(Math.max(8, r.left), window.innerWidth - PICKER_W - 8);
+      setPickerPos({ left, top });
+    }
+    setPickerOpen(true);
+  };
+
+  useEffect(() => {
+    if (error) { const t = setTimeout(() => setError(null), 5000); return () => clearTimeout(t); }
+  }, [error]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (boxRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      setPickerOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [pickerOpen]);
+
+  const handleDeleteConfirm = async () => {
+    if (onDelete) {
+      const err = await onDelete();
+      if (err) { setError(err); }
+    }
+  };
+
+  return (
+    <ResponsiveModal isOpen={true} onClose={onClose}>
+      <h3 className="text-[18px] font-extrabold tracking-tight text-content mb-4">
+        {category ? 'Edit category' : 'New category'}
+      </h3>
+      {error && (
+        <InlineNotification type="error" message={error} dismissible onDismiss={() => setError(null)} className="mb-3" />
+      )}
+      <div className="flex flex-col gap-4">
+        {/* Icon & name */}
+        <div className="flex items-center gap-2.5">
+          <button ref={boxRef} type="button" onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())} title="Change icon"
+            className="w-11 h-11 flex-none rounded-[11px] bg-surface-2 border border-line-strong flex items-center justify-center text-[20px] cursor-pointer">
+            {emoji}
+          </button>
+          {/* Portal out of the modal so the picker isn't clipped by modal overflow. */}
+          {pickerOpen && createPortal(
+            <div ref={popRef} style={{ position: 'fixed', left: pickerPos.left, top: pickerPos.top, width: PICKER_W, zIndex: 200 }}
+              className="rounded-[12px] overflow-hidden shadow-2xl border border-line-strong bg-surface">
+              <Suspense fallback={<div className="h-[360px] flex items-center justify-center bg-surface text-content-3 text-[13px]">Loading…</div>}>
+                <EmojiPickerPopover onPick={(e) => { setEmoji(e); setPickerOpen(false); }} />
+              </Suspense>
+            </div>,
+            document.body,
+          )}
+          <input value={subName} onChange={(e) => setSubName(e.target.value)} placeholder="Category name"
+            className="flex-1 h-11 px-3.5 bg-surface-2 border border-line-strong rounded-[11px] text-content text-[14px] outline-none" />
+        </div>
+        {/* Group */}
+        <div>
+          <div className="text-[13px] font-bold text-content mb-1.5">Group</div>
+          <select value={groupId ?? ''} onChange={(e) => setGroupId(Number(e.target.value))}
+            className="w-full h-11 px-3.5 bg-surface-2 border border-line-strong rounded-[11px] text-content text-[14px] outline-none cursor-pointer">
+            {['income', 'expense', 'savings'].map((t) => {
+              const gs = groups.filter((g) => g.type === t);
+              if (gs.length === 0) return null;
+              return (
+                <optgroup key={t} label={SECTION_LABEL[t]}>
+                  {gs.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </optgroup>
+              );
+            })}
+          </select>
+        </div>
+        {/* Exclude from budget */}
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[14px] font-bold text-content">Exclude from budget</div>
+            <div className="text-[12.5px] text-content-3 mt-0.5">This category and its transactions will be hidden from your budget.</div>
+          </div>
+          <button type="button" onClick={() => setExcludeFromBudget((v) => !v)}
+            className="w-11 h-[26px] flex-none rounded-full p-[3px] cursor-pointer transition-colors"
+            style={{ background: excludeFromBudget ? 'var(--primary)' : 'var(--line-strong)' }}>
+            <span className="block w-5 h-5 rounded-full bg-white transition-transform" style={{ transform: excludeFromBudget ? 'translateX(18px)' : 'translateX(0)' }} />
+          </button>
+        </div>
+      </div>
+      <div className="flex gap-2 mt-6 justify-end items-center">
+        {category && onDelete && (
+          <div className="mr-auto">
+            <ConfirmDeleteButton onConfirm={handleDeleteConfirm} />
+          </div>
+        )}
+        <button onClick={onClose}
+          className="h-[42px] px-5 rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-[14px] cursor-pointer">
+          Cancel
+        </button>
+        <button onClick={() => {
+          if (!subName.trim()) { setError('Category name is required'); return; }
+          if (!groupId) { setError('Please choose a group'); return; }
+          onSave({ groupId, subName: subName.trim(), emoji, excludeFromBudget });
+        }}
+          className="h-[42px] px-5 rounded-[11px] bg-primary text-on-primary font-bold text-[14px] cursor-pointer">
           Save
         </button>
       </div>
@@ -281,24 +477,31 @@ function AccountForm({
   );
 }
 
-// --- Category Form ---
-function CategoryForm({
-  category,
-  existingGroups,
+// --- Group Form (create / rename a category group) ---
+// Group swatch palette — Ledger avatar hues (stored as the token, e.g. 'c-rose').
+const GROUP_COLORS = ['c-teal', 'c-green', 'c-blue', 'c-indigo', 'c-violet', 'c-fuchsia', 'c-rose', 'c-orange', 'c-amber'];
+
+function GroupForm({
+  mode,
+  type,
+  name: initialName,
+  color: initialColor,
+  canDelete,
   onSave,
   onDelete,
   onClose,
 }: {
-  category?: Category;
-  existingGroups: string[];
-  onSave: (data: Record<string, unknown>) => void;
+  mode: 'new' | 'edit';
+  type: string;
+  name?: string;
+  color?: string | null;
+  canDelete?: boolean;
+  onSave: (name: string, color: string) => void;
   onDelete?: () => Promise<string | null>;
   onClose: () => void;
 }) {
-  const [catType, setCatType] = useState(category?.type ?? 'expense');
-  const [groupName, setGroupName] = useState(category?.group_name ?? '');
-  const [subName, setSubName] = useState(category?.sub_name ?? '');
-  const [isDeductible, setIsDeductible] = useState(category?.is_deductible === 1);
+  const [name, setName] = useState(initialName ?? '');
+  const [color, setColor] = useState(initialColor && GROUP_COLORS.includes(initialColor) ? initialColor : GROUP_COLORS[0]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -314,58 +517,51 @@ function CategoryForm({
 
   return (
     <ResponsiveModal isOpen={true} onClose={onClose}>
-      <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-4">
-        {category ? 'Edit Category' : 'Add Category'}
+      <h3 className="text-[18px] font-extrabold tracking-tight text-content mb-1">
+        {mode === 'new' ? 'New group' : 'Edit group'}
       </h3>
+      <div className="text-[12.5px] text-content-3 mb-4">{SECTION_LABEL[type]} section</div>
       {error && (
         <InlineNotification type="error" message={error} dismissible onDismiss={() => setError(null)} className="mb-3" />
       )}
-      <div className="flex flex-col gap-3">
-        <div>
-          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Type</label>
-          <div className="flex gap-2">
-            {['income', 'expense'].map((t) => (
-              <button key={t} onClick={() => setCatType(t)}
-                className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border-none cursor-pointer capitalize ${
-                  catType === t ? 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] btn-primary' : 'bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] btn-secondary'
-                }`}>
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Group Name</label>
-          <input value={groupName} onChange={(e) => setGroupName(e.target.value)} list="group-list"
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-          <datalist id="group-list">
-            {existingGroups.map((g) => <option key={g} value={g} />)}
-          </datalist>
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Sub-Category Name</label>
-          <input value={subName} onChange={(e) => setSubName(e.target.value)}
-            className="w-full px-3 py-2 border border-[var(--table-border)] rounded-lg text-[13px] bg-[var(--bg-input)] outline-none text-[var(--text-body)]" />
-        </div>
-        {catType === 'expense' && (
-          <label className="flex items-center gap-2 text-[13px] text-[var(--text-body)]">
-            <input type="checkbox" checked={isDeductible} onChange={(e) => setIsDeductible(e.target.checked)} />
-            Tax deductible
-          </label>
-        )}
+      {/* Name (with a live color preview swatch) */}
+      <div className="text-[13px] font-bold text-content mb-1.5">Name</div>
+      <div className="flex items-center gap-2.5">
+        <span className="w-11 h-11 flex-none rounded-[11px] border border-line-strong" style={{ background: `var(--${color})` }} />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Group name" autoFocus
+          className="flex-1 h-11 px-3.5 bg-surface-2 border border-line-strong rounded-[11px] text-content text-[14px] outline-none" />
       </div>
-      <div className="flex gap-2 mt-5 justify-end">
-        {category && onDelete && (
+      {/* Color */}
+      <div className="text-[13px] font-bold text-content mt-4 mb-2">Color</div>
+      <div className="flex flex-wrap gap-2.5">
+        {GROUP_COLORS.map((c) => (
+          <button key={c} type="button" onClick={() => setColor(c)} title={c}
+            className="w-11 h-11 rounded-[11px] flex items-center justify-center cursor-pointer transition-transform"
+            style={{ background: `var(--${c})`, boxShadow: color === c ? '0 0 0 2px var(--surface), 0 0 0 4px var(--primary)' : 'none' }}>
+            {color === c && (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            )}
+          </button>
+        ))}
+      </div>
+      {mode === 'edit' && !canDelete && (
+        <div className="text-[12px] text-content-3 mt-3">Move or delete this group’s categories before you can delete it.</div>
+      )}
+      <div className="flex gap-2 mt-6 justify-end items-center">
+        {mode === 'edit' && onDelete && canDelete && (
           <div className="mr-auto">
             <ConfirmDeleteButton onConfirm={handleDeleteConfirm} />
           </div>
         )}
         <button onClick={onClose}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-secondary-bg)] text-[var(--text-secondary)] border-none cursor-pointer btn-secondary">
+          className="h-[42px] px-5 rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-[14px] cursor-pointer">
           Cancel
         </button>
-        <button onClick={() => onSave({ groupName, subName, type: catType, isDeductible })}
-          className="px-4 py-2 text-[12px] font-semibold rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none cursor-pointer btn-primary">
+        <button onClick={() => {
+          if (!name.trim()) { setError('Group name is required'); return; }
+          onSave(name.trim(), color);
+        }}
+          className="h-[42px] px-5 rounded-[11px] bg-primary text-on-primary font-bold text-[14px] cursor-pointer">
           Save
         </button>
       </div>
@@ -1637,157 +1833,58 @@ function UsersPermissionsSection() {
   );
 }
 
-function StickyAddButton({ permission, label, onClick }: { permission: string; label: string; onClick: () => void }) {
-  return (
-    <PermissionGate permission={permission} fallback="disabled">
-      <div className="fixed z-10" style={{
-        left: '50%',
-        transform: 'translateX(-50%)',
-        bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
-      }}>
-        <button onClick={onClick}
-          className="flex items-center gap-1 cursor-pointer border-none"
-          style={{
-            background: 'var(--btn-primary-bg)',
-            color: 'var(--btn-primary-text)',
-            padding: '10px 24px',
-            borderRadius: 20,
-            fontSize: 13,
-            fontWeight: 600,
-            fontFamily: "'Hanken Grotesk', sans-serif",
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            whiteSpace: 'nowrap',
-          }}>
-          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> {label}
-        </button>
-      </div>
-    </PermissionGate>
-  );
-}
-
-// --- Expand/Contract Icons ---
-const ExpandIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="15 3 21 3 21 9" />
-    <line x1="14" y1="10" x2="21" y2="3" />
-    <polyline points="9 21 3 21 3 15" />
-    <line x1="10" y1="14" x2="3" y2="21" />
-  </svg>
-);
-const ContractIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="4 14 10 14 10 20" />
-    <line x1="3" y1="21" x2="10" y2="14" />
-    <polyline points="20 10 14 10 14 4" />
-    <line x1="21" y1="3" x2="14" y2="10" />
-  </svg>
-);
-
-// --- Expandable Card Wrapper ---
-function ExpandableCard({ title, subtitle, expanded, onToggle, children }: {
-  title: string;
-  subtitle: string;
-  expanded: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  const header = (
-    <>
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-[14px] font-bold text-[var(--text-primary)] m-0">{title}</h3>
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggle(); }}
-          className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[var(--bg-hover)]"
-          title={expanded ? 'Collapse' : 'Expand'}
-        >
-          {expanded ? <ContractIcon /> : <ExpandIcon />}
-        </button>
-      </div>
-      <p className="text-[13px] text-[var(--text-secondary)] mb-3">{subtitle}</p>
-    </>
-  );
-
-  return (
-    <>
-      {/* Always render inline card to preserve grid layout */}
-      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col h-[420px]"
-        style={expanded ? { opacity: 0.4, pointerEvents: 'none' } : undefined}>
-        {header}
-        {children}
-      </div>
-
-      {/* Expanded modal via portal */}
-      {expanded && createPortal(
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-40" onClick={onToggle}>
-          <div style={{ width: 'calc((100vw - 220px - 72px - 20px) / 2)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-5 py-4 shadow-[var(--bg-card-shadow)] flex flex-col"
-              style={{ height: '80vh', maxHeight: '80vh' }}>
-              {header}
-              {children}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-    </>
-  );
-}
 
 export default function SettingsPage() {
   const { addToast } = useToast();
-  const { isAdmin, hasPermission, user, logout } = useAuth();
-  const isMobile = useIsMobile();
+  const { isAdmin, hasPermission } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'settings';
-  const [mobileSubPage, setMobileSubPage] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [userList, setUserList] = useState<{ id: number; displayName: string }[]>([]);
   const [editingAccount, setEditingAccount] = useState<Account | null | 'new'>(null);
+  const [showInstitutions, setShowInstitutions] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null | 'new'>(null);
-  const [expandedAccounts, setExpandedAccounts] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState(false);
+  const [newCatGroupId, setNewCatGroupId] = useState<number | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupModal, setGroupModal] = useState<{ mode: 'new' | 'edit'; type: string; id?: number; name?: string; color?: string | null; count?: number } | null>(null);
 
-  const switchTab = (tab: string) => {
-    setSearchParams({ tab });
-  };
+  const rawPanel = searchParams.get('panel');
+  const legacyTab = searchParams.get('tab');
+  const panel = rawPanel || (legacyTab === 'preferences' ? 'profile' : 'accounts');
+  const setPanel = (p: string) => setSearchParams({ panel: p });
 
   const loadData = useCallback(async () => {
-    const [acctRes, catRes, userRes] = await Promise.all([
+    const [acctRes, catRes, groupRes, userRes] = await Promise.all([
       apiFetch<{ data: Account[] }>('/accounts'),
       apiFetch<{ data: Category[] }>('/categories'),
+      apiFetch<{ data: Group[] }>('/categories/groups'),
       apiFetch<{ data: { id: number; display_name: string }[] }>('/users'),
     ]);
     setAccounts(acctRes.data);
     setCategories(catRes.data);
+    setGroups(groupRes.data);
+    // Publish stored emoji to the app-wide override map so every other page
+    // (Transactions, Reports, Recurring, …) reflects edits immediately.
+    setCategoryEmojiOverrides(catRes.data);
     setUserList(userRes.data.map((u) => ({ id: u.id, displayName: u.display_name })));
     initOwnerSlots(userRes.data.map((u) => u.id));
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Group categories
-  const grouped: GroupedCategory[] = [];
-  const groupMap = new Map<string, GroupedCategory>();
+  // Categories grouped by their group_id (rows within a group, sorted).
+  const catsByGroup = new Map<number, Category[]>();
   for (const cat of categories) {
-    const key = `${cat.type}:${cat.group_name}`;
-    if (!groupMap.has(key)) {
-      const g = { group: cat.group_name, type: cat.type, subs: [] as Category[] };
-      groupMap.set(key, g);
-      grouped.push(g);
-    }
-    groupMap.get(key)!.subs.push(cat);
+    if (cat.group_id == null) continue;
+    if (!catsByGroup.has(cat.group_id)) catsByGroup.set(cat.group_id, []);
+    catsByGroup.get(cat.group_id)!.push(cat);
   }
-  // Sort sub-categories within each group by sort_order
-  for (const g of grouped) {
-    g.subs.sort((a, b) => a.sort_order - b.sort_order);
+  for (const arr of catsByGroup.values()) arr.sort((a, b) => a.sort_order - b.sort_order);
+  // Groups per section, ordered.
+  const groupsByType: Record<string, Group[]> = { income: [], expense: [], savings: [] };
+  for (const g of [...groups].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))) {
+    if (groupsByType[g.type]) groupsByType[g.type].push(g);
   }
-
-  const expenseGroups = grouped.filter((g) => g.type === 'expense').sort((a, b) => a.group.localeCompare(b.group));
-  const incomeGroups = grouped.filter((g) => g.type === 'income').sort((a, b) => a.group.localeCompare(b.group));
-  const allGroups = [...incomeGroups, ...expenseGroups];
-  const existingGroupNames = [...new Set(categories.filter((c) => c.type === 'expense').map((c) => c.group_name))];
-  existingGroupNames.push('Income');
 
   const handleSaveAccount = async (data: Record<string, unknown>) => {
     try {
@@ -1828,6 +1925,7 @@ export default function SettingsPage() {
         await apiFetch(`/categories/${editingCategory.id}`, { method: 'PUT', body: JSON.stringify(data) });
       }
       setEditingCategory(null);
+      setNewCatGroupId(null);
       addToast('Category saved');
       loadData();
     } catch {
@@ -1849,6 +1947,38 @@ export default function SettingsPage() {
       }
     }
     return null;
+  };
+
+  const handleSaveGroup = async (name: string, color: string) => {
+    if (!groupModal) return;
+    try {
+      if (groupModal.mode === 'new') {
+        await apiFetch('/categories/groups', { method: 'POST', body: JSON.stringify({ type: groupModal.type, name, color }) });
+        addToast('Group created');
+      } else {
+        await apiFetch(`/categories/groups/${groupModal.id}`, { method: 'PUT', body: JSON.stringify({ name, color }) });
+        addToast('Group renamed');
+      }
+      setGroupModal(null);
+      loadData();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to save group', 'error');
+    }
+  };
+
+  const handleDeleteGroup = async (): Promise<string | null> => {
+    if (!groupModal || groupModal.mode !== 'edit' || !groupModal.id) return null;
+    try {
+      await apiFetch(`/categories/groups/${groupModal.id}`, { method: 'DELETE' });
+      setGroupModal(null);
+      addToast('Group deleted');
+      loadData();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Delete failed';
+      addToast(msg, 'error');
+      return msg;
+    }
   };
 
   // Drag-and-drop sensors and handler for category reorder
@@ -1881,311 +2011,146 @@ export default function SettingsPage() {
     }
   };
 
+  const navSections = [
+    { title: 'Account', items: [
+      { id: 'profile', label: 'Profile', inert: false },
+      { id: 'security', label: 'Security', inert: true },
+      { id: 'notifications', label: 'Notifications', inert: true },
+    ] },
+    { title: 'Household', items: [
+      { id: 'accounts', label: 'Accounts', inert: false },
+      { id: 'categories', label: 'Categories', inert: false },
+      { id: 'merchants', label: 'Merchants', inert: false },
+      ...(isAdmin() ? [{ id: 'users', label: 'Users', inert: false }] : []),
+    ] },
+  ];
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
-        {isMobile && mobileSubPage ? (
-          <button onClick={() => setMobileSubPage(null)}
-            className="flex items-center gap-1 text-[13px] text-[var(--text-secondary)] bg-transparent border-none cursor-pointer font-medium">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-            Settings
-          </button>
-        ) : (
-          <h1 className="page-title text-[22px] font-bold text-[var(--text-primary)]">Settings</h1>
-        )}
+    <div>
+      <div className="sticky top-0 z-20 -mt-4 md:-mt-7 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-6 bg-bg border-b border-line">
+        <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight leading-tight m-0">Settings</h1>
       </div>
 
-      {/* Tab Navigation — desktop only when no sub-page */}
-      {!(isMobile && mobileSubPage) && (
-        <div className={`flex bg-[var(--bg-hover)] rounded-lg p-0.5 ${isMobile ? 'w-full' : 'w-fit'}`}>
-          {[{ id: 'settings', label: 'Settings' }, { id: 'preferences', label: 'Preferences' }].map((tab) => (
-            <button key={tab.id} onClick={() => switchTab(tab.id)}
-              className={`px-5 py-[7px] text-[13px] border-none cursor-pointer rounded-md transition-colors ${isMobile ? 'flex-1' : ''} ${
-                activeTab === tab.id
-                  ? 'bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold shadow-xs'
-                  : 'bg-transparent text-[var(--text-secondary)] font-normal'
-              }`}>
-              {tab.label}
-            </button>
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        {/* left settings-nav */}
+        <div className="w-full md:w-[240px] md:shrink-0 flex flex-col gap-4 md:sticky md:top-24">
+          {navSections.map((sec) => (
+            <div key={sec.title} className="bg-surface border border-line rounded-[16px] shadow-sm p-1.5">
+              <div className="px-2.5 pt-2 pb-1 font-mono text-[11px] tracking-[0.1em] uppercase text-content-3">{sec.title}</div>
+              {sec.items.map((it) => {
+                const active = panel === it.id;
+                return (
+                  <button key={it.id} disabled={it.inert} onClick={() => { if (!it.inert) setPanel(it.id); }}
+                    className="flex items-center gap-2.5 w-full text-left h-10 px-2.5 rounded-[10px] text-sm font-semibold transition-colors"
+                    style={{ color: active ? 'var(--primary)' : it.inert ? 'var(--text-3)' : 'var(--text)', background: active ? 'color-mix(in srgb, var(--primary) 15%, transparent)' : 'transparent', cursor: it.inert ? 'default' : 'pointer' }}>
+                    {it.label}
+                    {it.inert && <span className="ml-auto text-[10px] font-mono text-content-3">soon</span>}
+                  </button>
+                );
+              })}
+            </div>
           ))}
         </div>
-      )}
 
-      {activeTab === 'preferences' ? (
-        <PreferencesTab />
-      ) : isMobile ? (
-        /* Mobile: drill-through navigation */
-        mobileSubPage === 'accounts' ? (
-          <>
-            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Accounts</h2>
-            <div className="flex flex-col gap-2">
-              {accounts.map((a) => (
-                <div key={a.id}
-                  onClick={() => hasPermission('accounts.edit') ? setEditingAccount(a) : null}
-                  className={`bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)] ${hasPermission('accounts.edit') ? 'cursor-pointer active:bg-[var(--bg-hover)]' : ''}`}>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="text-[13px] font-medium text-[var(--text-primary)]">
-                        {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {(a.owners || []).map((o) => <OwnerBadge key={o.id} user={o} />)}
-                        {a.isShared && <SharedBadge />}
-                        <span className="text-[11px] text-[var(--text-muted)] capitalize">{a.type}</span>
-                      </div>
+        {/* right content pane */}
+        <div className="flex-1 min-w-0 w-full">
+          {panel === 'profile' && <PreferencesTab />}
+          {(panel === 'security' || panel === 'notifications') && (
+            <div className="bg-surface border border-line rounded-[16px] p-10 text-center">
+              <div className="text-[16px] font-bold text-content mb-1">{panel === 'security' ? 'Security' : 'Notifications'}</div>
+              <div className="text-sm text-content-3">{panel === 'security' ? 'Password and two-factor settings live under Profile for now.' : 'Coming soon.'}</div>
+            </div>
+          )}
+          {panel === 'merchants' && <MerchantsPanel />}
+          {panel === 'users' && isAdmin() && <UsersPermissionsSection />}
+
+          {panel === 'accounts' && (
+            <div className="flex flex-col gap-5">
+              <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
+              <div className="bg-surface border border-line rounded-[16px] shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+                  <span className="text-[17px] font-extrabold">Your accounts</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowInstitutions(true)} className="h-9 px-3.5 rounded-[10px] bg-surface-2 border border-line-strong text-content font-semibold text-[13px]">Institutions</button>
+                    <PermissionGate permission="accounts.create" fallback="disabled">
+                      <button onClick={() => setEditingAccount('new')} className="h-9 px-3.5 rounded-[10px] bg-primary text-on-primary font-bold text-[13px]">Add account</button>
+                    </PermissionGate>
+                  </div>
+                </div>
+                {accounts.map((a) => (
+                  <div key={a.id} onClick={() => { if (hasPermission('accounts.edit')) setEditingAccount(a); }}
+                    className={`flex items-center gap-3 px-5 py-3 border-t border-line ${hasPermission('accounts.edit') ? 'cursor-pointer hover:bg-surface-2' : ''}`}>
+                    <VendorAvatar name={a.institutionRef?.name || a.name} src={a.avatar_url || a.institutionRef?.logo_url || undefined} color={a.institutionRef?.color || 'var(--c-blue)'} size={36} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-[15px]">{a.name} {a.last_four && <span className="text-content-3 text-[12px]">····{a.last_four}</span>}</div>
+                      <div className="text-[13px] text-content-3 capitalize">{a.type}</div>
                     </div>
+                    {(a.owners || []).map((o) => <OwnerBadge key={o.id} user={o} />)}
+                    {a.isShared && <SharedBadge />}
                     <ClassificationBadge classification={a.classification as AccountClassification} />
+                  </div>
+                ))}
+                {accounts.length === 0 && <div className="px-5 py-6 text-sm text-content-3">No accounts yet.</div>}
+              </div>
+            </div>
+          )}
+
+          {panel === 'categories' && (
+            <div className="flex flex-col gap-[22px]">
+              <div>
+                <h1 className="text-[22px] font-extrabold tracking-tight m-0">Categories</h1>
+                <div className="flex items-center gap-2.5 mt-3 px-4 py-3 rounded-[12px] text-[14px]"
+                  style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)', color: 'var(--primary)' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-none"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+                  Changes you make to groups and categories here apply everywhere in Ledger. Tailor the structure to fit how you budget.
+                </div>
+              </div>
+
+              {(['income', 'expense', 'savings'] as const).map((t) => (
+                <div key={t}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[18px] font-extrabold tracking-tight">{SECTION_LABEL[t]}</span>
+                    {hasPermission('categories.create') && (
+                      <button onClick={() => setGroupModal({ mode: 'new', type: t })} className="text-[14px] font-bold text-primary cursor-pointer">Create group</button>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-3.5">
+                    {groupsByType[t].map((g) => {
+                      const cats = catsByGroup.get(g.id) ?? [];
+                      return (
+                        <div key={g.id} className="border border-line rounded-[16px] bg-surface overflow-hidden shadow-sm">
+                          <div className="flex items-center gap-2.5 px-5 py-3.5 bg-surface-2 border-b border-line">
+                            <span className="w-3.5 h-3.5 shrink-0 rounded-[4px]" style={{ background: g.color ? `var(--${g.color})` : getCategoryColorVar(g.name) }} />
+                            <span className="text-[15px] font-bold text-content">{g.name}</span>
+                            {hasPermission('categories.edit') && (
+                              <button onClick={() => setGroupModal({ mode: 'edit', type: g.type, id: g.id, name: g.name, color: g.color, count: cats.length })} className="text-[13px] font-semibold text-content-3 cursor-pointer">Edit</button>
+                            )}
+                            <span className="ml-auto font-mono text-[12px] text-content-3">{cats.length}</span>
+                          </div>
+                          <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={(e) => handleCategoryDragEnd(e, cats)}>
+                            <SortableContext items={cats.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+                              {cats.map((c) => <SortableDesktopSub key={c.id} cat={c} canEdit={hasPermission('categories.edit')} onEdit={(cc) => setEditingCategory(cc)} />)}
+                            </SortableContext>
+                          </DndContext>
+                          {hasPermission('categories.create') && (
+                            <button onClick={() => { setNewCatGroupId(g.id); setEditingCategory('new'); }} className="flex items-center gap-2.5 px-5 h-12 w-full text-content-3 text-[14px] font-semibold cursor-pointer hover:bg-surface-2">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg> Create category
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {groupsByType[t].length === 0 && (
+                      <div className="text-[13px] text-content-3 px-1">No groups yet{hasPermission('categories.create') ? ' — use “Create group” to add one.' : '.'}</div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-            <PermissionGate permission="accounts.create" fallback="disabled">
-              <button onClick={() => setEditingAccount('new')}
-                className="w-full py-2.5 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 btn-secondary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Account
-              </button>
-            </PermissionGate>
-          </>
-        ) : mobileSubPage === 'categories' ? (
-          <>
-            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Categories</h2>
-            <div className="flex flex-col gap-3 pb-16">
-              {allGroups.map((g, idx) => {
-                const allGroupNames = allGroups.map((x) => x.group);
-                const color = getCategoryColor(g.group, allGroupNames);
-                const isFirstOfType = idx === 0 || allGroups[idx - 1].type !== g.type;
-                return (
-                  <div key={`${g.type}:${g.group}`}>
-                    {isFirstOfType && (
-                      <div className={`flex items-center gap-2 ${idx > 0 ? 'mt-2' : ''} mb-2`}>
-                        <div className="h-[2px] flex-1" style={{ background: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }} />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.06em] whitespace-nowrap" style={{ color: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }}>
-                          {g.type === 'income' ? 'Income Categories' : 'Expense Categories'}
-                        </span>
-                        <div className="h-[2px] flex-1" style={{ background: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }} />
-                      </div>
-                    )}
-                    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3 shadow-[var(--bg-card-shadow)]">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-sm" style={{ background: color }} />{g.group}
-                      </span>
-                      <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
-                    </div>
-                    <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={(e) => handleCategoryDragEnd(e, g.subs)}>
-                      <SortableContext items={g.subs.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-                        {g.subs.map((s) => (
-                          <SortableMobileSub key={s.id} cat={s} canEdit={hasPermission('categories.edit')} onEdit={(c) => setEditingCategory(c)} />
-                        ))}
-                      </SortableContext>
-                    </DndContext>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <StickyAddButton permission="categories.create" label="Add Category" onClick={() => setEditingCategory('new')} />
-          </>
-        ) : mobileSubPage === 'users' ? (
-          <>
-            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Users & Permissions</h2>
-            {isAdmin() && <UsersPermissionsSection />}
-          </>
-        ) : mobileSubPage === 'banksync' ? (
-          <>
-            <h2 className="text-[16px] font-bold text-[var(--text-primary)] m-0">Bank Sync</h2>
-            <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
-          </>
-        ) : (
-          /* Mobile navigation list */
-          <>
-          <div className="flex flex-col gap-3">
-            {[
-              { id: 'accounts', icon: '🏦', label: 'Accounts', desc: `${accounts.length} accounts configured`, show: true },
-              { id: 'categories', icon: '📂', label: 'Categories', desc: `${categories.length} categories`, show: true },
-              { id: 'users', icon: '👥', label: 'Users & Permissions', desc: 'Manage users and roles', show: isAdmin() },
-              { id: 'banksync', icon: '🔗', label: 'Bank Sync', desc: 'SimpleFIN connections', show: true },
-            ].filter(item => item.show).map((item) => (
-              <button key={item.id} onClick={() => setMobileSubPage(item.id)}
-                className="w-full bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] px-4 py-3.5 shadow-[var(--bg-card-shadow)] flex items-center gap-3 text-left cursor-pointer active:bg-[var(--bg-hover)]">
-                <span className="text-[20px]">{item.icon}</span>
-                <div className="flex-1">
-                  <div className="text-[14px] font-semibold text-[var(--text-primary)]">{item.label}</div>
-                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">{item.desc}</div>
-                </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            ))}
-          </div>
-
-          {/* My Profile Card */}
-          {user && (
-            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-4 mt-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-[16px] font-bold text-white flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg, #3b82f6, #10b981)' }}>
-                  {user.displayName.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-bold text-[var(--text-primary)]">{user.displayName}</div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[11px] text-[var(--text-secondary)]">@{user.username}</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded capitalize ${
-                      user.role === 'owner' ? 'bg-[var(--badge-owner-bg)] text-[var(--badge-owner-text)]' :
-                      user.role === 'admin' ? 'bg-[var(--badge-investment-bg)] text-[var(--badge-investment-text)]' :
-                      'bg-[var(--badge-account-bg)] text-[var(--badge-account-text)]'
-                    }`}>{user.role}</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => switchTab('preferences')}
-                className="w-full mt-3 py-2 rounded-lg border-none cursor-pointer text-[12px] font-semibold bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] btn-secondary"
-              >
-                Edit Profile & Password
-              </button>
-            </div>
           )}
+        </div>
+      </div>
 
-          {/* App Info Card */}
-          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--bg-card-border)] shadow-[var(--bg-card-shadow)] px-4 py-4 mt-3 mb-20">
-            <div className="flex justify-between items-center text-[12px] text-[var(--text-secondary)]">
-              <span>Ledger</span>
-              <span className="font-mono text-[11px] text-[var(--text-muted)]">v1.0.0</span>
-            </div>
-            <button
-              onClick={logout}
-              className="w-full mt-3 py-2 bg-transparent border-none cursor-pointer text-[13px] font-semibold text-[#ef4444] text-center"
-            >
-              Sign Out
-            </button>
-          </div>
-          </>
-        )
-      ) : (
-        <>
-          {/* Bank Sync Section */}
-          <div>
-            <BankSyncSection accounts={accounts} users={userList} onAccountCreated={loadData} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-5">
-            {/* Accounts */}
-            <ExpandableCard
-              title="Accounts"
-              subtitle="Each account has an owner and classification for filtering and net worth."
-              expanded={expandedAccounts}
-              onToggle={() => setExpandedAccounts(!expandedAccounts)}
-            >
-              <div className="flex-1 min-h-0">
-                <ScrollableList maxHeight="100%">
-                  <table className="w-full border-collapse text-[13px]">
-                    <thead>
-                      <tr>
-                        <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Account</th>
-                        <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Owner</th>
-                        <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Type</th>
-                        <th className="text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-[0.04em] px-2.5 py-2 border-b-2 border-[var(--table-border)] text-left">Class</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {accounts.map((a) => (
-                        <tr key={a.id}
-                          onClick={() => hasPermission('accounts.edit') ? setEditingAccount(a) : null}
-                          className={`border-b border-[var(--table-row-border)] transition-colors ${hasPermission('accounts.edit') ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : ''}`}>
-                          <td className="px-2.5 py-2 text-[13px] text-[var(--text-body)] font-medium">
-                            {a.name} {a.last_four && <span className="text-[var(--text-muted)] text-[11px]">({a.last_four})</span>}
-                          </td>
-                          <td className="px-2.5 py-2">
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {(a.owners || []).map((o) => (
-                                <OwnerBadge key={o.id} user={o} />
-                              ))}
-                              {a.isShared && <SharedBadge />}
-                            </div>
-                          </td>
-                          <td className="px-2.5 py-2 text-[12px] text-[var(--text-secondary)] capitalize">{a.type}</td>
-                          <td className="px-2.5 py-2">
-                            <ClassificationBadge classification={a.classification as AccountClassification} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </ScrollableList>
-              </div>
-              <PermissionGate permission="accounts.create" fallback="disabled">
-                <button onClick={() => { setEditingAccount('new'); }}
-                  className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 btn-secondary">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Add Account
-                </button>
-              </PermissionGate>
-            </ExpandableCard>
-
-            {/* Categories */}
-            <ExpandableCard
-              title="Categories"
-              subtitle="Parent categories group sub-categories for budgets and reports."
-              expanded={expandedCategories}
-              onToggle={() => setExpandedCategories(!expandedCategories)}
-            >
-              <div className="flex-1 min-h-0">
-                <ScrollableList maxHeight="100%">
-                  {allGroups.map((g, idx) => {
-                  const allGroupNames = allGroups.map((x) => x.group);
-                  const color = getCategoryColor(g.group, allGroupNames);
-                  const isFirstOfType = idx === 0 || allGroups[idx - 1].type !== g.type;
-                  return (
-                    <div key={`${g.type}:${g.group}`}>
-                      {isFirstOfType && (
-                        <div className={`flex items-center gap-2 ${idx > 0 ? 'mt-3' : ''} mb-2`}>
-                          <div className="h-[2px] flex-1" style={{ background: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }} />
-                          <span className="text-[10px] font-bold uppercase tracking-[0.06em] whitespace-nowrap" style={{ color: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }}>
-                            {g.type === 'income' ? 'Income Categories' : 'Expense Categories'}
-                          </span>
-                          <div className="h-[2px] flex-1" style={{ background: g.type === 'income' ? 'var(--color-positive)' : 'var(--color-negative)' }} />
-                        </div>
-                      )}
-                      <div className="mb-2">
-                      <div className="flex justify-between items-center py-1.5" style={{ borderBottom: `2px solid ${color}30` }}>
-                        <span className="font-bold text-[12px] text-[var(--btn-secondary-text)] flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-sm" style={{ background: color }} />{g.group}
-                        </span>
-                        <span className="text-[11px] text-[var(--text-muted)]">{g.subs.length} subs</span>
-                      </div>
-                      <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={(e) => handleCategoryDragEnd(e, g.subs)}>
-                        <SortableContext items={g.subs.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-                          {g.subs.map((s) => (
-                            <SortableDesktopSub key={s.id} cat={s} canEdit={hasPermission('categories.edit')} onEdit={(c) => { setEditingCategory(c); }} />
-                          ))}
-                        </SortableContext>
-                      </DndContext>
-                      </div>
-                    </div>
-                  );
-                })}
-                </ScrollableList>
-              </div>
-              <PermissionGate permission="categories.create" fallback="disabled">
-                <button onClick={() => { setEditingCategory('new'); }}
-                  className="w-full mt-3 py-2 bg-[var(--btn-secondary-bg)] text-[var(--btn-secondary-text)] rounded-lg text-[13px] font-semibold border-none cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 btn-secondary">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Add Category
-                </button>
-              </PermissionGate>
-            </ExpandableCard>
-          </div>
-
-          {/* Users & Permissions — Admin only */}
-          {isAdmin() && (
-            <div>
-              <UsersPermissionsSection />
-            </div>
-          )}
-        </>
-      )}
 
       {/* Modals */}
       {editingAccount !== null && (
@@ -2195,15 +2160,35 @@ export default function SettingsPage() {
           onSave={handleSaveAccount}
           onDelete={editingAccount !== 'new' && hasPermission('accounts.delete') ? handleDeleteAccount : undefined}
           onClose={() => setEditingAccount(null)}
+          onAvatarChanged={loadData}
+        />
+      )}
+      {showInstitutions && (
+        <InstitutionManager
+          canEdit={hasPermission('accounts.edit')}
+          onClose={() => { setShowInstitutions(false); loadData(); }}
         />
       )}
       {editingCategory !== null && (
         <CategoryForm
           category={editingCategory === 'new' ? undefined : editingCategory}
-          existingGroups={existingGroupNames}
+          groups={groups}
+          initialGroupId={editingCategory === 'new' ? newCatGroupId : undefined}
           onSave={handleSaveCategory}
           onDelete={editingCategory !== 'new' && hasPermission('categories.delete') ? handleDeleteCategory : undefined}
-          onClose={() => setEditingCategory(null)}
+          onClose={() => { setEditingCategory(null); setNewCatGroupId(null); }}
+        />
+      )}
+      {groupModal !== null && (
+        <GroupForm
+          mode={groupModal.mode}
+          type={groupModal.type}
+          name={groupModal.name}
+          color={groupModal.color}
+          canDelete={groupModal.mode === 'edit' && (groupModal.count ?? 0) === 0}
+          onSave={handleSaveGroup}
+          onDelete={groupModal.mode === 'edit' && hasPermission('categories.delete') ? handleDeleteGroup : undefined}
+          onClose={() => setGroupModal(null)}
         />
       )}
     </div>

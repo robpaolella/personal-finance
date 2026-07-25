@@ -107,6 +107,7 @@ router.get('/summary', (req: Request, res: Response) => {
         WHERE t.category_id IS NULL AND t.date >= ? AND t.date <= ?
       ) combined
       JOIN categories c ON combined.cat_id = c.id
+      WHERE COALESCE(c.exclude_from_budget, 0) = 0
     `).get(startDate, endDate, startDate, endDate) as { income: number; expenses: number };
     const monthTotals = monthRows ?? { income: 0, expenses: 0 };
 
@@ -126,14 +127,17 @@ router.get('/summary', (req: Request, res: Response) => {
         WHERE t.category_id IS NULL AND t.date >= ? AND t.date <= ?
       ) combined
       JOIN categories c ON combined.cat_id = c.id
+      WHERE COALESCE(c.exclude_from_budget, 0) = 0
     `).get(priorStart, priorEnd, priorStart, priorEnd) as { income: number; expenses: number };
     const priorTotals = priorRows ?? { income: 0, expenses: 0 };
 
-    // Total budgeted expenses for month
+    // Total budgeted expenses for month — exclude hidden-from-budget categories
+    // so the budgeted total reconciles with the (now-filtered) actual expenses.
     const [budgetTotal] = db.select({
       total: sql<number>`coalesce(sum(${budgets.amount}), 0)`,
     }).from(budgets)
-      .where(eq(budgets.month, month))
+      .innerJoin(categories, eq(budgets.category_id, categories.id))
+      .where(and(eq(budgets.month, month), sql`coalesce(${categories.exclude_from_budget}, 0) = 0`))
       .all();
 
     res.json({
@@ -172,7 +176,7 @@ router.get('/spending-by-category', (req: Request, res: Response) => {
         WHERE t.category_id IS NULL AND t.date >= ? AND t.date <= ?
       ) combined
       JOIN categories c ON combined.cat_id = c.id
-      WHERE c.type = 'expense'
+      WHERE c.type = 'expense' AND COALESCE(c.exclude_from_budget, 0) = 0
       GROUP BY c.group_name
     `).all(startDate, endDate, startDate, endDate) as { groupName: string; totalSpent: number }[];
 
@@ -182,7 +186,7 @@ router.get('/spending-by-category', (req: Request, res: Response) => {
       totalBudgeted: sql<number>`coalesce(sum(${budgets.amount}), 0)`,
     }).from(budgets)
       .innerJoin(categories, eq(budgets.category_id, categories.id))
-      .where(and(eq(budgets.month, month), eq(categories.type, 'expense')))
+      .where(and(eq(budgets.month, month), eq(categories.type, 'expense'), sql`coalesce(${categories.exclude_from_budget}, 0) = 0`))
       .groupBy(categories.group_name)
       .all();
 
@@ -224,6 +228,7 @@ router.get('/income-vs-expenses', (req: Request, res: Response) => {
         WHERE t.category_id IS NULL AND substr(t.date, 1, 4) = ?
       ) combined
       JOIN categories c ON combined.cat_id = c.id
+      WHERE COALESCE(c.exclude_from_budget, 0) = 0
       GROUP BY month
     `).all(year, year) as { month: number; totalIncome: number; totalExpenses: number }[];
 
@@ -254,6 +259,7 @@ router.get('/recent-transactions', (req: Request, res: Response) => {
       amount: transactions.amount,
       merchant_id: transactions.merchant_id,
       merchant_name: merchants.name,
+      merchant_logo: merchants.logo_url,
       account_id: accounts.id,
       account_name: accounts.name,
       account_last_four: accounts.last_four,
@@ -267,6 +273,18 @@ router.get('/recent-transactions', (req: Request, res: Response) => {
       .innerJoin(accounts, eq(transactions.account_id, accounts.id))
       .leftJoin(categories, eq(transactions.category_id, categories.id))
       .leftJoin(merchants, eq(transactions.merchant_id, merchants.id))
+      // Hide transactions from "hidden from budget" categories (only the
+      // Transactions page shows those). Keep: a categorized txn whose category is
+      // not hidden; a split txn with at least one non-hidden leg; and plain
+      // uncategorized txns (no category, no splits — not from a hidden category).
+      .where(sql`(
+        (${transactions.category_id} IS NOT NULL AND COALESCE(${categories.exclude_from_budget}, 0) = 0)
+        OR (${transactions.category_id} IS NULL AND EXISTS (
+          SELECT 1 FROM transaction_splits ts JOIN categories c2 ON ts.category_id = c2.id
+          WHERE ts.transaction_id = ${transactions.id} AND COALESCE(c2.exclude_from_budget, 0) = 0))
+        OR (${transactions.category_id} IS NULL AND NOT EXISTS (
+          SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = ${transactions.id}))
+      )`)
       .orderBy(desc(transactions.date), desc(transactions.id))
       .limit(limit)
       .all();
@@ -283,6 +301,7 @@ router.get('/recent-transactions', (req: Request, res: Response) => {
         FROM transaction_splits ts
         JOIN categories c ON ts.category_id = c.id
         WHERE ts.transaction_id IN (${splitTxnIds.map(() => '?').join(',')})
+          AND COALESCE(c.exclude_from_budget, 0) = 0
         ORDER BY ts.id
       `).all(...splitTxnIds) as {
         transaction_id: number; category_id: number; amount: number;
@@ -306,7 +325,7 @@ router.get('/recent-transactions', (req: Request, res: Response) => {
         description: r.description,
         note: r.note,
         amount: r.amount,
-        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name } : null,
+        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name, logoUrl: r.merchant_logo ?? null } : null,
         account: { id: r.account_id, name: r.account_name, lastFour: r.account_last_four, owner: r.account_owner, owners, isShared: owners.length > 1 },
         category: r.category_id ? { id: r.category_id, groupName: r.category_group_name, subName: r.category_sub_name, displayName: r.category_display_name, type: r.category_type } : null,
         splits,
