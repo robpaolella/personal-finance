@@ -325,6 +325,7 @@ export default function BankSyncPanel({ categories }: { categories: Category[] }
               rawDescription: t.rawDescription,
               amount: t.amount,
               categoryId: t.splits ? null : t.categoryId,
+              confidence: t.splits ? null : (t.confidence ?? null),
               ...(t.splits ? { splits: t.splits } : {}),
             })),
             balanceUpdates: selectedBalances.map((b) => ({

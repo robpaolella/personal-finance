@@ -9,6 +9,7 @@ import Tooltip from './Tooltip';
 import { ConnectedBadge } from './badges';
 import InlineNotification from './InlineNotification';
 import ResponsiveModal from './ResponsiveModal';
+import InstitutionPicker from './InstitutionPicker';
 
 interface Connection {
   id: number;
@@ -96,6 +97,7 @@ function NewAccountForm({
   const [type, setType] = useState(defaults.type);
   const [classification, setClassification] = useState(defaults.classification);
   const [selectedOwnerIds, setSelectedOwnerIds] = useState<Set<number>>(new Set(isShared ? [] : [currentUserId]));
+  const [institutionId, setInstitutionId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,6 +137,10 @@ function NewAccountForm({
           </select>
         </div>
         <div>
+          <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Institution</label>
+          <InstitutionPicker value={institutionId} onChange={(id) => setInstitutionId(id)} />
+        </div>
+        <div>
           <label className="block text-[11px] font-medium text-[var(--text-secondary)] mb-1">Owner</label>
           <div className="flex gap-2">
             {users.map((u) => (
@@ -168,7 +174,7 @@ function NewAccountForm({
           if (selectedOwnerIds.size === 0) { setError('At least one owner is required'); return; }
           setSaving(true);
           try {
-            await onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds) });
+            await onSave({ name, lastFour: lastFour || null, type, classification, ownerIds: Array.from(selectedOwnerIds), institutionId });
           } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create account');
             setSaving(false);

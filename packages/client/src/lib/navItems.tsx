@@ -29,6 +29,9 @@ export const icons: Record<string, ReactNode> = {
   import: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
   ),
+  reviews: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+  ),
   settings: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
   ),
@@ -43,11 +46,14 @@ export interface NavItem {
   icon: ReactNode;
 }
 
-// Primary navigation — the seven routable pages, in design order (spec 00).
+// Primary navigation — the routable pages, in design order (docs/Import Flow
+// app shell places Import between Transactions and Review).
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: icons.dashboard },
   { to: '/accounts', label: 'Accounts', icon: icons.accounts },
   { to: '/transactions', label: 'Transactions', icon: icons.transactions },
+  { to: '/import', label: 'Import', icon: icons.import },
+  { to: '/reviews', label: 'Review', icon: icons.reviews },
   { to: '/reports', label: 'Reports', icon: icons.reports },
   { to: '/budget', label: 'Budget', icon: icons.budget },
   { to: '/recurring', label: 'Recurring', icon: icons.recurring },
@@ -58,7 +64,6 @@ export const NAV_ITEMS: NavItem[] = [
 // not the primary nav (kept as live routes).
 export const UTILITY_ITEMS: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: icons.settings },
-  { to: '/import', label: 'Import', icon: icons.import },
 ];
 
 // Tabs shown directly in the mobile bottom tab bar
@@ -74,6 +79,7 @@ export const MORE_MENU_ITEMS: NavItem[] = [
   { to: '/reports', label: 'Reports', icon: icons.reports },
   { to: '/recurring', label: 'Recurring', icon: icons.recurring },
   { to: '/investments', label: 'Investments', icon: icons.investments },
+  { to: '/reviews', label: 'Reviews', icon: icons.reviews },
   { to: '/settings', label: 'Settings', icon: icons.settings },
   { to: '/import', label: 'Import', icon: icons.import },
 ];

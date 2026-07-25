@@ -56,6 +56,12 @@ input[type="number"] {
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Thin custom scrollbars for Import popovers/preview (docs/Import Flow) */
+.imp-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.imp-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 20px; }
+.imp-scroll::-webkit-scrollbar-track { background: transparent; }
+.imp-scroll { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+
 /* Button hover effects */
 .btn-primary { transition: all 150ms ease; }
 .btn-primary:hover { background: var(--btn-primary-hover) !important; transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -410,6 +416,17 @@ input[aria-invalid="true"]:focus, select[aria-invalid="true"]:focus, textarea[ar
   }
   /* All currency / figures use tabular numerals so columns align. */
   .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Tailwind v4 Preflight no longer sets cursor:pointer on buttons. Restore it
+     for enabled clickable elements. Explicit `cursor-*` utilities still win
+     (utilities layer > base), so `disabled:cursor-default` etc. are unaffected. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  summary,
+  select:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* ── Responsive Utilities ── */

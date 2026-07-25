@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { db, sqlite } from '../db/index.js';
-import { transactions, categories, transactionSplits, dismissedTransfers } from '../db/schema.js';
-import { findOrCreateMerchant } from '../db/merchants.js';
+import { transactions, transactionSplits, dismissedTransfers } from '../db/schema.js';
+import { resolveMerchantId } from '../db/merchants.js';
+import { buildCategorizer } from '../services/categorize.js';
 import { eq } from 'drizzle-orm';
 import { requirePermission } from '../middleware/permissions.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
@@ -137,188 +138,19 @@ router.post('/categorize', requirePermission('import.csv'), (req: Request, res: 
       return;
     }
 
-    // Build pattern map from existing transaction history
-    const history = db.select({
-      description: transactions.description,
-      category_id: transactions.category_id,
-      group_name: categories.group_name,
-      sub_name: categories.sub_name,
-      type: categories.type,
-    }).from(transactions)
-      .innerJoin(categories, eq(transactions.category_id, categories.id))
-      .all();
-
-    // Build category distribution map: description → { categoryId → info + count }
-    type CatInfo = { groupName: string; subName: string; type: string; count: number };
-    const descCatDist = new Map<string, Map<number, CatInfo>>();
-    for (const h of history) {
-      const key = h.description.toLowerCase().trim();
-      if (!descCatDist.has(key)) descCatDist.set(key, new Map());
-      const catMap = descCatDist.get(key)!;
-      const catId = h.category_id!;
-      const existing = catMap.get(catId);
-      if (existing) {
-        existing.count++;
-      } else {
-        catMap.set(catId, {
-          groupName: h.group_name,
-          subName: h.sub_name,
-          type: h.type,
-          count: 1,
-        });
-      }
-    }
-
-    // Returns the dominant category if one exists with sufficient consistency.
-    // With < 3 data points, always returns the most common (not enough data to measure variance).
-    // With >= 3 data points, requires >= 75% dominance to suggest.
-    const DOMINANCE_THRESHOLD = 0.75;
-    const MIN_HISTORY_FOR_VARIANCE = 3;
-
-    function getDominantCategory(catMap: Map<number, CatInfo>): { categoryId: number; groupName: string; subName: string; type: string } | null {
-      let total = 0;
-      let best: { categoryId: number; groupName: string; subName: string; type: string; count: number } | null = null;
-      for (const [catId, info] of catMap) {
-        total += info.count;
-        if (!best || info.count > best.count) {
-          best = { categoryId: catId, groupName: info.groupName, subName: info.subName, type: info.type, count: info.count };
-        }
-      }
-      if (!best) return null;
-      if (total < MIN_HISTORY_FOR_VARIANCE) return best;
-      if (best.count / total >= DOMINANCE_THRESHOLD) return best;
-      return null;
-    }
-
-    function getTotalCount(catMap: Map<number, CatInfo>): number {
-      let total = 0;
-      for (const info of catMap.values()) total += info.count;
-      return total;
-    }
-
-    // Keyword rules for common merchants
-    const RULES: { pattern: RegExp; groupName: string; subName: string }[] = [
-      { pattern: /shell|chevron|exxon|\bmobil\b|bp |sunoco|gas|fuel|wawa.*gas/i, groupName: 'Auto/Transportation', subName: 'Fuel' },
-      { pattern: /costco gas/i, groupName: 'Auto/Transportation', subName: 'Fuel' },
-      { pattern: /costco|giant|groceries|grocery|aldi|trader joe|whole foods|safeway|kroger|publix|wegmans|food lion|jimbo/i, groupName: 'Daily Living', subName: 'Groceries' },
-      { pattern: /amazon|amzn/i, groupName: 'Daily Living', subName: 'Online Shopping' },
-      { pattern: /walmart|target|dollar/i, groupName: 'Daily Living', subName: 'General Merchandise' },
-      { pattern: /netflix|hulu|disney|spotify|apple.*music|hbo|paramount|peacock/i, groupName: 'Dues/Subscriptions', subName: 'Streaming Services' },
-      { pattern: /restaurant|mcdonald|wendy|burger|chick-fil|chipotle|panera|starbucks|dunkin|coffee|pizza|taco bell|diner|jersey mike|in-n-out|del taco|subway|on the border|chili|peet/i, groupName: 'Daily Living', subName: 'Dining/Eating Out' },
-      { pattern: /uber eats|doordash|grubhub|postmates/i, groupName: 'Daily Living', subName: 'Dining/Eating Out' },
-      { pattern: /uber|lyft|taxi|cab/i, groupName: 'Auto/Transportation', subName: 'Ride Share' },
-      { pattern: /geico|progressive|allstate|state farm|insurance/i, groupName: 'Insurance', subName: 'Auto Insurance' },
-      { pattern: /at&t|verizon|t-mobile|sprint|comcast|xfinity|internet|wifi/i, groupName: 'Utilities', subName: 'Cellphone' },
-      { pattern: /electric|power|energy|ppl|duke energy|sd gas|sdge/i, groupName: 'Utilities', subName: 'Electric' },
-      { pattern: /water.*sewer|water bill|sewer/i, groupName: 'Utilities', subName: 'Water/Sewer' },
-      { pattern: /home depot|lowes|hardware/i, groupName: 'Household', subName: 'Improvements' },
-      { pattern: /cvs|walgreens|pharmacy|rx|doctor|dr\.|medical|hospital|urgent care/i, groupName: 'Health', subName: 'Medical' },
-      { pattern: /gym|fitness|planet fitness|equinox|yoga/i, groupName: 'Health', subName: 'Gym/Fitness' },
-      { pattern: /payroll|direct deposit|salary|wages/i, groupName: 'Income', subName: 'Take Home Pay' },
-      { pattern: /interest.*payment|interest.*earned|interest paid|interest$/i, groupName: 'Income', subName: 'Interest Income' },
-      { pattern: /cloudflare|github|namecheap|elevenlabs|steam/i, groupName: 'Dues/Subscriptions', subName: 'Online Services' },
-      { pattern: /southwest|american airlines|united airlines|delta|frontier/i, groupName: 'Discretionary', subName: 'Travel' },
-    ];
-
-    // Get all categories for ID lookup
-    const allCats = db.select().from(categories).all();
-    const catLookup = new Map(allCats.map((c) => [`${c.group_name}:${c.sub_name}`, c.id]));
-
+    // Unified resolver (shared with bank sync): user rules → per-merchant majority
+    // vote → text-history → skip-unresolved heuristic → none.
+    const categorizer = buildCategorizer(sqlite);
     const results = items.map((item) => {
-      // Use payee as primary match text when available (bank sync), fall back to description (CSV)
-      const primaryText = item.payee || item.description;
-      const primaryLower = primaryText.toLowerCase().trim();
-      const descLower = item.description.toLowerCase().trim();
-
-      const noSuggestion = {
+      const r = categorizer.categorize({ description: item.description, payee: item.payee, amount: item.amount });
+      return {
         description: item.description,
         payee: item.payee,
-        suggestedCategoryId: null,
-        suggestedGroupName: null,
-        suggestedSubName: null,
-        confidence: 0.0,
+        suggestedCategoryId: r.categoryId,
+        suggestedGroupName: r.groupName,
+        suggestedSubName: r.subName,
+        confidence: r.confidence,
       };
-
-      let highVarianceVendor = false;
-
-      // 1. Exact match from history — check payee first, then description
-      const exactPayeeDist = descCatDist.get(primaryLower);
-      if (exactPayeeDist) {
-        const dominant = getDominantCategory(exactPayeeDist);
-        if (dominant) {
-          return {
-            description: item.description,
-            payee: item.payee,
-            suggestedCategoryId: dominant.categoryId,
-            suggestedGroupName: dominant.groupName,
-            suggestedSubName: dominant.subName,
-            confidence: 1.0,
-          };
-        }
-        if (getTotalCount(exactPayeeDist) >= MIN_HISTORY_FOR_VARIANCE) highVarianceVendor = true;
-      }
-
-      if (!highVarianceVendor && item.payee) {
-        const exactDescDist = descCatDist.get(descLower);
-        if (exactDescDist) {
-          const dominant = getDominantCategory(exactDescDist);
-          if (dominant) {
-            return {
-              description: item.description,
-              payee: item.payee,
-              suggestedCategoryId: dominant.categoryId,
-              suggestedGroupName: dominant.groupName,
-              suggestedSubName: dominant.subName,
-              confidence: 0.9,
-            };
-          }
-          if (getTotalCount(exactDescDist) >= MIN_HISTORY_FOR_VARIANCE) highVarianceVendor = true;
-        }
-      }
-
-      // 2. Partial match from history — check both payee and description
-      if (!highVarianceVendor) {
-        for (const [key, dist] of descCatDist.entries()) {
-          if (primaryLower.includes(key) || key.includes(primaryLower) ||
-              (item.payee && (descLower.includes(key) || key.includes(descLower)))) {
-            const dominant = getDominantCategory(dist);
-            if (dominant) {
-              return {
-                description: item.description,
-                payee: item.payee,
-                suggestedCategoryId: dominant.categoryId,
-                suggestedGroupName: dominant.groupName,
-                suggestedSubName: dominant.subName,
-                confidence: 0.7,
-              };
-            }
-            if (getTotalCount(dist) >= MIN_HISTORY_FOR_VARIANCE) {
-              highVarianceVendor = true;
-              break;
-            }
-          }
-        }
-      }
-
-      // 3. Rule-based matching — skip if vendor has varied history
-      if (!highVarianceVendor) {
-        for (const rule of RULES) {
-          if (rule.pattern.test(primaryText) || (item.payee && rule.pattern.test(item.description))) {
-            const catId = catLookup.get(`${rule.groupName}:${rule.subName}`);
-            return {
-              description: item.description,
-              payee: item.payee,
-              suggestedCategoryId: catId || null,
-              suggestedGroupName: rule.groupName,
-              suggestedSubName: rule.subName,
-              confidence: 0.7,
-            };
-          }
-        }
-      }
-
-      // 4. No match (or high-variance vendor)
-      return noSuggestion;
     });
 
     res.json({ data: results });
@@ -374,7 +206,7 @@ router.post('/commit', requirePermission('import.csv'), (req: Request, res: Resp
         date: t.date,
         description: t.description,
         note: t.note || null,
-        merchant_id: findOrCreateMerchant(t.description),
+        merchant_id: resolveMerchantId(t.description),
         amount: t.amount,
       }).run();
 
