@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../lib/api';
 import { fmt } from '../lib/formatters';
-import { getCategoryEmoji, getCategoryColorHex } from '../lib/categoryMeta';
+import { getCategoryEmoji, getCategoryColorHex, useCategoryEmojis } from '../lib/categoryMeta';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { VendorAvatar, SegmentedControl } from '../components/primitives';
@@ -19,10 +19,10 @@ interface RItem {
   status: 'active' | 'paused'; user_id: number | null;
   effective_start: string | null; effective_end: string | null;
   groupName: string; subName: string; displayName: string; categoryType: string;
-  merchantName: string | null; accountName: string | null; accountLastFour: string | null;
+  merchantName: string | null; merchantLogoUrl: string | null; accountName: string | null; accountLastFour: string | null;
 }
 interface ROcc {
-  itemId: number; label: string; merchantName: string | null; date: string; amount: number;
+  itemId: number; label: string; merchantName: string | null; merchantLogoUrl: string | null; date: string; amount: number;
   type: 'income' | 'expense'; categoryId: number; groupName: string; subName: string;
   categoryType: string; accountName: string | null; accountLastFour: string | null;
   frequency: Kind; status: 'paid' | 'due' | 'upcoming';
@@ -87,6 +87,7 @@ function cadenceLabel(it: { freq_kind: Kind; interval: number | null; months_jso
 export default function RecurringPage() {
   const { addToast } = useToast();
   const { hasPermission } = useAuth();
+  useCategoryEmojis(); // re-render when stored category emojis load/change
   const canEdit = hasPermission('budgets.edit');
 
   const [tab, setTab] = useState<'month' | 'all'>('month');
@@ -172,7 +173,7 @@ export default function RecurringPage() {
     return (
       <button key={`${o.itemId}-${o.date}`} onClick={() => { const it = items.find((i) => i.id === o.itemId); if (it) setPanel(it); }}
         className="w-full flex items-center gap-4 px-5 h-[58px] border-b border-line text-left hover:bg-surface-2/40">
-        <VendorAvatar name={o.merchantName ?? o.label} src={undefined} size={34} color={color} />
+        <VendorAvatar name={o.merchantName ?? o.label} src={o.merchantLogoUrl || undefined} size={34} color={color} />
         <div className="min-w-0 flex-[1.3]">
           <div className="font-semibold text-[15px] truncate">{o.label}</div>
           <div className="text-[12px] text-content-3 truncate">{cadenceLabel(items.find((i) => i.id === o.itemId) ?? { freq_kind: o.frequency, interval: null, months_json: null })}</div>
@@ -183,7 +184,7 @@ export default function RecurringPage() {
         </div>
         <div className="flex-1 min-w-0 text-[13px] text-content-3 truncate hidden md:block">{o.accountName ?? '—'}{o.accountLastFour ? ` (…${o.accountLastFour})` : ''}</div>
         <div className="flex-1 min-w-0 hidden md:flex items-center gap-1.5 text-[13px] text-content-2">
-          <span className="text-[15px] leading-none">{getCategoryEmoji(o.groupName)}</span>
+          <span className="text-[15px] leading-none">{getCategoryEmoji(o.subName)}</span>
           <span className="truncate">{o.subName}</span>
         </div>
         <div className={`w-[110px] shrink-0 text-right font-bold text-[15px] tabular-nums ${o.type === 'income' ? 'text-positive' : 'text-content'}`}>{amountText(o)}</div>
@@ -203,12 +204,12 @@ export default function RecurringPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-        <div className="flex items-baseline gap-5">
-          <h1 className="text-2xl font-extrabold text-content tracking-tight page-title">Recurring</h1>
-          <div className="flex items-center gap-4">
-            <button onClick={() => setTab('month')} className={`text-[15px] font-semibold pb-1 border-b-2 ${tab === 'month' ? 'border-content text-content' : 'border-transparent text-content-3'}`}>This month</button>
-            <button onClick={() => setTab('all')} className={`text-[15px] font-semibold pb-1 border-b-2 ${tab === 'all' ? 'border-content text-content' : 'border-transparent text-content-3'}`}>All recurring</button>
+      <div className="sticky top-0 z-20 -mt-4 md:-mt-7 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-6 bg-bg border-b border-line flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-6">
+          <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight leading-tight m-0">Recurring</h1>
+          <div className="flex items-center gap-5 text-[15px] font-semibold">
+            <button onClick={() => setTab('month')} className={tab === 'month' ? 'text-primary border-b-2 border-primary pb-0.5' : 'text-content-3 hover:text-content pb-0.5'}>This month</button>
+            <button onClick={() => setTab('all')} className={tab === 'all' ? 'text-primary border-b-2 border-primary pb-0.5' : 'text-content-3 hover:text-content pb-0.5'}>All recurring</button>
           </div>
         </div>
         {canEdit && (
@@ -223,15 +224,16 @@ export default function RecurringPage() {
           {/* Summary + view toggle card */}
           <div className="bg-surface rounded-card border border-line shadow-sm mb-4">
             <div className="flex items-center justify-between px-6 pt-5 pb-4">
+              <span className="text-lg font-extrabold tracking-tight">{monthLabel(month)}</span>
               <div className="flex items-center gap-3">
-                <span className="text-lg font-extrabold tracking-tight">{monthLabel(month)}</span>
                 <div className="flex items-center">
                   <button onClick={() => setMonthOffset((o) => o - 1)} className="w-8 h-8 flex items-center justify-center rounded-l-[9px] border border-line text-content-2 hover:bg-surface-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
                   <button onClick={() => setMonthOffset((o) => o + 1)} className="w-8 h-8 flex items-center justify-center rounded-r-[9px] border-y border-r border-line text-content-2 hover:bg-surface-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
                 </div>
+                <button onClick={() => setMonthOffset(0)} className="h-8 px-3 flex items-center rounded-[9px] border border-line text-content-2 font-semibold text-[13px] hover:bg-surface-2">Today</button>
+                <SegmentedControl value={view} onChange={(v) => setView(v as 'list' | 'calendar')}
+                  options={[{ value: 'list', label: 'List' }, { value: 'calendar', label: 'Calendar' }]} />
               </div>
-              <SegmentedControl value={view} onChange={(v) => setView(v as 'list' | 'calendar')}
-                options={[{ value: 'list', label: 'List' }, { value: 'calendar', label: 'Calendar' }]} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 border-t border-line">
               <div className="px-6 py-4 sm:border-r border-line">
@@ -330,7 +332,7 @@ function CalendarGrid({ month, today, occByDay, onOcc }: {
                       <button key={`${o.itemId}-${o.date}`} onClick={() => onOcc(o)} title={`${o.label} · ${o.subName}`}
                         className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate"
                         style={{ background: o.type === 'income' ? 'color-mix(in srgb, var(--positive) 18%, transparent)' : `color-mix(in srgb, ${color} 16%, transparent)`, color: o.type === 'income' ? 'var(--positive)' : 'var(--content)' }}>
-                        <span className="leading-none">{o.type === 'income' ? '💵' : getCategoryEmoji(o.groupName)}</span>
+                        <span className="leading-none">{o.type === 'income' ? '💵' : getCategoryEmoji(o.subName)}</span>
                         <span className="tabular-nums truncate">{fmt(o.amount)}</span>
                       </button>
                     );
@@ -369,13 +371,13 @@ function AllRecurring({ items, annual, onOpen }: {
             <button key={it.id} onClick={() => onOpen(it)}
               className={`w-full grid grid-cols-[1.6fr_1.3fr_0.9fr_1fr] items-center px-5 py-3 border-b border-line text-left hover:bg-surface-2/40 ${paused ? 'opacity-55' : ''}`}>
               <div className="flex items-center gap-3 min-w-0">
-                <VendorAvatar name={it.merchantName ?? it.label} size={30} color={getCategoryColorHex(it.groupName)} />
+                <VendorAvatar name={it.merchantName ?? it.label} src={it.merchantLogoUrl || undefined} size={30} color={getCategoryColorHex(it.groupName)} />
                 <div className="min-w-0">
                   <div className="font-semibold text-[14px] truncate">{it.label}</div>
                   {paused && <div className="text-[11px] text-content-3">Paused</div>}
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-[13px] text-content-2 min-w-0"><span className="text-[15px] leading-none">{getCategoryEmoji(it.groupName)}</span><span className="truncate">{it.subName}</span></div>
+              <div className="flex items-center gap-1.5 text-[13px] text-content-2 min-w-0"><span className="text-[15px] leading-none">{getCategoryEmoji(it.subName)}</span><span className="truncate">{it.subName}</span></div>
               <div className={`text-right font-bold text-[14px] tabular-nums ${it.type === 'income' ? 'text-positive' : 'text-content'}`}>{it.type === 'income' ? '+' : ''}{fmt(it.amount ?? 0)}</div>
               <div className="text-[13px] text-content-2">
                 {it.freq_kind === 'custom_months'
@@ -418,7 +420,7 @@ function DetailPanel({ item, monthOcc, today, canEdit, onClose, onEdit, onDelete
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="flex items-center gap-3 mb-5">
-            <VendorAvatar name={item.merchantName ?? item.label} size={48} color={color} />
+            <VendorAvatar name={item.merchantName ?? item.label} src={item.merchantLogoUrl || undefined} size={48} color={color} />
             <div className="min-w-0">
               <div className="text-lg font-extrabold truncate">{item.label}</div>
               <div className="text-[13px] text-content-3">{cadenceLabel(item)}</div>
@@ -427,7 +429,7 @@ function DetailPanel({ item, monthOcc, today, canEdit, onClose, onEdit, onDelete
           <div className={`text-[30px] font-extrabold tracking-tight tabular-nums mb-1 ${item.type === 'income' ? 'text-positive' : 'text-content'}`}>{item.type === 'income' ? '+' : ''}{fmt(item.amount ?? 0)}</div>
           {next && <div className="text-[13px] text-content-3 mb-6">Next: {dateChip(next.date)} · {relativeLabel(next.date, today)}</div>}
           {row('Account', item.accountName ? `${item.accountName}${item.accountLastFour ? ` (…${item.accountLastFour})` : ''}` : '—')}
-          {row('Category', <span className="inline-flex items-center gap-1.5">{getCategoryEmoji(item.groupName)} {item.subName}</span>)}
+          {row('Category', <span className="inline-flex items-center gap-1.5">{getCategoryEmoji(item.subName)} {item.subName}</span>)}
           {row('Frequency', cadenceLabel(item))}
           {row('Status', <span className={item.status === 'active' ? 'text-positive' : 'text-content-3'}>{item.status === 'active' ? 'Active' : 'Paused'}</span>)}
           {canEdit && (

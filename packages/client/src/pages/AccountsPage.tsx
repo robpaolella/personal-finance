@@ -7,6 +7,7 @@ import ResponsiveModal from '../components/ResponsiveModal';
 import CurrencyInput from '../components/CurrencyInput';
 import { OwnerBadge, SharedBadge, initOwnerSlots } from '../components/badges';
 import { VendorAvatar, SegmentedControl } from '../components/primitives';
+import InstitutionPicker from '../components/InstitutionPicker';
 import AreaLineChart, { type ChartPoint } from '../components/charts/AreaLineChart';
 
 // ---- types ----
@@ -14,6 +15,7 @@ interface Account {
   accountId: number; name: string; lastFour: string | null; type: string;
   institution: string | null; owner: string; owners: { id: number; displayName: string }[];
   isShared: boolean; classification: string; balance: number; date: string; lastUpdated: string | null;
+  logoUrl?: string | null; institutionColor?: string | null;
 }
 interface Asset {
   id: number; name: string; purchaseDate: string; cost: number; lifespanYears: number;
@@ -132,7 +134,7 @@ export default function AccountsPage() {
   const [syncSel, setSyncSel] = useState<Set<number>>(new Set());
   const [syncLoading, setSyncLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', lastFour: '', type: 'checking', classification: 'liquid', ownerId: 0 });
+  const [addForm, setAddForm] = useState({ name: '', lastFour: '', type: 'checking', classification: 'liquid', ownerId: 0, institutionId: null as number | null });
   // manual balance entry (restores the capability the old Net Worth page had)
   const [balanceEdit, setBalanceEdit] = useState<Account | null>(null);
   const [balanceInput, setBalanceInput] = useState('');
@@ -243,8 +245,8 @@ export default function AccountsPage() {
   const addAccount = async () => {
     if (!addForm.name || !addForm.ownerId) { addToast('Name and owner are required', 'error'); return; }
     try {
-      await apiFetch('/accounts', { method: 'POST', body: JSON.stringify({ name: addForm.name, lastFour: addForm.lastFour || null, type: addForm.type, classification: addForm.classification, ownerIds: [addForm.ownerId] }) });
-      setShowAdd(false); setAddForm((f) => ({ ...f, name: '', lastFour: '' })); addToast('Account added'); await loadData();
+      await apiFetch('/accounts', { method: 'POST', body: JSON.stringify({ name: addForm.name, lastFour: addForm.lastFour || null, type: addForm.type, classification: addForm.classification, ownerIds: [addForm.ownerId], institutionId: addForm.institutionId }) });
+      setShowAdd(false); setAddForm((f) => ({ ...f, name: '', lastFour: '', institutionId: null })); addToast('Account added'); await loadData();
     } catch { addToast('Failed to add account', 'error'); }
   };
 
@@ -271,10 +273,10 @@ export default function AccountsPage() {
   const seg = (label: number, total: number) => summaryMode === 'percent' ? `${total ? Math.round((label / total) * 100) : 0}%` : money(label);
 
   return (
-    <div className="max-w-[1200px] mx-auto px-4 md:px-8 pb-16">
+    <div className="pb-16">
       {/* top bar */}
-      <div className="sticky top-0 z-20 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-2 flex items-center justify-between gap-3 bg-bg/80 backdrop-blur border-b border-line">
-        <h1 className="text-xl font-extrabold tracking-tight">Accounts</h1>
+      <div className="sticky top-0 z-20 -mt-4 md:-mt-7 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-6 flex items-center justify-between gap-4 bg-bg border-b border-line">
+        <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight leading-tight m-0">Accounts</h1>
         <div className="flex items-center gap-2.5">
           {/* Filters */}
           <div className="relative">
@@ -367,7 +369,7 @@ export default function AccountsPage() {
                 {!isCollapsed && rows.map((a) => (
                   <div key={a.accountId} onClick={canBalance ? () => openBalance(a) : undefined}
                     className={`flex items-center gap-3.5 px-5 h-[74px] border-t border-line ${canBalance ? 'cursor-pointer hover:bg-surface-2/40' : ''}`}>
-                    <VendorAvatar name={a.institution || a.name} color={acctColor(a.classification)} size={40} />
+                    <VendorAvatar name={a.institution || a.name} src={a.logoUrl || undefined} color={a.institutionColor || acctColor(a.classification)} size={40} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-[15px] truncate">{a.name}{a.lastFour ? ` (…${a.lastFour})` : ''}</span>
@@ -384,34 +386,6 @@ export default function AccountsPage() {
               </div>
             );
           })}
-
-          {/* Physical Assets */}
-          <div className="bg-surface border border-line rounded-card shadow-sm overflow-hidden">
-            <div className="flex items-center gap-3 px-5 py-4">
-              <span className="text-[17px] font-extrabold">Physical Assets</span>
-              <span className="ml-auto text-[17px] font-extrabold tabular-nums">{money(physicalTotal)}</span>
-              {canEdit && <button onClick={() => openAsset('new')} className="h-8 px-3 rounded-lg bg-surface-2 border border-line-strong text-sm font-semibold">Add</button>}
-            </div>
-            {data.assets.length === 0 ? (
-              <div className="px-5 pb-5 text-content-3 text-sm">No physical assets tracked.</div>
-            ) : data.assets.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 px-5 h-[62px] border-t border-line">
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-[15px] truncate">{a.name}</div>
-                  <div className="font-mono text-[12px] text-content-3">Acquired {a.purchaseDate} · cost {money(a.cost)}</div>
-                </div>
-                <span className="text-[12px] font-semibold px-2 py-0.5 rounded-md shrink-0" style={{ background: 'color-mix(in srgb, var(--c-amber) 16%, transparent)', color: 'var(--c-amber)' }}>
-                  {a.depreciationMethod === 'declining_balance' ? `DB ${a.decliningRate}%` : `SL ${a.lifespanYears}y`}
-                </span>
-                <div className="w-28 text-right font-bold text-[15px] tabular-nums">{money(a.currentValue)}</div>
-                {canEdit && (
-                  <button onClick={() => openAsset(a)} className="w-8 h-8 flex items-center justify-center rounded-lg text-content-2 hover:bg-surface-2 shrink-0">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* right: summary */}
@@ -459,6 +433,34 @@ export default function AccountsPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Physical Assets — full width (nothing flanks it on the right) */}
+      <div className="mt-5 bg-surface border border-line rounded-card shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4">
+          <span className="text-[17px] font-extrabold">Physical Assets</span>
+          <span className="ml-auto text-[17px] font-extrabold tabular-nums">{money(physicalTotal)}</span>
+          {canEdit && <button onClick={() => openAsset('new')} className="h-8 px-3 rounded-lg bg-surface-2 border border-line-strong text-sm font-semibold">Add</button>}
+        </div>
+        {data.assets.length === 0 ? (
+          <div className="px-5 pb-5 text-content-3 text-sm">No physical assets tracked.</div>
+        ) : data.assets.map((a) => (
+          <div key={a.id} className="flex items-center gap-3 px-5 h-[62px] border-t border-line">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-[15px] truncate">{a.name}</div>
+              <div className="font-mono text-[12px] text-content-3">Acquired {a.purchaseDate} · cost {money(a.cost)}</div>
+            </div>
+            <span className="text-[12px] font-semibold px-2 py-0.5 rounded-md shrink-0" style={{ background: 'color-mix(in srgb, var(--c-amber) 16%, transparent)', color: 'var(--c-amber)' }}>
+              {a.depreciationMethod === 'declining_balance' ? `DB ${a.decliningRate}%` : `SL ${a.lifespanYears}y`}
+            </span>
+            <div className="w-28 text-right font-bold text-[15px] tabular-nums">{money(a.currentValue)}</div>
+            {canEdit && (
+              <button onClick={() => openAsset(a)} className="w-8 h-8 flex items-center justify-center rounded-lg text-content-2 hover:bg-surface-2 shrink-0">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              </button>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* asset edit modal */}
@@ -567,6 +569,10 @@ export default function AccountsPage() {
             <div>
               <label className="block text-[13px] font-semibold text-content-2 mb-1.5">Name</label>
               <input value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. Chase Checking" className="w-full h-11 px-3.5 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none" />
+            </div>
+            <div>
+              <label className="block text-[13px] font-semibold text-content-2 mb-1.5">Institution</label>
+              <InstitutionPicker value={addForm.institutionId} onChange={(id) => setAddForm({ ...addForm, institutionId: id })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

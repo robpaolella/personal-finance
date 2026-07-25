@@ -18,6 +18,8 @@ router.get('/summary', (_req: Request, res: Response) => {
       last_four: accounts.last_four,
       type: accounts.type,
       institution: accounts.institution,
+      institution_id: accounts.institution_id,
+      avatar_url: accounts.avatar_url,
       owner: accounts.owner,
       classification: accounts.classification,
     }).from(balanceSnapshots)
@@ -29,7 +31,8 @@ router.get('/summary', (_req: Request, res: Response) => {
     const seen = new Set<number>();
     type AcctRow = {
       accountId: number; name: string; lastFour: string | null; type: string;
-      institution: string | null; owner: string; classification: string; balance: number; date: string;
+      institution: string | null; institutionId: number | null; avatarUrl: string | null;
+      owner: string; classification: string; balance: number; date: string;
     };
     const accountList: AcctRow[] = [];
     for (const b of balances) {
@@ -41,6 +44,8 @@ router.get('/summary', (_req: Request, res: Response) => {
           lastFour: b.last_four,
           type: b.type,
           institution: b.institution,
+          institutionId: b.institution_id ?? null,
+          avatarUrl: b.avatar_url ?? null,
           owner: b.owner,
           classification: b.classification,
           balance: b.balance,
@@ -59,6 +64,8 @@ router.get('/summary', (_req: Request, res: Response) => {
           lastFour: a.last_four,
           type: a.type,
           institution: a.institution,
+          institutionId: a.institution_id ?? null,
+          avatarUrl: a.avatar_url ?? null,
           owner: a.owner,
           classification: a.classification,
           balance: 0,
@@ -121,9 +128,30 @@ router.get('/summary', (_req: Request, res: Response) => {
     ).all() as { account_id: number; last_synced_at: string }[];
     const syncMap = new Map<number, string>(syncRows.map((r) => [r.account_id, r.last_synced_at]));
 
+    // Resolve linked-institution logo + color so the client can render the
+    // account avatar (per-account override wins over the institution logo).
+    const instIds = [...new Set(accountList.map((a) => a.institutionId).filter((v): v is number => v != null))];
+    const instMap = new Map<number, { name: string; logo_url: string | null; color: string | null }>();
+    if (instIds.length > 0) {
+      const instRows = sqlite.prepare(
+        `SELECT id, name, logo_url, color FROM financial_institutions WHERE id IN (${instIds.map(() => '?').join(',')})`
+      ).all(...instIds) as { id: number; name: string; logo_url: string | null; color: string | null }[];
+      for (const i of instRows) instMap.set(i.id, { name: i.name, logo_url: i.logo_url, color: i.color });
+    }
+
     const enrichedAccounts = accountList.map((a) => {
       const owners = ownerMap.get(a.accountId) || [];
-      return { ...a, owners, isShared: owners.length > 1, lastUpdated: syncMap.get(a.accountId) ?? null };
+      const inst = a.institutionId != null ? instMap.get(a.institutionId) : undefined;
+      return {
+        ...a,
+        owners,
+        isShared: owners.length > 1,
+        lastUpdated: syncMap.get(a.accountId) ?? null,
+        // Prefer the linked institution's name over the legacy free-text field.
+        institution: inst?.name ?? a.institution,
+        logoUrl: a.avatarUrl || inst?.logo_url || null,
+        institutionColor: inst?.color ?? null,
+      };
     });
 
     res.json({

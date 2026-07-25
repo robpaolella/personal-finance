@@ -47,6 +47,17 @@ sqlite.exec(`
     value TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS financial_institutions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    domain TEXT,
+    logo_url TEXT,
+    color TEXT,
+    is_system INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -54,7 +65,9 @@ sqlite.exec(`
     type TEXT NOT NULL,
     classification TEXT NOT NULL,
     institution TEXT,
+    institution_id INTEGER REFERENCES financial_institutions(id),
     owner TEXT NOT NULL,
+    avatar_url TEXT,
     is_active INTEGER DEFAULT 1,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
@@ -79,6 +92,15 @@ sqlite.exec(`
   CREATE TABLE IF NOT EXISTS merchants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS vendor_logos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    domain TEXT,
+    logo_url TEXT,
+    color TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -148,7 +170,7 @@ sqlite.exec(`
 `);
 
 export const db = drizzle(sqlite, { schema });
-export { sqlite };
+export { sqlite, dataDir };
 
 // Auto-seed categories on first run (empty database)
 const catCount = sqlite.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number };

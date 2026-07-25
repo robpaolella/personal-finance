@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { db, sqlite } from './db/index.js';
+import { uploadsDir } from './services/uploads.js';
 import { migrateAccountOwners } from './db/migrate-account-owners.js';
 import { migrateSimplefin } from './db/migrate-simplefin.js';
 import { migrateAssetsDepreciation } from './db/migrate-assets-depreciation.js';
@@ -26,13 +27,21 @@ import { migrateTransfersCategory } from './db/migrate-transfers-category.js';
 import { migrateSplitMerchant } from './db/migrate-split-merchant.js';
 import { migrateRecurringItems } from './db/migrate-recurring-items.js';
 import { migrateBudgetOverride } from './db/migrate-budget-override.js';
+import { migrateTransactionReviews } from './db/migrate-transaction-reviews.js';
+import { migrateSettingsColumns } from './db/migrate-settings-columns.js';
+import { migrateCategoryGroups } from './db/migrate-category-groups.js';
+import { migrateFinancialInstitutions } from './db/migrate-financial-institutions.js';
+import { migrateVendorLogos } from './db/migrate-vendor-logos.js';
 import { authenticate } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
+import financialInstitutionRoutes from './routes/financialInstitutions.js';
 import categoryRoutes from './routes/categories.js';
 import userRoutes from './routes/users.js';
 import transactionRoutes from './routes/transactions.js';
 import merchantRoutes from './routes/merchants.js';
+import categoryRuleRoutes from './routes/categoryRules.js';
+import reviewRoutes from './routes/reviews.js';
 import dashboardRoutes from './routes/dashboard.js';
 import budgetRoutes from './routes/budgets.js';
 import reportRoutes from './routes/reports.js';
@@ -78,6 +87,11 @@ migrateNotifications(sqlite);
 migrateTransfersCategory(sqlite);
 migrateRecurringItems(sqlite); // after categories/merchants/accounts/users (FK targets)
 migrateBudgetOverride(sqlite);
+migrateTransactionReviews(sqlite); // last table-creating migration — FK target transactions must be stable
+migrateSettingsColumns(sqlite);    // additive columns (category emoji/exclude, account avatar, merchant logo)
+migrateCategoryGroups(sqlite);     // first-class category_groups entity + backfill
+migrateFinancialInstitutions(sqlite); // financial_institutions table + accounts.institution_id + backfill
+migrateVendorLogos(sqlite);           // vendor_logos catalog + backfill merchant logos
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(isProd ? { origin: false } : { origin: 'http://localhost:5173', credentials: true }));
@@ -100,10 +114,13 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth/2fa', twofaRoutes);
 app.use('/api/setup', setupRoutes);
 app.use('/api/accounts', accountRoutes);
+app.use('/api/financial-institutions', financialInstitutionRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/merchants', merchantRoutes);
+app.use('/api/category-rules', categoryRuleRoutes);
+app.use('/api/reviews', reviewRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/recurring', recurringRoutes);
@@ -116,6 +133,18 @@ app.use('/api/simplefin', simplefinRoutes);
 if (!isProd) {
   app.use('/api/dev', devRoutes);
 }
+
+// Uploaded images (account avatars, merchant logos) — public (referenced by <img>),
+// served in dev + prod, before the SPA catch-all. Harden the response so a stored
+// file can never execute as script in this origin: a locked-down CSP, no MIME
+// sniffing, and a non-inline disposition (belt-and-suspenders on top of the
+// raster-only + magic-byte checks in services/uploads.ts).
+app.use('/uploads', (_req, res, next) => {
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'inline');
+  next();
+}, express.static(uploadsDir));
 
 // Global error handler (must be after all routes)
 app.use(errorHandler);

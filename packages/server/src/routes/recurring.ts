@@ -58,6 +58,7 @@ function baseSelect() {
     displayName: categories.display_name,
     categoryType: categories.type,
     merchantName: merchants.name,
+    merchantLogoUrl: merchants.logo_url,
     accountName: accounts.name,
     accountLastFour: accounts.last_four,
   })
@@ -237,7 +238,7 @@ router.get('/occurrences', (req: Request, res: Response) => {
         const status: RecurringOccurrence['status'] =
           date < today ? 'paid' : (date <= dueEnd ? 'due' : 'upcoming');
         occurrences.push({
-          itemId: r.id, label: r.label, merchantName: r.merchantName ?? null, date,
+          itemId: r.id, label: r.label, merchantName: r.merchantName ?? null, merchantLogoUrl: r.merchantLogoUrl ?? null, date,
           amount: r.amount ?? 0, type: r.type as 'income' | 'expense',
           categoryId: r.category_id, groupName: r.groupName, subName: r.subName,
           categoryType: r.categoryType as RecurringOccurrence['categoryType'],

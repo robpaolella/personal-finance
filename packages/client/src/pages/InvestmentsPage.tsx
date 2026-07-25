@@ -10,6 +10,8 @@ interface AccountHoldings { accountId: number; accountName: string; holdings: Ho
 interface AcctMeta {
   id: number; name: string; institution: string | null; classification: string;
   owners: { id: number; displayName: string }[]; isShared: boolean;
+  avatar_url?: string | null;
+  institutionRef?: { id: number; name: string; logo_url: string | null; color: string | null } | null;
 }
 
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -86,11 +88,11 @@ export default function InvestmentsPage() {
   const empty = flat.length === 0;
 
   return (
-    <div className="max-w-[1100px] mx-auto px-4 md:px-8 pb-16">
+    <div className="pb-16">
       {/* top bar */}
-      <div className="sticky top-0 z-20 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-4 flex items-center justify-between gap-3 bg-bg/80 backdrop-blur border-b border-line">
+      <div className="sticky top-0 z-20 -mt-4 md:-mt-7 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-6 flex items-center justify-between gap-4 bg-bg border-b border-line">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-xl font-extrabold tracking-tight">Investments</h1>
+          <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight leading-tight m-0">Investments</h1>
           <span className="text-sm font-semibold text-primary border-b-2 border-primary pb-0.5">Holdings</span>
         </div>
       </div>
@@ -137,7 +139,7 @@ export default function InvestmentsPage() {
                 return (
                   <div key={ah.accountId} className="bg-surface border border-line rounded-card shadow-sm overflow-hidden">
                     <div className="flex items-center gap-3 px-5 py-4 border-b border-line">
-                      <VendorAvatar name={m?.institution || ah.accountName} color="var(--c-teal)" size={36} />
+                      <VendorAvatar name={m?.institution || ah.accountName} src={m?.avatar_url || m?.institutionRef?.logo_url || undefined} color={m?.institutionRef?.color || 'var(--c-teal)'} size={36} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-[15px] truncate">{ah.accountName}</span>
