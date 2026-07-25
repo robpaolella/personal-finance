@@ -1,21 +1,25 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { fmt, fmtTransaction } from '../lib/formatters';
 import { getCategoryColor } from '../lib/categoryColors';
-import { getCategoryColorHex, getCategoryEmoji } from '../lib/categoryMeta';
+import { getCategoryColorHex, getCategoryEmoji, useCategoryEmojis } from '../lib/categoryMeta';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton';
 import CurrencyInput from '../components/CurrencyInput';
 import Calendar from '../components/Calendar';
 import PermissionGate from '../components/PermissionGate';
-import { CategoryBadge } from '../components/badges';
-import { SegmentedControl } from '../components/primitives';
+import { CategoryBadge, NeedsReviewBadge } from '../components/badges';
+import { SegmentedControl, VendorAvatar } from '../components/primitives';
 import InlineNotification from '../components/InlineNotification';
 import ResponsiveModal from '../components/ResponsiveModal';
 import SplitEditor from '../components/SplitEditor';
 import type { SplitRow } from '../components/SplitEditor';
+import FilterPopover from '../components/FilterPopover';
+import type { FilterDraft } from '../components/filterModel';
+import DateRangePopover from '../components/DateRangePopover';
+import ManualImportModal from '../components/ManualImportModal';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 interface DuplicateMatch {
@@ -35,6 +39,8 @@ interface TransactionAccount {
   owner: string;
   owners?: { id: number; displayName: string }[];
   isShared?: boolean;
+  logoUrl?: string | null;
+  color?: string | null;
 }
 
 interface TransactionCategory {
@@ -62,6 +68,7 @@ interface TransactionSplit {
 interface TransactionMerchant {
   id: number;
   name: string;
+  logoUrl?: string | null;
 }
 
 interface Transaction {
@@ -74,7 +81,17 @@ interface Transaction {
   account: TransactionAccount;
   category: TransactionCategory | null;
   splits: TransactionSplit[] | null;
+  needsReview?: boolean;
+  confidence?: number | null;
+  review?: {
+    status: string;
+    reason: string;
+    note: string | null;
+    assignee: { id: number; displayName: string } | null;
+  } | null;
 }
+
+interface HouseholdUser { id: number; displayName: string }
 
 interface Merchant {
   id: number;
@@ -117,6 +134,7 @@ interface Category {
   sub_name: string;
   display_name: string;
   type: string;
+  exclude_from_budget?: number;
 }
 
 // Field wrapper with validation error display
@@ -538,6 +556,7 @@ export default function TransactionsPage() {
   const { addToast } = useToast();
   const { hasPermission } = useAuth();
   const isMobile = useIsMobile();
+  useCategoryEmojis(); // re-render when stored category emojis load/change
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -557,6 +576,11 @@ export default function TransactionsPage() {
   }, [categories]);
   const [pendingSave, setPendingSave] = useState<Record<string, unknown> | null>(null);
   const [duplicateMatch, setDuplicateMatch] = useState<DuplicateMatch | null>(null);
+  // After a user recategorizes a merchant's transaction, offer to learn a durable rule.
+  const [ruleSuggest, setRuleSuggest] = useState<{ merchantId: number; merchantName: string; categoryId: number; categoryName: string } | null>(null);
+  const [reviewCount, setReviewCount] = useState(0); // # transactions flagged needs_review
+  const [detailReviewNote, setDetailReviewNote] = useState('');
+  const [householdUsers, setHouseholdUsers] = useState<HouseholdUser[]>([]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -568,6 +592,7 @@ export default function TransactionsPage() {
   const [amountValue, setAmountValue] = useState('');
   const [amountMin, setAmountMin] = useState('');
   const [amountMax, setAmountMax] = useState('');
+  const [filterNeedsReview, setFilterNeedsReview] = useState(false);
 
   const [datePreset, setDatePreset] = useState('all');
   const [customStart, setCustomStart] = useState('');
@@ -580,14 +605,12 @@ export default function TransactionsPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [sortOpen, setSortOpen] = useState(false);
   const [sortTouched, setSortTouched] = useState(false);
-  const [dateOpen, setDateOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [filterTab, setFilterTab] = useState('Categories');
   const [filterSearch, setFilterSearch] = useState('');
-  const [dateDraft, setDateDraft] = useState<{ preset: string; start: string; end: string }>({ preset: 'all', start: '', end: '' });
-  const [filterDraft, setFilterDraft] = useState<{ account: string; type: string; category: string[]; merchant: string[]; op: string; val: string; min: string; max: string }>({ account: 'All', type: 'All', category: [], merchant: [], op: '', val: '', min: '', max: '' });
-  const [calOpen, setCalOpen] = useState<'start' | 'end' | null>(null);
+  const [filterDraft, setFilterDraft] = useState<FilterDraft>({ account: 'All', type: 'All', category: [], merchant: [], op: '', val: '', min: '', max: '', needsReview: false });
   const [editCell, setEditCell] = useState<{ id: number; field: 'vendor' | 'category' } | null>(null);
   const [cellSearch, setCellSearch] = useState('');
   const [detail, setDetail] = useState<Transaction | null>(null);
@@ -648,12 +671,29 @@ export default function TransactionsPage() {
   const [editing, setEditing] = useState<Transaction | null | 'new'>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Open add form from FAB (via URL param or custom event)
+  // Open add form from FAB (via URL param or custom event), deep-link a merchant
+  // filter (/transactions?merchantId=12), or open a transaction's detail panel from
+  // the Reviews page (/transactions?review=34).
   useEffect(() => {
     if (searchParams.get('add') === '1') {
       setEditing('new');
       setSearchParams({}, { replace: true });
+      return;
     }
+    const mid = searchParams.get('merchantId');
+    if (mid) {
+      setFilterMerchant([mid]);
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    const rev = searchParams.get('review');
+    if (rev) {
+      const id = parseInt(rev, 10);
+      setSearchParams({}, { replace: true });
+      apiFetch<{ data: Transaction }>(`/transactions/${id}`).then((r) => openDetail(r.data)).catch(() => {});
+    }
+    // openDetail is intentionally omitted (stable enough; guarded one-shot via param clear)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
@@ -696,17 +736,33 @@ export default function TransactionsPage() {
       if (amountOp === 'bt') { if (amountMin) params.set('amountMin', amountMin); if (amountMax) params.set('amountMax', amountMax); }
       else if (amountValue) params.set('amountValue', amountValue);
     }
+    if (filterNeedsReview) params.set('needsReview', '1');
     params.set('sortBy', sortBy);
     params.set('sortOrder', sortOrder);
 
     const res = await apiFetch<{ data: Transaction[]; total: number }>(`/transactions?${params.toString()}`);
     setTransactions(res.data);
     setTotal(res.total);
-  }, [getDateRange, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax, limit, sortBy, sortOrder]);
+  }, [getDateRange, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax, filterNeedsReview, limit, sortBy, sortOrder]);
 
   const loadMerchants = useCallback(async () => {
     const res = await apiFetch<{ data: Merchant[] }>('/merchants');
     setMerchants(res.data);
+  }, []);
+
+  const loadReviewCount = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ data: Transaction[]; total: number }>('/transactions?needsReview=1&limit=1');
+      setReviewCount(res.total);
+    } catch { /* non-critical */ }
+  }, []);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      // GET /users `data` is the basic dropdown list: { id, username, display_name }.
+      const res = await apiFetch<{ data: { id: number; display_name: string }[] }>('/users');
+      setHouseholdUsers(res.data.map((u) => ({ id: u.id, displayName: u.display_name })));
+    } catch { /* non-critical — assignee picker just shows nobody */ }
   }, []);
 
   const loadMeta = useCallback(async () => {
@@ -732,32 +788,39 @@ export default function TransactionsPage() {
   };
 
   // Date / Filters overlays — edits are staged in a draft, committed on Apply.
-  const openDatePopover = () => { setDateDraft({ preset: datePreset, start: customStart, end: customEnd }); setCalOpen(null); setSortOpen(false); setFilterOpen(false); setDateOpen(true); };
-  const applyPreset = (value: string) => { setDatePreset(value); setCustomStart(''); setCustomEnd(''); setDateOpen(false); };
-  const dateRangeInvalid = (s: string, e: string) => !!(s && e && e < s);
-  const applyDate = () => { if (dateRangeInvalid(dateDraft.start, dateDraft.end)) return; setDatePreset(dateDraft.preset); setCustomStart(dateDraft.start); setCustomEnd(dateDraft.end); setDateOpen(false); };
-  const openFilterPopover = () => { setFilterDraft({ account: filterAccount, type: filterType, category: [...filterCategory], merchant: [...filterMerchant], op: amountOp, val: amountValue, min: amountMin, max: amountMax }); setFilterTab('Categories'); setFilterSearch(''); setSortOpen(false); setDateOpen(false); setFilterOpen(true); };
+  const openFilterPopover = () => { setFilterDraft({ account: filterAccount, type: filterType, category: [...filterCategory], merchant: [...filterMerchant], op: amountOp, val: amountValue, min: amountMin, max: amountMax, needsReview: filterNeedsReview }); setFilterTab('Categories'); setFilterSearch(''); setSortOpen(false); setFilterOpen(true); };
   const applyFilters = () => {
     setFilterAccount(filterDraft.account); setFilterType(filterDraft.type); setFilterCategory(filterDraft.category); setFilterMerchant(filterDraft.merchant);
     setAmountOp(filterDraft.op); setAmountValue(filterDraft.val); setAmountMin(filterDraft.min); setAmountMax(filterDraft.max);
+    setFilterNeedsReview(!!filterDraft.needsReview);
     setFilterOpen(false);
   };
-  const toggleDraftCategory = (value: string) => setFilterDraft((d) => ({ ...d, category: d.category.includes(value) ? d.category.filter((v) => v !== value) : [...d.category, value] }));
-  const toggleDraftMerchant = (id: string) => setFilterDraft((d) => ({ ...d, merchant: d.merchant.includes(id) ? d.merchant.filter((v) => v !== id) : [...d.merchant, id] }));
-  // Selecting a category (group) toggles all of its sub-categories at once.
-  const toggleDraftGroup = (subs: { id: number }[]) => setFilterDraft((d) => {
-    const ids = subs.map((s) => `sub:${s.id}`);
-    const allSel = ids.length > 0 && ids.every((id) => d.category.includes(id));
-    return { ...d, category: allSel ? d.category.filter((c) => !ids.includes(c)) : Array.from(new Set([...d.category, ...ids])) };
-  });
-  const clearDate = () => { setDateDraft({ preset: 'all', start: '', end: '' }); setDatePreset('all'); setCustomStart(''); setCustomEnd(''); };
+  const clearDate = () => { setDatePreset('all'); setCustomStart(''); setCustomEnd(''); };
   const clearFilters = () => {
-    setFilterDraft({ account: 'All', type: 'All', category: [], merchant: [], op: '', val: '', min: '', max: '' });
+    setFilterDraft({ account: 'All', type: 'All', category: [], merchant: [], op: '', val: '', min: '', max: '', needsReview: false });
     setFilterAccount('All'); setFilterType('All'); setFilterCategory([]); setFilterMerchant([]);
-    setAmountOp(''); setAmountValue(''); setAmountMin(''); setAmountMax('');
+    setAmountOp(''); setAmountValue(''); setAmountMin(''); setAmountMax(''); setFilterNeedsReview(false);
   };
   // Clear every active filter (search + date + filters) without opening a popover.
   const clearAll = () => { setSearch(''); setSearchOpen(false); clearDate(); clearFilters(); };
+
+  // Persist "always categorize {merchant} as {category}" + back-apply to existing rows.
+  const applyMerchantRule = async () => {
+    if (!ruleSuggest) return;
+    const { merchantId, categoryId } = ruleSuggest;
+    setRuleSuggest(null);
+    try {
+      const res = await apiFetch<{ data: { affected: number } }>('/category-rules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchType: 'merchant', pattern: String(merchantId), categoryId, applyToExisting: true }),
+      });
+      const n = res.data.affected;
+      addToast(`Rule saved — ${n} matching transaction${n === 1 ? '' : 's'} updated`, 'success');
+      await loadTransactions();
+    } catch {
+      addToast('Failed to save rule', 'error');
+    }
+  };
 
   // Inline/panel edit — rebuilds the txn body (preserving splits) and PUTs.
   const updateTxnField = async (t: Transaction, changes: { description?: string; merchant?: string; categoryId?: number; date?: string; note?: string | null; accountId?: number; amount?: number }) => {
@@ -807,6 +870,10 @@ export default function TransactionsPage() {
           : undefined;
         setDetail((prev) => {
           if (!prev || prev.id !== t.id) return prev;
+          // The server resolves an open review when the category actually changes
+          // (or on any split save) — mirror that here so the panel's Review section
+          // doesn't stay stale after categorizing a flagged transaction.
+          const reviewResolved = isSplit || (changes.categoryId != null && changes.categoryId !== prev.category?.id);
           return {
             ...prev,
             amount: isSplit ? prev.amount : newAmount,
@@ -822,6 +889,8 @@ export default function TransactionsPage() {
             category: (!isSplit && changes.categoryId != null)
               ? (newCat ? { id: newCat.id, groupName: newCat.group_name, subName: newCat.sub_name, displayName: newCat.display_name, type: newCat.type } : null)
               : prev.category,
+            needsReview: reviewResolved ? false : prev.needsReview,
+            review: reviewResolved ? null : prev.review,
           };
         });
         // Keep the amount input in sync only when its DISPLAYED value could have
@@ -836,6 +905,11 @@ export default function TransactionsPage() {
         }
       }
       await loadTransactions();
+      // Offer to learn a durable merchant→category rule when the category changed.
+      if (!isSplit && changes.categoryId != null && changes.categoryId !== t.category?.id && t.merchant && t.merchant.id > 0) {
+        const cat = categories.find((c) => c.id === changes.categoryId);
+        if (cat) setRuleSuggest({ merchantId: t.merchant.id, merchantName: t.merchant.name, categoryId: cat.id, categoryName: cat.sub_name });
+      }
     } catch {
       addToast('Failed to update transaction', 'error');
     }
@@ -846,7 +920,7 @@ export default function TransactionsPage() {
     const catType = t.category?.type ?? t.splits?.[0]?.type ?? 'expense';
     return String(catType === 'income' ? -t.amount : t.amount);
   };
-  const seedDetail = (t: Transaction) => { setDetail(t); setDetailNote(t.note ?? ''); setDetailMerchant(vendorLabel(t)); setDetailStatement(t.description ?? ''); setDetailAmount(displayAmount(t)); };
+  const seedDetail = (t: Transaction) => { setDetail(t); setDetailNote(t.note ?? ''); setDetailMerchant(vendorLabel(t)); setDetailStatement(t.description ?? ''); setDetailAmount(displayAmount(t)); setDetailReviewNote(t.review?.note ?? ''); };
   const refreshDetail = async (id: number) => {
     try {
       const res = await apiFetch<{ data: Transaction }>(`/transactions/${id}`);
@@ -869,6 +943,26 @@ export default function TransactionsPage() {
     detailSplitIdRef.current = split?.id ?? null;
     seedDetail(t);
     if (split) { setDetailSplitMerchant(legMerchantSeed(t, split)); setDetailSplitNote(split.note ?? ''); }
+    // List rows carry no review data — fetch the full record so the panel shows it.
+    void refreshDetail(t.id);
+  };
+
+  // Review-task actions from the detail panel; keep badge/pill/queue in sync after each.
+  const afterReviewChange = async (id: number) => { await refreshDetail(id); loadTransactions(); loadReviewCount(); window.dispatchEvent(new CustomEvent('reviews-changed')); };
+  const flagForReview = async () => {
+    if (!detail) return;
+    try { await apiFetch('/reviews/flag', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactionId: detail.id }) }); afterReviewChange(detail.id); }
+    catch { addToast('Failed to flag for review', 'error'); }
+  };
+  const markReviewed = async () => {
+    if (!detail) return;
+    try { await apiFetch('/reviews/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactionId: detail.id }) }); afterReviewChange(detail.id); }
+    catch { addToast('Failed to mark reviewed', 'error'); }
+  };
+  const patchReview = async (body: Record<string, unknown>) => {
+    if (!detail) return;
+    try { await apiFetch(`/reviews/${detail.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); afterReviewChange(detail.id); }
+    catch { addToast('Failed to update review', 'error'); }
   };
   const closeDetail = () => { setDetail(null); setDetailSplitId(null); detailSplitIdRef.current = null; };
 
@@ -956,8 +1050,10 @@ export default function TransactionsPage() {
   };
 
   useEffect(() => { loadMeta(); }, [loadMeta]);
-  useEffect(() => { setLimit(PAGE); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax]);
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+  useEffect(() => { setLimit(PAGE); }, [datePreset, customStart, customEnd, search, filterAccount, filterType, filterCategory, filterMerchant, amountOp, amountValue, amountMin, amountMax, filterNeedsReview]);
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
+  useEffect(() => { loadReviewCount(); }, [loadReviewCount, transactions]);
   useEffect(() => { detailSplitIdRef.current = detailSplitId; }, [detailSplitId]);
 
   // Infinite scroll: when the sentinel nears the viewport, load one more batch.
@@ -1100,11 +1196,6 @@ export default function TransactionsPage() {
 
   const canEdit = hasPermission('transactions.edit');
   // Rounded-square checkbox indicator (never a circle — circles read as radios).
-  const chkbox = (checked: boolean) => (
-    <span className="w-[19px] h-[19px] shrink-0 rounded-[6px] border-[1.5px] flex items-center justify-center" style={{ borderColor: checked ? 'var(--primary)' : 'var(--line-strong)', background: checked ? 'var(--primary)' : 'transparent' }}>
-      {checked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12l5 5L20 6"/></svg>}
-    </span>
-  );
   const formatDateHeader = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   // Merchant name suggestions for the inline vendor picker — the real merchant list.
   const vendorOptions = merchants.map((m) => m.name).sort((a, b) => a.localeCompare(b));
@@ -1115,14 +1206,12 @@ export default function TransactionsPage() {
     { value: 'this-year', label: 'This year' }, { value: 'last-year', label: 'Last year' }, { value: 'ytd', label: 'Year to date' },
     { value: 'custom', label: 'Custom range…' },
   ];
-  const dateError = dateRangeInvalid(dateDraft.start, dateDraft.end) ? 'End date must be on or after the start date.' : '';
   const shortDate = (s: string) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
   const dateLabel = datePreset === 'all' ? 'Date'
     : datePreset === 'custom'
       ? (customStart && customEnd ? `${shortDate(customStart)} – ${shortDate(customEnd)}` : customStart ? `From ${shortDate(customStart)}` : customEnd ? `Until ${shortDate(customEnd)}` : 'Custom')
       : (DATE_PRESETS.find((p) => p.value === datePreset)?.label ?? 'Date');
-  const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length + filterMerchant.length + (amountOp ? 1 : 0);
-  const draftCount = filterDraft.category.filter((c) => c.startsWith('sub:')).length + filterDraft.merchant.length + (filterDraft.account !== 'All' ? 1 : 0) + (filterDraft.op ? 1 : 0) + (filterDraft.type !== 'All' ? 1 : 0);
+  const filterCount = (filterAccount !== 'All' ? 1 : 0) + (filterType !== 'All' ? 1 : 0) + filterCategory.length + filterMerchant.length + (amountOp ? 1 : 0) + (filterNeedsReview ? 1 : 0);
   const anyActive = search !== '' || datePreset !== 'all' || filterCount > 0;
   const groupedAll = Array.from(
     categories.reduce((m, c) => { if (!m.has(c.group_name)) m.set(c.group_name, []); m.get(c.group_name)!.push(c); return m; }, new Map<string, Category[]>()).entries()
@@ -1151,12 +1240,22 @@ export default function TransactionsPage() {
   // A split transaction renders as one row PER split (each with its own category
   // + amount + a split marker); non-split txns render as a single row.
   type DisplayRow = { t: Transaction; split?: TransactionSplit };
+  // Transactions in "hidden from budget" categories are shown for visibility but
+  // must not count toward the daily total (only the Transactions list displays
+  // them at all). For split txns, count only the non-hidden legs.
+  const excludedCatIds = new Set(categories.filter((c) => c.exclude_from_budget).map((c) => c.id));
+  const dayNet = (t: Transaction): number => {
+    if (t.splits && t.splits.length > 0) {
+      return t.splits.reduce((s, sp) => s + (excludedCatIds.has(sp.categoryId) ? 0 : sp.amount), 0);
+    }
+    return t.category && excludedCatIds.has(t.category.id) ? 0 : t.amount;
+  };
   const dateGroups: { date: string; rows: DisplayRow[]; net: number }[] = [];
   for (const t of transactions) {
     const rows: DisplayRow[] = (t.splits && t.splits.length > 0) ? t.splits.map((s) => ({ t, split: s })) : [{ t }];
     const last = dateGroups[dateGroups.length - 1];
-    if (last && last.date === t.date) { last.rows.push(...rows); last.net += t.amount; }
-    else dateGroups.push({ date: t.date, rows, net: t.amount });
+    if (last && last.date === t.date) { last.rows.push(...rows); last.net += dayNet(t); }
+    else dateGroups.push({ date: t.date, rows, net: dayNet(t) });
   }
   const displayRows = dateGroups.flatMap((g) => g.rows); // flat, split-expanded (mobile)
 
@@ -1182,15 +1281,17 @@ export default function TransactionsPage() {
             </span>
           )}
           <div className="flex-[1.4] min-w-0 flex items-center gap-2.5 pl-1">
-            <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${scolor} 16%, transparent)`, color: scolor }}>{sinitial}</span>
+            {(split.merchant ?? t.merchant)?.logoUrl
+              ? <img src={((split.merchant ?? t.merchant)?.logoUrl) as string} alt="" className="w-[26px] h-[26px] shrink-0 rounded-full object-cover" />
+              : <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${scolor} 16%, transparent)`, color: scolor }}>{sinitial}</span>}
             <span className="font-semibold text-[15px] truncate">{splitVendorLabel(t, split)}</span>
             <span className="shrink-0 inline-flex items-center justify-center w-[18px] h-[18px] rounded-md" style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }} title="Part of a split transaction">{splitIcon(11)}</span>
           </div>
           <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-content-2 px-2">
-            <span className="text-[15px] leading-none">{getCategoryEmoji(split.groupName)}</span>
+            <span className="text-[15px] leading-none">{getCategoryEmoji(split.subName)}</span>
             <span className="truncate">{split.subName}</span>
           </div>
-          <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-content-3"><span className="truncate">{accountLabel(t.account)}</span></div>
+          <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-content-3"><VendorAvatar name={t.account.name} src={t.account.logoUrl || undefined} color={t.account.color || 'var(--c-blue)'} size={18} /><span className="truncate">{accountLabel(t.account)}</span></div>
           <div className={`w-[128px] shrink-0 text-right font-bold text-[15px] tabular-nums ${sClass}`}>{sAmt}</div>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-content-3 shrink-0"><path d="m9 6 6 6-6 6"/></svg>
         </div>
@@ -1199,7 +1300,7 @@ export default function TransactionsPage() {
     const catType = t.category?.type ?? t.splits?.[0]?.type ?? 'expense';
     const { text: amtText, className: amtClass } = fmtTransaction(t.amount, catType);
     const isSplit = !!(t.splits && t.splits.length > 0);
-    const emoji = isSplit ? '🔀' : getCategoryEmoji(t.category?.groupName);
+    const emoji = isSplit ? '🔀' : getCategoryEmoji(t.category?.subName ?? t.category?.groupName);
     const color = getCategoryColorHex(t.category?.groupName);
     const initial = (vendorLabel(t)?.trim()?.[0] ?? '?').toUpperCase();
     const vendorEditing = editCell?.id === t.id && editCell.field === 'vendor';
@@ -1219,7 +1320,9 @@ export default function TransactionsPage() {
         {/* vendor cell (avatar + name), inline edit — outline encompasses the logo */}
         <div className="relative flex-[1.4] min-w-0" onClick={(e) => { if (!bulkMode && canEdit) { e.stopPropagation(); setEditCell({ id: t.id, field: 'vendor' }); setCellSearch(''); } }}>
           <div className={`group flex items-center gap-2.5 h-9 pl-1 pr-2 rounded-[8px] border transition-colors ${vendorEditing ? 'border-primary' : 'border-transparent hover:border-line-strong'}`}>
-            <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>{initial}</span>
+            {t.merchant?.logoUrl
+              ? <img src={t.merchant.logoUrl} alt="" className="w-[26px] h-[26px] shrink-0 rounded-full object-cover" />
+              : <span className="w-[26px] h-[26px] shrink-0 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>{initial}</span>}
             <span className="font-semibold text-[15px] truncate flex-1">{vendorLabel(t)}</span>
             {canEdit && !bulkMode && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className={`shrink-0 transition-opacity ${vendorEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><path d="m6 9 6 6 6-6"/></svg>}
           </div>
@@ -1242,6 +1345,7 @@ export default function TransactionsPage() {
           <div className={`group flex items-center gap-2 h-9 px-2 rounded-[8px] border transition-colors text-[13px] text-content-2 ${categoryEditing ? 'border-primary' : isSplit ? 'border-transparent' : 'border-transparent hover:border-line-strong'}`}>
             <span className="text-[15px] leading-none">{emoji}</span>
             <span className="truncate flex-1">{isSplit ? `Split (${t.splits!.length})` : (t.category?.subName ?? 'Uncategorized')}</span>
+            {t.needsReview && !isSplit && <NeedsReviewBadge />}
             {canEdit && !bulkMode && !isSplit && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" className={`shrink-0 transition-opacity ${categoryEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><path d="m6 9 6 6 6-6"/></svg>}
           </div>
           {categoryEditing && (
@@ -1250,7 +1354,7 @@ export default function TransactionsPage() {
               <div className="max-h-60 overflow-y-auto p-1.5">
                 {catMatches.map((c) => (
                   <button key={c.id} onClick={() => updateTxnField(t, { categoryId: c.id })} className="flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-lg text-sm text-content hover:bg-surface-2">
-                    <span className="text-[15px] leading-none">{getCategoryEmoji(c.group_name)}</span>
+                    <span className="text-[15px] leading-none">{getCategoryEmoji(c.sub_name)}</span>
                     <span className="truncate">{c.sub_name}</span>
                     <span className="ml-auto text-xs text-content-3 truncate">{c.group_name}</span>
                   </button>
@@ -1262,6 +1366,7 @@ export default function TransactionsPage() {
         </div>
         {/* account */}
         <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-content-3">
+          <VendorAvatar name={t.account.name} src={t.account.logoUrl || undefined} color={t.account.color || 'var(--c-blue)'} size={18} />
           <span className="truncate">{accountLabel(t.account)}</span>
         </div>
         {/* amount */}
@@ -1273,17 +1378,36 @@ export default function TransactionsPage() {
 
   return (
     <div>
+      {/* Learn-a-rule prompt after recategorizing a merchant */}
+      {ruleSuggest && (
+        <div className="fixed left-1/2 bottom-7 z-[100] flex items-center gap-3 rounded-full bg-elevated px-4 py-2.5 shadow-md" style={{ transform: 'translateX(-50%)', border: '2px solid var(--primary)', maxWidth: 'calc(100vw - 48px)' }}>
+          <span className="text-sm text-content">Always categorize <span className="font-bold">{ruleSuggest.merchantName}</span> as <span className="font-bold">{ruleSuggest.categoryName}</span>?</span>
+          <button onClick={applyMerchantRule} className="h-9 px-4 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm shrink-0">Always</button>
+          <button onClick={() => setRuleSuggest(null)} className="h-9 px-3 rounded-[10px] text-content-2 font-semibold text-sm hover:bg-surface-2 shrink-0">Not now</button>
+        </div>
+      )}
       {/* Header + consolidated top-right controls */}
-      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+      <div className="sticky top-0 z-20 -mt-4 md:-mt-7 -mx-4 md:-mx-8 px-4 md:px-8 py-4 mb-6 bg-bg border-b border-line flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-6">
-          <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight m-0">Transactions</h1>
+          <h1 className="page-title text-[22px] font-extrabold text-content tracking-tight leading-tight m-0">Transactions</h1>
           <div className="hidden md:flex items-center gap-5 text-[15px] font-semibold">
             <span className="text-primary border-b-2 border-primary pb-0.5">All</span>
-            <span className="text-content-3 cursor-not-allowed" title="Coming soon">Recurring</span>
-            <span className="text-content-3 cursor-not-allowed" title="Coming soon">Receipts</span>
+            <Link to="/recurring" className="text-content-3 hover:text-content pb-0.5">Recurring</Link>
           </div>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Needs-review nudge — jumps to the needs-review filter */}
+          {reviewCount > 0 && (
+            <Link
+              to="/reviews"
+              className="flex items-center gap-1.5 h-10 px-3 rounded-[11px] font-semibold text-sm"
+              style={{ background: 'color-mix(in srgb, var(--warning) 16%, transparent)', color: 'var(--warning)' }}
+              title="Open the Review queue"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /></svg>
+              {reviewCount} to review
+            </Link>
+          )}
           {/* Clear all — shows whenever any filter/search/date is active */}
           {anyActive && (
             <button onClick={clearAll} className="h-10 px-2.5 text-primary hover:text-primary-hover font-semibold text-sm">
@@ -1305,73 +1429,16 @@ export default function TransactionsPage() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
             </button>
           )}
-          {/* Date range overlay (design system) */}
-          <div className="relative">
-            <button onClick={openDatePopover}
-              className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border-2 ${dateOpen || datePreset !== 'all' ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
-              {dateLabel}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            {dateOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setDateOpen(false)} />
-                <div className="absolute top-12 right-0 z-50 w-[660px] max-w-[calc(100vw-64px)] bg-elevated border border-line-strong rounded-[16px] shadow-md flex flex-col">
-                  <div className="flex">
-                    <div className="w-[212px] shrink-0 border-r border-line">
-                      <div className="px-5 pt-[18px] pb-3 text-base font-extrabold tracking-tight border-b border-line">Date Range</div>
-                      <div className="py-2">
-                        {DATE_PRESETS.filter((p) => p.value !== 'custom').map((p) => {
-                          const active = datePreset === p.value;
-                          return (
-                            <div key={p.value} onClick={() => applyPreset(p.value)}
-                              className="px-5 py-2.5 text-[15px] font-medium cursor-pointer"
-                              style={{ color: active ? 'var(--primary)' : 'var(--text)', background: active ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent', borderLeft: `2px solid ${active ? 'var(--primary)' : 'transparent'}` }}>
-                              {p.label}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="flex-1 p-6">
-                      {(['start', 'end'] as const).map((f) => {
-                        const val = f === 'start' ? dateDraft.start : dateDraft.end;
-                        return (
-                          <div key={f} className={f === 'start' ? 'mb-[22px]' : ''}>
-                            <div className="flex items-center justify-between mb-2.5">
-                              <span className="text-[15px] font-bold">{f === 'start' ? 'Start date' : 'End date'}</span>
-                              {val && <button type="button" onClick={() => setDateDraft((d) => ({ ...d, [f]: '', preset: 'custom' }))} className="text-sm font-semibold text-primary">Clear</button>}
-                            </div>
-                            <div className="relative">
-                              <button type="button" onClick={() => setCalOpen((c) => (c === f ? null : f))}
-                                className="w-full flex items-center justify-between h-[50px] px-4 rounded-[12px] bg-surface text-[15px]"
-                                style={{ border: `1px solid ${calOpen === f ? 'var(--primary)' : (dateError && f === 'end' ? 'var(--negative)' : 'var(--line)')}` }}>
-                                <span className={val ? 'text-content tabular-nums' : 'text-content-3'}>{val ? new Date(val + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'MM/DD/YYYY'}</span>
-                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="4.5" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
-                              </button>
-                              {calOpen === f && (
-                                <div className="absolute top-[54px] right-0 z-[60] w-[320px] bg-elevated border border-line-strong rounded-[14px] shadow-md p-3">
-                                  <Calendar value={val} onChange={(d) => { setDateDraft((prev) => ({ ...prev, preset: 'custom', [f]: d })); setCalOpen(null); }} />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {dateError && <div className="text-negative text-[13px] font-semibold mt-1">{dateError}</div>}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
-                    <button onClick={clearDate} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
-                    <div className="flex gap-2.5">
-                      <button onClick={() => setDateOpen(false)} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
-                      <button onClick={applyDate} disabled={!!dateError} className="h-10 px-5 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm disabled:opacity-50">Apply</button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          {/* Date range overlay (shared DateRangePopover) */}
+          <DateRangePopover
+            presets={DATE_PRESETS.filter((p) => p.value !== 'custom')}
+            value={{ preset: datePreset, start: customStart, end: customEnd }}
+            label={dateLabel}
+            active={datePreset !== 'all'}
+            clearValue={{ preset: 'all', start: '', end: '' }}
+            onOpen={() => { setSortOpen(false); setFilterOpen(false); setSearchOpen(false); }}
+            onApply={(v) => { setDatePreset(v.preset); setCustomStart(v.start); setCustomEnd(v.end); }}
+          />
           {/* Filters overlay (design system) */}
           <div className="relative">
             <button onClick={openFilterPopover}
@@ -1381,170 +1448,18 @@ export default function TransactionsPage() {
               {filterCount > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-primary text-on-primary text-[11px] font-bold flex items-center justify-center">{filterCount}</span>}
             </button>
             {filterOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setFilterOpen(false)} />
-                <div className="absolute top-12 right-0 z-50 w-[820px] max-w-[calc(100vw-64px)] bg-elevated border border-line-strong rounded-[16px] shadow-md overflow-hidden flex flex-col">
-                  {/* header */}
-                  <div className="flex border-b border-line">
-                    <div className="w-[170px] shrink-0 px-5 py-[18px] text-base font-extrabold tracking-tight border-r border-line">Filters</div>
-                    <div className="flex-1 flex items-center gap-2.5 px-5 border-r border-line">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                      <input value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} placeholder={`Search ${filterTab.toLowerCase()}…`} className="flex-1 h-12 bg-transparent outline-none text-sm text-content" />
-                    </div>
-                    <div className="w-[240px] shrink-0 px-5 flex items-center text-sm font-semibold text-content-2">{draftCount} filter{draftCount === 1 ? '' : 's'} selected</div>
-                  </div>
-                  {/* body: nav · checklist · selected summary */}
-                  <div className="flex" style={{ minHeight: 380 }}>
-                    <div className="w-[170px] shrink-0 p-3 border-r border-line flex flex-col gap-0.5">
-                      {['Categories', 'Merchants', 'Accounts', 'Tags', 'Amount', 'Other'].map((n) => {
-                        const active = filterTab === n;
-                        return (
-                          <button key={n} onClick={() => { setFilterTab(n); setFilterSearch(''); }} className="px-3.5 py-2.5 rounded-[9px] text-sm font-semibold text-left"
-                            style={{ color: active ? 'var(--primary)' : 'var(--text)', background: active ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent' }}>{n}</button>
-                        );
-                      })}
-                    </div>
-                    <div className="flex-1 p-3 border-r border-line overflow-auto" style={{ maxHeight: 440 }}>
-                      {filterTab === 'Categories' && categoryGroups.map((g) => {
-                        const gChecked = g.subs.length > 0 && g.subs.every((s) => filterDraft.category.includes(`sub:${s.id}`));
-                        const subs = filterSearch ? g.subs.filter((s) => `${s.sub} ${g.group}`.toLowerCase().includes(filterSearch.toLowerCase())) : g.subs;
-                        if (filterSearch && subs.length === 0 && !g.group.toLowerCase().includes(filterSearch.toLowerCase())) return null;
-                        return (
-                          <div key={g.group} className="mb-1">
-                            <div onClick={() => toggleDraftGroup(g.subs)} className="flex items-center gap-3 px-1 py-2 rounded-lg hover:bg-surface-2 text-sm font-semibold cursor-pointer">
-                              {chkbox(gChecked)}{g.group}
-                            </div>
-                            {subs.map((s) => (
-                              <div key={s.id} onClick={() => toggleDraftCategory(`sub:${s.id}`)} className="flex items-center gap-3 pl-8 pr-1 py-2 rounded-lg hover:bg-surface-2 text-[13px] cursor-pointer">
-                                {chkbox(filterDraft.category.includes(`sub:${s.id}`))}{s.sub}
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })}
-                      {filterTab === 'Accounts' && [{ id: 'All', label: 'All accounts' }, ...accounts.filter((a) => !filterSearch || accountLabel(a).toLowerCase().includes(filterSearch.toLowerCase())).map((a) => ({ id: a.id.toString(), label: accountLabel(a) }))].map((a) => (
-                        <div key={a.id} onClick={() => setFilterDraft((d) => ({ ...d, account: a.id }))} className="flex items-center gap-3 px-1 py-2 rounded-lg hover:bg-surface-2 text-[15px] cursor-pointer">
-                          {chkbox(filterDraft.account === a.id)}{a.label}
-                        </div>
-                      ))}
-                      {filterTab === 'Amount' && (
-                        <div className="px-1">
-                          <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mb-1.5">Amount</div>
-                          {([['gt', 'Greater than…'], ['lt', 'Less than…'], ['eq', 'Equal to…'], ['bt', 'Between…']] as [string, string][]).map(([op, label]) => (
-                            <div key={op}>
-                              <div onClick={() => setFilterDraft((d) => ({ ...d, op: d.op === op ? '' : op }))} className="flex items-center gap-3 py-2 cursor-pointer text-[15px]">
-                                {chkbox(filterDraft.op === op)}{label}
-                              </div>
-                              {filterDraft.op === op && op !== 'bt' && (
-                                <div className="pl-8 pb-2"><input value={filterDraft.val} onChange={(e) => setFilterDraft((d) => ({ ...d, val: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="$10" className="w-full h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" /></div>
-                              )}
-                              {filterDraft.op === op && op === 'bt' && (
-                                <div className="flex items-center gap-2.5 pl-8 pb-2">
-                                  <input value={filterDraft.min} onChange={(e) => setFilterDraft((d) => ({ ...d, min: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="Min" className="flex-1 min-w-0 h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" />
-                                  <span className="text-content-3 text-sm">to</span>
-                                  <input value={filterDraft.max} onChange={(e) => setFilterDraft((d) => ({ ...d, max: e.target.value.replace(/[^0-9.]/g, '') }))} inputMode="decimal" placeholder="Max" className="flex-1 min-w-0 h-[46px] px-4 rounded-[11px] bg-surface border border-line text-content text-[15px] tabular-nums outline-none" />
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          <div className="font-mono text-[11px] uppercase tracking-wide text-content-3 mt-3.5 mb-1.5">Type</div>
-                          {([['Expense', 'Debits only'], ['Income', 'Credits only']] as [string, string][]).map(([val, label]) => (
-                            <div key={val} onClick={() => setFilterDraft((d) => ({ ...d, type: d.type === val ? 'All' : val }))} className="flex items-center gap-3 py-2 cursor-pointer text-[15px]">
-                              {chkbox(filterDraft.type === val)}{label}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {filterTab === 'Merchants' && (
-                        merchants.length === 0 ? (
-                          <div className="flex items-center justify-center h-full min-h-[320px] text-content-3 text-sm">No merchants yet</div>
-                        ) : (
-                          merchants
-                            .filter((m) => !filterSearch || m.name.toLowerCase().includes(filterSearch.toLowerCase()))
-                            .map((m) => (
-                              <div key={m.id} onClick={() => toggleDraftMerchant(m.id.toString())} className="flex items-center gap-3 px-1 py-2 rounded-lg hover:bg-surface-2 text-[15px] cursor-pointer">
-                                {chkbox(filterDraft.merchant.includes(m.id.toString()))}<span className="flex-1 truncate">{m.name}</span>
-                                {m.txn_count !== undefined && <span className="text-content-3 text-[13px] tabular-nums shrink-0">{m.txn_count}</span>}
-                              </div>
-                            ))
-                        )
-                      )}
-                      {(filterTab === 'Tags' || filterTab === 'Other') && (
-                        <div className="flex items-center justify-center h-full min-h-[320px] text-content-3 text-sm">Coming soon</div>
-                      )}
-                    </div>
-                    {/* selected filters — ALL dimensions */}
-                    <div className="w-[240px] shrink-0 p-4 overflow-auto" style={{ maxHeight: 440 }}>
-                      {draftCount === 0 ? (
-                        <div className="text-content-3 text-sm">No filters selected yet.</div>
-                      ) : (
-                        <div className="flex flex-col gap-4">
-                          {filterDraft.category.filter((c) => c.startsWith('sub:')).length > 0 && (
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Categories</span><button onClick={() => setFilterDraft((d) => ({ ...d, category: [] }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
-                              {filterDraft.category.filter((c) => c.startsWith('sub:')).map((c) => {
-                                const cat = categories.find((x) => x.id === Number(c.slice(4)));
-                                return (
-                                  <div key={c} className="flex items-center gap-2 py-1.5 text-sm">
-                                    <span className="text-[15px] leading-none">{getCategoryEmoji(cat?.group_name)}</span>
-                                    <span className="flex-1 truncate">{cat?.sub_name ?? c}</span>
-                                    <button onClick={() => toggleDraftCategory(c)} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {filterDraft.merchant.length > 0 && (
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Merchants</span><button onClick={() => setFilterDraft((d) => ({ ...d, merchant: [] }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
-                              {filterDraft.merchant.map((mid) => {
-                                const m = merchants.find((x) => x.id.toString() === mid);
-                                return (
-                                  <div key={mid} className="flex items-center gap-2 py-1.5 text-sm">
-                                    <span className="flex-1 truncate">{m?.name ?? mid}</span>
-                                    <button onClick={() => toggleDraftMerchant(mid)} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {filterDraft.account !== 'All' && (
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Accounts</span><button onClick={() => setFilterDraft((d) => ({ ...d, account: 'All' }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
-                              <div className="flex items-center gap-2 py-1.5 text-sm"><span className="flex-1 truncate">{(() => { const a = accounts.find((x) => x.id.toString() === filterDraft.account); return a ? accountLabel(a) : filterDraft.account; })()}</span><button onClick={() => setFilterDraft((d) => ({ ...d, account: 'All' }))} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button></div>
-                            </div>
-                          )}
-                          {filterDraft.op && (
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Amount</span><button onClick={() => setFilterDraft((d) => ({ ...d, op: '', val: '', min: '', max: '' }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
-                              <div className="flex items-center gap-2 py-1.5 text-sm"><span className="flex-1 truncate">{filterDraft.op === 'gt' ? `Greater than $${filterDraft.val || '0'}` : filterDraft.op === 'lt' ? `Less than $${filterDraft.val || '0'}` : filterDraft.op === 'eq' ? `Equal to $${filterDraft.val || '0'}` : `$${filterDraft.min || '0'} – $${filterDraft.max || '0'}`}</span><button onClick={() => setFilterDraft((d) => ({ ...d, op: '', val: '', min: '', max: '' }))} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button></div>
-                            </div>
-                          )}
-                          {filterDraft.type !== 'All' && (
-                            <div>
-                              <div className="flex items-center justify-between mb-1.5"><span className="text-[13px] font-semibold text-content-3">Type</span><button onClick={() => setFilterDraft((d) => ({ ...d, type: 'All' }))} className="text-[13px] font-semibold text-primary">Clear</button></div>
-                              <div className="flex items-center gap-2 py-1.5 text-sm"><span className="flex-1 truncate">{filterDraft.type === 'Expense' ? 'Debits only' : 'Credits only'}</span><button onClick={() => setFilterDraft((d) => ({ ...d, type: 'All' }))} className="text-content-3 hover:text-content shrink-0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button></div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {/* footer */}
-                  <div className="flex items-center justify-between px-5 py-3.5 border-t border-line">
-                    <button onClick={clearFilters} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Clear</button>
-                    <div className="flex gap-2.5">
-                      <button onClick={() => setFilterOpen(false)} className="h-10 px-[18px] rounded-[10px] border border-line-strong bg-surface-2 text-content font-semibold text-sm">Cancel</button>
-                      <button onClick={applyFilters} className="h-10 px-5 rounded-[10px] bg-primary text-on-primary font-bold text-sm shadow-sm">Apply</button>
-                    </div>
-                  </div>
-                </div>
-              </>
+              <FilterPopover
+                draft={filterDraft} setDraft={setFilterDraft}
+                categoryGroups={categoryGroups} accounts={accounts} merchants={merchants} categories={categories}
+                search={filterSearch} setSearch={setFilterSearch} tab={filterTab} setTab={setFilterTab}
+                onClear={clearFilters} onCancel={() => setFilterOpen(false)} onApply={applyFilters}
+                showNeedsReview
+              />
             )}
           </div>
           {/* Sort */}
           <div className="relative">
-            <button onClick={() => { setSortOpen((o) => !o); setDateOpen(false); setFilterOpen(false); }}
+            <button onClick={() => { setSortOpen((o) => !o); setFilterOpen(false); }}
               className={`flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border ${sortTouched ? 'border-primary' : 'border-line-strong'} text-content font-semibold text-sm hover:bg-surface-2`}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l-3 3M17 4l3 3"/></svg>
               {sortLabel}
@@ -1567,6 +1482,14 @@ export default function TransactionsPage() {
               </>
             )}
           </div>
+          {/* Manual Import — on-demand SimpleFIN pull for a date range */}
+          <PermissionGate permission="import.bank_sync">
+            <button onClick={() => setImportOpen(true)} title="Pull transactions from your bank for a date range"
+              className="flex items-center gap-2 h-10 px-3.5 rounded-[11px] bg-surface border border-line-strong text-content font-semibold text-sm hover:bg-surface-2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              Manual Import
+            </button>
+          </PermissionGate>
           {/* Add */}
           <PermissionGate permission="transactions.create" fallback="disabled">
             <button onClick={() => setEditing('new')}
@@ -1601,6 +1524,7 @@ export default function TransactionsPage() {
                     ) : t.category ? (
                       <CategoryBadge name={t.category.subName} color={getCategoryColor(t.category.groupName, allGroupNames)} />
                     ) : null}
+                    {t.needsReview && !split && <NeedsReviewBadge />}
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -1785,7 +1709,9 @@ export default function TransactionsPage() {
                   return (
                     <>
                       <div className="flex items-center gap-4 mb-5">
-                        <span className="shrink-0 rounded-full flex items-center justify-center font-bold text-xl" style={{ width: 52, height: 52, background: `color-mix(in srgb, ${scolor} 16%, transparent)`, color: scolor }}>{sInitial}</span>
+                        {(activeSplit.merchant ?? detail.merchant)?.logoUrl
+                          ? <img src={((activeSplit.merchant ?? detail.merchant)?.logoUrl) as string} alt="" className="shrink-0 rounded-full object-cover" style={{ width: 52, height: 52 }} />
+                          : <span className="shrink-0 rounded-full flex items-center justify-center font-bold text-xl" style={{ width: 52, height: 52, background: `color-mix(in srgb, ${scolor} 16%, transparent)`, color: scolor }}>{sInitial}</span>}
                         <div className="min-w-0">
                           <div className={`text-[28px] font-extrabold tracking-tight tabular-nums leading-none ${sClass}`}>{sAmt}</div>
                           <div className="text-[12px] text-content-3 mt-1 truncate">{accountLabel(detail.account)}</div>
@@ -1845,7 +1771,9 @@ export default function TransactionsPage() {
                 return (
                   <>
                     <div className="flex items-center gap-4 mb-6">
-                      <span className="shrink-0 rounded-full flex items-center justify-center font-bold text-xl" style={{ width: 52, height: 52, background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>{initial}</span>
+                      {detail.merchant?.logoUrl
+                        ? <img src={detail.merchant.logoUrl} alt="" className="shrink-0 rounded-full object-cover" style={{ width: 52, height: 52 }} />
+                        : <span className="shrink-0 rounded-full flex items-center justify-center font-bold text-xl" style={{ width: 52, height: 52, background: `color-mix(in srgb, ${color} 16%, transparent)`, color }}>{initial}</span>}
                       <div className={`text-[28px] font-extrabold tracking-tight tabular-nums ${amtClass}`}>{amtText}</div>
                     </div>
 
@@ -1882,7 +1810,7 @@ export default function TransactionsPage() {
                             return (
                               <button key={s.id} onClick={() => openDetail(detail, s)}
                                 className="flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-surface-2">
-                                <span className="text-[15px] leading-none">{getCategoryEmoji(s.groupName)}</span>
+                                <span className="text-[15px] leading-none">{getCategoryEmoji(s.subName)}</span>
                                 <span className="flex-1 truncate text-content">{splitVendorLabel(detail, s)} · {s.subName}</span>
                                 <span className={`tabular-nums font-semibold ${className}`}>{text}</span>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-content-3 shrink-0"><path d="m9 6 6 6-6 6"/></svg>
@@ -1931,6 +1859,40 @@ export default function TransactionsPage() {
                       placeholder="Add notes to this transaction…"
                       className="w-full min-h-[76px] resize-y p-3 rounded-[11px] bg-surface-2 border border-line text-content text-sm outline-none mb-8" />
 
+                    {/* Review task */}
+                    {canEdit && (
+                      <div className="mb-8">
+                        <div className={labelCls}>Review</div>
+                        {detail.needsReview ? (
+                          <div className="rounded-[11px] border p-3" style={{ borderColor: 'color-mix(in srgb, var(--warning) 45%, var(--line))', background: 'color-mix(in srgb, var(--warning) 8%, transparent)' }}>
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                              <span className="text-[13px] font-semibold" style={{ color: 'var(--warning)' }}>
+                                {detail.review?.reason === 'auto_uncategorized' ? 'Uncategorized on import'
+                                  : detail.review?.reason === 'auto_low_confidence' ? 'Low-confidence auto-category'
+                                  : 'Flagged for review'}
+                              </span>
+                              <button onClick={markReviewed} className="h-8 px-3 rounded-lg bg-primary text-on-primary font-bold text-[13px] shrink-0">Mark reviewed</button>
+                            </div>
+                            <div className="text-[12px] font-semibold text-content-3 mb-1">Assign to</div>
+                            <select value={detail.review?.assignee?.id ?? ''} onChange={(e) => e.target.value && patchReview({ assigneeId: parseInt(e.target.value, 10) })}
+                              className="w-full h-10 px-3 rounded-[10px] bg-surface-2 border border-line text-content text-sm outline-none mb-3">
+                              {!detail.review?.assignee && <option value="" disabled>Select assignee…</option>}
+                              {householdUsers.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
+                            </select>
+                            <div className="text-[12px] font-semibold text-content-3 mb-1">Review note</div>
+                            <textarea value={detailReviewNote} onChange={(e) => setDetailReviewNote(e.target.value)}
+                              onBlur={() => { if ((detail.review?.note ?? '') !== detailReviewNote) patchReview({ note: detailReviewNote }); }}
+                              placeholder="Why does this need review? What should happen?"
+                              className="w-full min-h-[60px] resize-y p-3 rounded-[10px] bg-surface-2 border border-line text-content text-sm outline-none" />
+                          </div>
+                        ) : (
+                          <button onClick={flagForReview} className="w-full h-11 rounded-[11px] border border-line-strong bg-surface-2 text-content font-semibold text-sm hover:bg-surface">
+                            Flag for review
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {canEdit && (
                       <button onClick={deleteFromDetail} className="w-full h-11 rounded-[11px] font-bold text-sm"
                         style={{ border: '1px solid color-mix(in srgb, var(--negative) 40%, var(--line))', color: 'var(--negative)', background: 'transparent' }}>Delete transaction</button>
@@ -1978,7 +1940,7 @@ export default function TransactionsPage() {
                   <span className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold text-[13px]" style={{ background: `color-mix(in srgb, ${oColor} 16%, transparent)`, color: oColor }}>{oInitial}</span>
                   <span className="font-semibold text-[15px] truncate flex-1">{vendorLabel(detail)}</span>
                   <span className="flex items-center gap-1.5 text-[13px] text-content-2 shrink-0">
-                    {detail.category && <><span className="text-[15px] leading-none">{getCategoryEmoji(detail.category.groupName)}</span><span className="truncate max-w-[120px]">{detail.category.subName}</span></>}
+                    {detail.category && <><span className="text-[15px] leading-none">{getCategoryEmoji(detail.category.subName ?? detail.category.groupName)}</span><span className="truncate max-w-[120px]">{detail.category.subName}</span></>}
                   </span>
                   <span className="font-bold tabular-nums text-[15px] shrink-0 ml-2">{fmt(absTotal)}</span>
                 </button>
@@ -2086,6 +2048,13 @@ export default function TransactionsPage() {
           onDelete={editing !== 'new' && hasPermission('transactions.delete') ? handleDelete : undefined}
           onClose={() => { setEditing(null); setPendingSave(null); setDuplicateMatch(null); }}
           duplicateMatch={duplicateMatch}
+        />
+      )}
+
+      {importOpen && (
+        <ManualImportModal
+          onClose={() => setImportOpen(false)}
+          onImported={() => { loadTransactions(); loadReviewCount(); loadMerchants(); }}
         />
       )}
     </div>
