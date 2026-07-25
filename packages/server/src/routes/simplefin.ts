@@ -4,9 +4,7 @@ import {
   simplefinConnections,
   simplefinLinks,
   simplefinHoldings,
-  transactions,
   accounts,
-  categories,
 } from '../db/schema.js';
 import { eq, or, isNull } from 'drizzle-orm';
 import { claimAccessUrl, fetchAccounts } from '../services/simplefin.js';
@@ -15,7 +13,9 @@ import { detectDuplicates } from '../services/duplicateDetector.js';
 import { detectTransfers } from '../services/transferDetector.js';
 import type { AccountClassification, SyncTransaction, SyncBalanceUpdate, SyncHoldingsUpdate } from '@ledger/shared/src/types.js';
 import { requirePermission } from '../middleware/permissions.js';
-import { findOrCreateMerchant } from '../db/merchants.js';
+import { resolveMerchantId } from '../db/merchants.js';
+import { buildCategorizer, REVIEW_THRESHOLD } from '../services/categorize.js';
+import { flagReview, defaultAssigneeForTxn } from '../services/reviews.js';
 
 const router = Router();
 
@@ -338,6 +338,27 @@ router.post('/links', requirePermission('simplefin.manage'), (req: Request, res:
       simplefin_org_name: simplefinOrgName || null,
     }).run();
 
+    // Give the linked account an institution identity from the SimpleFIN org
+    // (name, and domain if the client passed it). Never override an existing pick.
+    if (simplefinOrgName) {
+      const acct = sqlite.prepare('SELECT institution_id FROM accounts WHERE id = ?').get(accountId) as { institution_id: number | null } | undefined;
+      if (acct && acct.institution_id == null) {
+        const orgName = String(simplefinOrgName).trim();
+        const orgDomain = req.body.simplefinOrgDomain
+          ? String(req.body.simplefinOrgDomain).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '')
+          : null;
+        let inst = sqlite.prepare('SELECT id FROM financial_institutions WHERE LOWER(name) = LOWER(?)').get(orgName) as { id: number } | undefined;
+        if (!inst && orgDomain) {
+          inst = sqlite.prepare('SELECT id FROM financial_institutions WHERE LOWER(domain) = LOWER(?)').get(orgDomain) as { id: number } | undefined;
+        }
+        if (!inst && orgName) {
+          sqlite.prepare('INSERT OR IGNORE INTO financial_institutions (name, domain, is_system) VALUES (?, ?, 0)').run(orgName, orgDomain);
+          inst = sqlite.prepare('SELECT id FROM financial_institutions WHERE LOWER(name) = LOWER(?)').get(orgName) as { id: number } | undefined;
+        }
+        if (inst) sqlite.prepare('UPDATE accounts SET institution_id = ? WHERE id = ?').run(inst.id, accountId);
+      }
+    }
+
     res.status(201).json({
       data: {
         id: Number(result.lastInsertRowid),
@@ -448,6 +469,9 @@ router.post('/sync', requirePermission('import.bank_sync'), async (req: Request,
     const allBalanceUpdates: SyncBalanceUpdate[] = [];
     const allHoldingsUpdates: SyncHoldingsUpdate[] = [];
 
+    // Build the categorizer once (loads rules + history + merchants once).
+    const categorizer = buildCategorizer(sqlite);
+
     for (const conn of connections) {
       let response;
       try {
@@ -491,8 +515,8 @@ router.post('/sync', requirePermission('import.bank_sync'), async (req: Request,
               amount: convertToLedgerSign(parseFloat(t.amount), classification),
             }));
 
-            // Auto-categorize
-            const catResponse = autoCategorize(catItems);
+            // Auto-categorize (unified resolver)
+            const catResponse = catItems.map((it) => categorizer.categorize(it));
 
             // Detect duplicates
             const dupItems = newTxns.map((t) => ({
@@ -526,9 +550,9 @@ router.post('/sync', requirePermission('import.bank_sync'), async (req: Request,
                 description: t.payee || t.description,
                 rawDescription: t.description,
                 amount: convertToLedgerSign(parseFloat(t.amount), classification),
-                suggestedCategoryId: cat.suggestedCategoryId,
-                suggestedGroupName: cat.suggestedGroupName,
-                suggestedSubName: cat.suggestedSubName,
+                suggestedCategoryId: cat.categoryId,
+                suggestedGroupName: cat.groupName,
+                suggestedSubName: cat.subName,
                 confidence: cat.confidence,
                 duplicateStatus: dup.status,
                 duplicateMatchId: dup.matchId,
@@ -607,6 +631,7 @@ router.post('/commit', requirePermission('import.bank_sync'), (req: Request, res
         rawDescription: string;
         amount: number;
         categoryId?: number;
+        confidence?: number | null;
         splits?: { categoryId: number; amount: number }[];
       }[];
       balanceUpdates: {
@@ -635,8 +660,8 @@ router.post('/commit', requirePermission('import.bank_sync'), (req: Request, res
       // Insert transactions
       if (txns && txns.length > 0) {
         const insertTxn = sqlite.prepare(`
-          INSERT INTO transactions (account_id, date, description, note, category_id, merchant_id, amount, simplefin_transaction_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO transactions (account_id, date, description, note, category_id, merchant_id, amount, simplefin_transaction_id, categorize_confidence, needs_review)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const insertSplit = sqlite.prepare(`
           INSERT INTO transaction_splits (transaction_id, category_id, amount)
@@ -646,23 +671,35 @@ router.post('/commit', requirePermission('import.bank_sync'), (req: Request, res
         for (const t of txns) {
           const hasSplits = t.splits && t.splits.length >= 2;
           // Resolve merchant from the payee-preferred description (same handle → atomic).
-          const merchantId = findOrCreateMerchant(t.description, sqlite);
+          const merchantId = resolveMerchantId(t.description, sqlite);
+          const catId = hasSplits ? null : (t.categoryId ?? null);
+          const conf = hasSplits ? null : (t.confidence ?? null);
+          // Flag for review when uncategorized, or auto-categorized below the
+          // confidence threshold. Split parents are considered categorized (via legs).
+          const needsReview = hasSplits ? 0 : (catId == null || (conf != null && conf < REVIEW_THRESHOLD) ? 1 : 0);
           // Store payee as description, raw bank description as note
           const result = insertTxn.run(
             t.accountId,
             t.date,
             t.description,
             t.rawDescription !== t.description ? t.rawDescription : null,
-            hasSplits ? null : (t.categoryId ?? null),
+            catId,
             merchantId,
             t.amount,
-            t.simplefinId
+            t.simplefinId,
+            conf,
+            needsReview
           );
+          const newTxnId = Number(result.lastInsertRowid);
           if (hasSplits) {
-            const txnId = Number(result.lastInsertRowid);
             for (const s of t.splits!) {
-              insertSplit.run(txnId, s.categoryId, s.amount);
+              insertSplit.run(newTxnId, s.categoryId, s.amount);
             }
+          }
+          // Auto-flagged rows open a review assigned to the account owner (the most-
+          // privileged owner if the account is shared), and notify them.
+          if (needsReview === 1) {
+            flagReview(sqlite, { txnId: newTxnId, reason: catId == null ? 'auto_uncategorized' : 'auto_low_confidence', assigneeId: defaultAssigneeForTxn(sqlite, newTxnId) });
           }
           txnCount++;
         }
@@ -875,100 +912,5 @@ function unixToDate(unix: number): string {
   return new Date(unix * 1000).toISOString().slice(0, 10);
 }
 
-/**
- * Inline auto-categorization (reuses the same logic as the import/categorize endpoint).
- */
-function autoCategorize(items: { description: string; payee?: string; amount: number }[]): {
-  suggestedCategoryId: number | null;
-  suggestedGroupName: string | null;
-  suggestedSubName: string | null;
-  confidence: number;
-}[] {
-  // Build history map
-  const history = db.select({
-    description: transactions.description,
-    category_id: transactions.category_id,
-    group_name: categories.group_name,
-    sub_name: categories.sub_name,
-  }).from(transactions)
-    .innerJoin(categories, eq(transactions.category_id, categories.id))
-    .all();
-
-  const descCatMap = new Map<string, { categoryId: number; groupName: string; subName: string; count: number }>();
-  for (const h of history) {
-    const key = h.description.toLowerCase().trim();
-    const existing = descCatMap.get(key);
-    if (!existing || existing.count < 1) {
-      descCatMap.set(key, {
-        categoryId: h.category_id!,
-        groupName: h.group_name,
-        subName: h.sub_name,
-        count: (existing?.count || 0) + 1,
-      });
-    }
-  }
-
-  const RULES: { pattern: RegExp; groupName: string; subName: string }[] = [
-    { pattern: /shell|chevron|exxon|\bmobil\b|bp |sunoco|gas|fuel|wawa.*gas/i, groupName: 'Auto/Transportation', subName: 'Fuel' },
-    { pattern: /costco gas/i, groupName: 'Auto/Transportation', subName: 'Fuel' },
-    { pattern: /costco|giant|groceries|grocery|aldi|trader joe|whole foods|safeway|kroger|publix|wegmans|food lion|jimbo/i, groupName: 'Daily Living', subName: 'Groceries' },
-    { pattern: /amazon|amzn/i, groupName: 'Daily Living', subName: 'Online Shopping' },
-    { pattern: /walmart|target|dollar/i, groupName: 'Daily Living', subName: 'General Merchandise' },
-    { pattern: /netflix|hulu|disney|spotify|apple.*music|hbo|paramount|peacock/i, groupName: 'Dues/Subscriptions', subName: 'Streaming Services' },
-    { pattern: /restaurant|mcdonald|wendy|burger|chick-fil|chipotle|panera|starbucks|dunkin|coffee|pizza|taco bell|diner|jersey mike|in-n-out|del taco|subway|on the border|chili|peet/i, groupName: 'Daily Living', subName: 'Dining/Eating Out' },
-    { pattern: /uber eats|doordash|grubhub|postmates/i, groupName: 'Daily Living', subName: 'Dining/Eating Out' },
-    { pattern: /uber|lyft|taxi|cab/i, groupName: 'Auto/Transportation', subName: 'Ride Share' },
-    { pattern: /geico|progressive|allstate|state farm|insurance/i, groupName: 'Insurance', subName: 'Auto Insurance' },
-    { pattern: /at&t|verizon|t-mobile|sprint|comcast|xfinity|internet|wifi/i, groupName: 'Utilities', subName: 'Cellphone' },
-    { pattern: /electric|power|energy|ppl|duke energy|sd gas|sdge/i, groupName: 'Utilities', subName: 'Electric' },
-    { pattern: /water.*sewer|water bill|sewer/i, groupName: 'Utilities', subName: 'Water/Sewer' },
-    { pattern: /home depot|lowes|hardware/i, groupName: 'Household', subName: 'Improvements' },
-    { pattern: /cvs|walgreens|pharmacy|rx|doctor|dr\.|medical|hospital|urgent care/i, groupName: 'Health', subName: 'Medical' },
-    { pattern: /gym|fitness|planet fitness|equinox|yoga/i, groupName: 'Health', subName: 'Gym/Fitness' },
-    { pattern: /payroll|direct deposit|salary|wages/i, groupName: 'Income', subName: 'Take Home Pay' },
-    { pattern: /interest.*payment|interest.*earned|interest paid|interest$/i, groupName: 'Income', subName: 'Interest Income' },
-    { pattern: /cloudflare|github|namecheap|elevenlabs|steam/i, groupName: 'Dues/Subscriptions', subName: 'Online Services' },
-    { pattern: /southwest|american airlines|united airlines|delta|frontier/i, groupName: 'Discretionary', subName: 'Travel' },
-  ];
-
-  const allCats = db.select().from(categories).all();
-  const catLookup = new Map(allCats.map((c) => [`${c.group_name}:${c.sub_name}`, c.id]));
-
-  return items.map((item) => {
-    const primaryText = item.payee || item.description;
-    const primaryLower = primaryText.toLowerCase().trim();
-    const descLower = item.description.toLowerCase().trim();
-
-    // 1. Exact match from history
-    const exactPayee = descCatMap.get(primaryLower);
-    if (exactPayee) {
-      return { suggestedCategoryId: exactPayee.categoryId, suggestedGroupName: exactPayee.groupName, suggestedSubName: exactPayee.subName, confidence: 1.0 };
-    }
-    if (item.payee) {
-      const exactDesc = descCatMap.get(descLower);
-      if (exactDesc) {
-        return { suggestedCategoryId: exactDesc.categoryId, suggestedGroupName: exactDesc.groupName, suggestedSubName: exactDesc.subName, confidence: 0.9 };
-      }
-    }
-
-    // 2. Partial match
-    for (const [key, val] of descCatMap.entries()) {
-      if (primaryLower.includes(key) || key.includes(primaryLower) ||
-          (item.payee && (descLower.includes(key) || key.includes(descLower)))) {
-        return { suggestedCategoryId: val.categoryId, suggestedGroupName: val.groupName, suggestedSubName: val.subName, confidence: 0.7 };
-      }
-    }
-
-    // 3. Rule-based
-    for (const rule of RULES) {
-      if (rule.pattern.test(primaryText) || (item.payee && rule.pattern.test(item.description))) {
-        const catId = catLookup.get(`${rule.groupName}:${rule.subName}`);
-        return { suggestedCategoryId: catId || null, suggestedGroupName: rule.groupName, suggestedSubName: rule.subName, confidence: 0.7 };
-      }
-    }
-
-    return { suggestedCategoryId: null, suggestedGroupName: null, suggestedSubName: null, confidence: 0.0 };
-  });
-}
 
 export default router;

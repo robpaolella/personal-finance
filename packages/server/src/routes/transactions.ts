@@ -6,6 +6,7 @@ import { sanitize, sanitizeString } from '../utils/sanitize.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { detectDuplicates } from '../services/duplicateDetector.js';
 import { findOrCreateMerchant } from '../db/merchants.js';
+import { resolveReview, clearReviewNotification } from '../services/reviews.js';
 
 const router = Router();
 
@@ -82,7 +83,7 @@ function saveSplits(transactionId: number, splits: SplitInput[], parentMerchantI
 
 type SplitDto = {
   id: number; categoryId: number; groupName: string; subName: string; displayName: string;
-  type: string; amount: number; merchant: { id: number; name: string } | null; note: string | null;
+  type: string; amount: number; merchant: { id: number; name: string; logoUrl: string | null } | null; note: string | null;
 };
 
 function getSplitsForTransactions(transactionIds: number[]): Map<number, SplitDto[]> {
@@ -90,7 +91,7 @@ function getSplitsForTransactions(transactionIds: number[]): Map<number, SplitDt
   const rows = sqlite.prepare(`
     SELECT ts.id, ts.transaction_id, ts.category_id, ts.amount, ts.merchant_id, ts.note,
            c.group_name, c.sub_name, c.display_name, c.type,
-           m.name AS merchant_name
+           m.name AS merchant_name, m.logo_url AS merchant_logo
     FROM transaction_splits ts
     JOIN categories c ON ts.category_id = c.id
     LEFT JOIN merchants m ON ts.merchant_id = m.id
@@ -98,7 +99,7 @@ function getSplitsForTransactions(transactionIds: number[]): Map<number, SplitDt
     ORDER BY ts.id
   `).all(...transactionIds) as {
     id: number; transaction_id: number; category_id: number; amount: number;
-    merchant_id: number | null; note: string | null; merchant_name: string | null;
+    merchant_id: number | null; note: string | null; merchant_name: string | null; merchant_logo: string | null;
     group_name: string; sub_name: string; display_name: string; type: string;
   }[];
   const map = new Map<number, SplitDto[]>();
@@ -113,7 +114,7 @@ function getSplitsForTransactions(transactionIds: number[]): Map<number, SplitDt
       type: r.type,
       amount: r.amount,
       // Own merchant only (null = inherit parent); the client does the fallback.
-      merchant: r.merchant_id != null ? { id: r.merchant_id, name: r.merchant_name ?? '' } : null,
+      merchant: r.merchant_id != null ? { id: r.merchant_id, name: r.merchant_name ?? '', logoUrl: r.merchant_logo ?? null } : null,
       note: r.note,
     });
   }
@@ -136,6 +137,18 @@ function getAccountOwners(accountIds: number[]): Map<number, { id: number; displ
   return map;
 }
 
+/** Batch-resolve linked-institution logo + color for a set of institution ids. */
+function getInstitutionLogos(institutionIds: (number | null)[]): Map<number, { logo_url: string | null; color: string | null }> {
+  const ids = [...new Set(institutionIds.filter((v): v is number => v != null))];
+  const map = new Map<number, { logo_url: string | null; color: string | null }>();
+  if (ids.length === 0) return map;
+  const rows = sqlite.prepare(
+    `SELECT id, logo_url, color FROM financial_institutions WHERE id IN (${ids.map(() => '?').join(',')})`
+  ).all(...ids) as { id: number; logo_url: string | null; color: string | null }[];
+  for (const r of rows) map.set(r.id, { logo_url: r.logo_url, color: r.color });
+  return map;
+}
+
 // GET /api/transactions — list with filters, joins, pagination
 router.get('/', (req: Request, res: Response) => {
   try {
@@ -145,6 +158,7 @@ router.get('/', (req: Request, res: Response) => {
       merchantId, merchantIds,
       type, owner, search,
       amountOp, amountValue, amountMin, amountMax,
+      needsReview,
       limit: limitStr, offset: offsetStr,
       sortBy = 'date', sortOrder = 'desc',
     } = req.query as Record<string, string | undefined>;
@@ -218,19 +232,11 @@ router.get('/', (req: Request, res: Response) => {
       }
       conditions.push(sql`(${sql.join(orParts, sql` OR `)})`);
     }
-    if (type === 'income') {
+    if (type === 'income' || type === 'expense' || type === 'savings') {
       conditions.push(
         or(
-          eq(categories.type, 'income'),
-          sql`EXISTS (SELECT 1 FROM transaction_splits ts JOIN categories c2 ON ts.category_id = c2.id WHERE ts.transaction_id = ${transactions.id} AND c2.type = 'income')`
-        )!
-      );
-    }
-    if (type === 'expense') {
-      conditions.push(
-        or(
-          eq(categories.type, 'expense'),
-          sql`EXISTS (SELECT 1 FROM transaction_splits ts JOIN categories c2 ON ts.category_id = c2.id WHERE ts.transaction_id = ${transactions.id} AND c2.type = 'expense')`
+          eq(categories.type, type),
+          sql`EXISTS (SELECT 1 FROM transaction_splits ts JOIN categories c2 ON ts.category_id = c2.id WHERE ts.transaction_id = ${transactions.id} AND c2.type = ${type})`
         )!
       );
     }
@@ -260,6 +266,8 @@ router.get('/', (req: Request, res: Response) => {
       if (!isNaN(mx)) conditions.push(sql`ABS(${transactions.amount}) <= ${mx}`);
     }
 
+    if (needsReview === '1') conditions.push(eq(transactions.needs_review, 1));
+
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const sortColumn =
@@ -280,12 +288,17 @@ router.get('/', (req: Request, res: Response) => {
         note: transactions.note,
         amount: transactions.amount,
         created_at: transactions.created_at,
+        needs_review: transactions.needs_review,
+        categorize_confidence: transactions.categorize_confidence,
         merchant_id: transactions.merchant_id,
         merchant_name: merchants.name,
+        merchant_logo: merchants.logo_url,
         account_id: accounts.id,
         account_name: accounts.name,
         account_last_four: accounts.last_four,
         account_owner: accounts.owner,
+        account_avatar: accounts.avatar_url,
+        account_institution_id: accounts.institution_id,
         category_id: categories.id,
         category_group_name: categories.group_name,
         category_sub_name: categories.sub_name,
@@ -314,10 +327,12 @@ router.get('/', (req: Request, res: Response) => {
 
     const ownerMap = getAccountOwners([...new Set(rows.map((r) => r.account_id))]);
     const splitsMap = getSplitsForTransactions(rows.map(r => r.id));
+    const acctInstMap = getInstitutionLogos(rows.map((r) => r.account_institution_id));
 
     const data = rows.map((r) => {
       const owners = ownerMap.get(r.account_id) || [];
       const splits = splitsMap.get(r.id) || null;
+      const acctInst = r.account_institution_id != null ? acctInstMap.get(r.account_institution_id) : undefined;
       return {
         id: r.id,
         date: r.date,
@@ -325,7 +340,9 @@ router.get('/', (req: Request, res: Response) => {
         note: r.note,
         amount: r.amount,
         created_at: r.created_at,
-        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name } : null,
+        needsReview: !!r.needs_review,
+        confidence: r.categorize_confidence,
+        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name, logoUrl: r.merchant_logo ?? null } : null,
         account: {
           id: r.account_id,
           name: r.account_name,
@@ -333,6 +350,8 @@ router.get('/', (req: Request, res: Response) => {
           owner: r.account_owner,
           owners,
           isShared: owners.length > 1,
+          logoUrl: r.account_avatar || acctInst?.logo_url || null,
+          color: acctInst?.color ?? null,
         },
         category: r.category_id ? {
           id: r.category_id,
@@ -394,12 +413,17 @@ router.get('/:id', (req: Request, res: Response) => {
         note: transactions.note,
         amount: transactions.amount,
         created_at: transactions.created_at,
+        needs_review: transactions.needs_review,
+        categorize_confidence: transactions.categorize_confidence,
         merchant_id: transactions.merchant_id,
         merchant_name: merchants.name,
+        merchant_logo: merchants.logo_url,
         account_id: accounts.id,
         account_name: accounts.name,
         account_last_four: accounts.last_four,
         account_owner: accounts.owner,
+        account_avatar: accounts.avatar_url,
+        account_institution_id: accounts.institution_id,
         category_id: categories.id,
         category_group_name: categories.group_name,
         category_sub_name: categories.sub_name,
@@ -420,6 +444,11 @@ router.get('/:id', (req: Request, res: Response) => {
     const r = rows[0];
     const owners = getAccountOwners([r.account_id]).get(r.account_id) || [];
     const splits = getSplitsForTransactions([id]).get(id) || null;
+    const reviewRow = sqlite.prepare(`
+      SELECT rv.status, rv.reason, rv.note, rv.assignee_id, u.display_name AS assignee_name
+      FROM transaction_reviews rv LEFT JOIN users u ON rv.assignee_id = u.id
+      WHERE rv.transaction_id = ?
+    `).get(id) as { status: string; reason: string; note: string | null; assignee_id: number | null; assignee_name: string | null } | undefined;
     res.json({
       data: {
         id: r.id,
@@ -428,8 +457,19 @@ router.get('/:id', (req: Request, res: Response) => {
         note: r.note,
         amount: r.amount,
         created_at: r.created_at,
-        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name } : null,
-        account: { id: r.account_id, name: r.account_name, lastFour: r.account_last_four, owner: r.account_owner, owners, isShared: owners.length > 1 },
+        needsReview: !!r.needs_review,
+        confidence: r.categorize_confidence,
+        review: reviewRow ? {
+          status: reviewRow.status,
+          reason: reviewRow.reason,
+          note: reviewRow.note,
+          assignee: reviewRow.assignee_id != null ? { id: reviewRow.assignee_id, displayName: reviewRow.assignee_name } : null,
+        } : null,
+        merchant: r.merchant_id ? { id: r.merchant_id, name: r.merchant_name, logoUrl: r.merchant_logo ?? null } : null,
+        account: (() => {
+          const acctInst = getInstitutionLogos([r.account_institution_id]).get(r.account_institution_id ?? -1);
+          return { id: r.account_id, name: r.account_name, lastFour: r.account_last_four, owner: r.account_owner, owners, isShared: owners.length > 1, logoUrl: r.account_avatar || acctInst?.logo_url || null, color: acctInst?.color ?? null };
+        })(),
         category: r.category_id ? { id: r.category_id, groupName: r.category_group_name, subName: r.category_sub_name, displayName: r.category_display_name, type: r.category_type } : null,
         splits,
       },
@@ -535,27 +575,37 @@ router.put('/:id', requirePermission('transactions.edit'), (req: Request, res: R
             category_id: null,
             merchant_id: merchantId,
             amount: newAmount,
+            // User-confirmed via splits → clear any review flag.
+            needs_review: 0,
+            categorize_confidence: null,
           })
           .where(eq(transactions.id, id))
           .run();
         saveSplits(id, splits, merchantId);
+        resolveReview(sqlite, { txnId: id, resolvedBy: req.user!.userId });
       })();
     } else if (categoryId) {
-      // Switching to single category (or staying single) — clear any existing splits
-      db.delete(transactionSplits).where(eq(transactionSplits.transaction_id, id)).run();
-
-      db.update(transactions)
-        .set({
-          account_id: accountId ?? existing[0].account_id,
-          date: date ?? existing[0].date,
-          description: description ?? existing[0].description,
-          note: note !== undefined ? note : existing[0].note,
-          category_id: categoryId,
-          merchant_id: merchantId,
-          amount: newAmount,
-        })
-        .where(eq(transactions.id, id))
-        .run();
+      // Only an actual category CHANGE clears review — editing an unrelated field
+      // (note/date/amount) on an already-categorized txn must not resolve a manual review.
+      const catChanged = categoryId !== existing[0].category_id;
+      sqlite.transaction(() => {
+        // Switching to single category (or staying single) — clear any existing splits
+        db.delete(transactionSplits).where(eq(transactionSplits.transaction_id, id)).run();
+        db.update(transactions)
+          .set({
+            account_id: accountId ?? existing[0].account_id,
+            date: date ?? existing[0].date,
+            description: description ?? existing[0].description,
+            note: note !== undefined ? note : existing[0].note,
+            category_id: categoryId,
+            merchant_id: merchantId,
+            amount: newAmount,
+            ...(catChanged ? { needs_review: 0, categorize_confidence: null } : {}),
+          })
+          .where(eq(transactions.id, id))
+          .run();
+        if (catChanged) resolveReview(sqlite, { txnId: id, resolvedBy: req.user!.userId });
+      })();
     } else {
       // No category or splits change — just update other fields
       db.update(transactions)
@@ -611,7 +661,11 @@ router.patch('/:txnId/splits/:splitId', requirePermission('transactions.edit'), 
     }
     if (Object.keys(set).length === 0) return res.json({ data: { id: splitId } });
 
-    db.update(transactionSplits).set(set).where(eq(transactionSplits.id, splitId)).run();
+    sqlite.transaction(() => {
+      db.update(transactionSplits).set(set).where(eq(transactionSplits.id, splitId)).run();
+      // Confirming a leg's category is a user action → resolve any open review (atomically).
+      if (set.category_id !== undefined) resolveReview(sqlite, { txnId, resolvedBy: req.user!.userId });
+    })();
     res.json({ data: { id: splitId } });
   } catch (err) {
     console.error('PATCH /transactions/:txnId/splits/:splitId error:', err);
@@ -628,6 +682,9 @@ router.delete('/:id', requirePermission('transactions.delete'), (req: Request, r
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
+    // Notifications don't FK-cascade — clear the review notification explicitly.
+    // (The transaction_reviews row itself cascades on the txn delete.)
+    clearReviewNotification(sqlite, id);
     db.delete(transactions).where(eq(transactions.id, id)).run();
     res.json({ data: { id } });
   } catch (err) {
@@ -672,23 +729,28 @@ router.post('/bulk-update', requirePermission('transactions.bulk_edit'), (req: R
     // Handle simple field updates
     const setFields: Record<string, unknown> = {};
     if (updates.date) setFields.date = updates.date;
-    if (updates.categoryId) setFields.category_id = updates.categoryId;
+    if (updates.categoryId) { setFields.category_id = updates.categoryId; setFields.needs_review = 0; setFields.categorize_confidence = null; }
     // Merchant is a name → resolve to a merchant_id (leaves the raw description intact).
     if (updates.merchant && updates.merchant.trim()) setFields.merchant_id = findOrCreateMerchant(updates.merchant);
 
     if (Object.keys(setFields).length > 0) {
-      // If changing category, clear any existing splits on these transactions
-      if (updates.categoryId) {
-        db.delete(transactionSplits)
-          .where(inArray(transactionSplits.transaction_id, ids))
+      sqlite.transaction(() => {
+        // If changing category, clear any existing splits on these transactions
+        if (updates.categoryId) {
+          db.delete(transactionSplits)
+            .where(inArray(transactionSplits.transaction_id, ids))
+            .run();
+        }
+        const result = db.update(transactions)
+          .set(setFields)
+          .where(inArray(transactions.id, ids))
           .run();
-      }
-
-      const result = db.update(transactions)
-        .set(setFields)
-        .where(inArray(transactions.id, ids))
-        .run();
-      affected = result.changes;
+        affected = result.changes;
+        // A bulk category assignment resolves each row's open review (atomically).
+        if (updates.categoryId) {
+          for (const id of ids) resolveReview(sqlite, { txnId: id, resolvedBy: req.user!.userId });
+        }
+      })();
     }
 
     res.json({ data: { affected } });
@@ -708,6 +770,7 @@ router.post('/bulk-delete', requirePermission('transactions.bulk_edit'), (req: R
       return;
     }
 
+    for (const id of ids) clearReviewNotification(sqlite, id); // reviews cascade; notifications don't
     const result = db.delete(transactions)
       .where(inArray(transactions.id, ids))
       .run();

@@ -25,13 +25,36 @@ export interface AccountOwner {
   displayName: string;
 }
 
+export interface FinancialInstitution {
+  id: number;
+  name: string;
+  domain: string | null;
+  logo_url: string | null;
+  color: string | null;
+  is_system: number;
+  sort_order: number | null;
+  created_at: string;
+  account_count?: number;
+}
+
+// The institution reference attached to an enriched Account (subset of the row).
+export interface AccountInstitutionRef {
+  id: number;
+  name: string;
+  logo_url: string | null;
+  color: string | null;
+}
+
 export interface Account {
   id: number;
   name: string;
   last_four: string | null;
   type: AccountType;
   classification: AccountClassification;
-  institution: string | null;
+  institution: string | null; // legacy free-text (kept; institution_id is the source of truth)
+  institution_id: number | null;
+  institutionRef: AccountInstitutionRef | null; // enriched by GET /accounts
+  avatar_url: string | null; // per-account image override (else fall back to institution logo)
   owner: string; // legacy — first owner display_name for backward compat
   owners: AccountOwner[];
   isShared: boolean;
@@ -311,6 +334,7 @@ export interface RecurringItemWithMeta extends RecurringItem {
   displayName: string;
   categoryType: CategoryType;
   merchantName: string | null;
+  merchantLogoUrl: string | null;
   accountName: string | null;
   accountLastFour: string | null;
 }
@@ -320,6 +344,7 @@ export interface RecurringOccurrence {
   itemId: number;
   label: string;
   merchantName: string | null;
+  merchantLogoUrl: string | null;
   date: string; // 'YYYY-MM-DD'
   amount: number; // positive magnitude
   type: 'income' | 'expense';

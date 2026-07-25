@@ -46,9 +46,27 @@ export const accounts = sqliteTable('accounts', {
   last_four: text('last_four'),
   type: text('type').notNull(), // checking, savings, credit, investment, retirement, venmo, cash
   classification: text('classification').notNull(), // liquid, investment, liability
-  institution: text('institution'), // bank/brokerage name (backfilled from simplefin_links.simplefin_org_name)
+  institution: text('institution'), // legacy free-text bank/brokerage name (kept as backfill source for institution_id)
+  institution_id: integer('institution_id').references(() => financialInstitutions.id), // first-class institution (drives the logo)
   owner: text('owner').notNull(), // legacy — kept for backward compat; use account_owners instead
+  avatar_url: text('avatar_url'), // per-account image override (null = fall back to institution logo, then colored initial)
   is_active: integer('is_active').default(1),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+});
+
+// === Financial Institutions ===
+// Reusable bank/brokerage/card/fintech identity. Seeded with ~200 popular US
+// institutions (is_system=1); users can add their own (is_system=0). logo_url
+// points at a cached file under /uploads (fetched once from logo.dev by domain,
+// or uploaded); null = render a brand-colored monogram.
+export const financialInstitutions = sqliteTable('financial_institutions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+  domain: text('domain'), // primary web host for logo.dev lookup + dedupe, e.g. 'chase.com'
+  logo_url: text('logo_url'), // '/uploads/institution-<id>.webp' or null (→ monogram)
+  color: text('color'), // brand hex for the monogram fallback
+  is_system: integer('is_system').notNull().default(0), // 1 = seeded, 0 = user-added
+  sort_order: integer('sort_order').default(0),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
 
@@ -72,6 +90,25 @@ export const categories = sqliteTable('categories', {
   // How recurring items on this category fold into its monthly budget:
   // 'set' = recurring is the floor (max(manual, recurring)); 'add' = manual + recurring.
   recurring_budget_mode: text('recurring_budget_mode').default('set'),
+  // Per-leaf emoji (null = fall back to lib/categoryMeta group map).
+  emoji: text('emoji'),
+  // When 1, the category is skipped in budget planning + report rollups.
+  exclude_from_budget: integer('exclude_from_budget').default(0),
+  // First-class group identity. group_name is kept synced as a denormalized
+  // mirror so budget/report/transaction readers need no changes.
+  group_id: integer('group_id').references(() => categoryGroups.id),
+});
+
+// First-class category group. A group belongs to exactly one section (type).
+// Categories link via group_id; categories.group_name mirrors the group name.
+export const categoryGroups = sqliteTable('category_groups', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  type: text('type').notNull(), // income, expense, savings
+  name: text('name').notNull(),
+  // Owner-chosen swatch token (e.g. 'c-rose'); null = fall back to the derived hue.
+  color: text('color'),
+  sort_order: integer('sort_order').notNull().default(0),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
 
 // === Merchants ===
@@ -80,6 +117,22 @@ export const categories = sqliteTable('categories', {
 export const merchants = sqliteTable('merchants', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
+  logo_url: text('logo_url'),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+});
+
+// === Vendor Logos ===
+// Catalog of popular vendors → cached logo. Seeded from db/data/vendors.ts and
+// hydrated once from logo.dev. A merchant whose canonical name matches (case-
+// insensitive) auto-adopts the cached logo (merchants.logo_url), so users never
+// upload logos for common brands. Kept separate from `merchants` so the seed
+// list never clutters the user's actual merchant list.
+export const vendorLogos = sqliteTable('vendor_logos', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(), // canonical merchant name (see merchantAliases.ts)
+  domain: text('domain'),
+  logo_url: text('logo_url'), // '/uploads/vendor-<id>.webp' or null
+  color: text('color'),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
 });
 
@@ -249,6 +302,22 @@ export const categoryRules = sqliteTable('category_rules', {
   category_id: integer('category_id').notNull().references(() => categories.id),
   priority: integer('priority').notNull().default(0),
   created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+});
+
+// === Transaction Reviews (assignable "needs review" task, 1:1 with a transaction) ===
+// transactions.needs_review is the denormalized cache; the open/resolved status +
+// assignee/note/history live here. Kept in sync by services/reviews.ts.
+export const transactionReviews = sqliteTable('transaction_reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  transaction_id: integer('transaction_id').notNull().unique().references(() => transactions.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('open'),          // open | resolved
+  reason: text('reason').notNull(),                           // auto_uncategorized | auto_low_confidence | manual
+  assignee_id: integer('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  note: text('note'),
+  flagged_by: integer('flagged_by').references(() => users.id, { onDelete: 'set null' }), // null = auto-flagged
+  resolved_by: integer('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+  created_at: text('created_at').default('CURRENT_TIMESTAMP'),
+  resolved_at: text('resolved_at'),
 });
 
 // === Pay Cycles (dynamic take-home income schedules) ===
