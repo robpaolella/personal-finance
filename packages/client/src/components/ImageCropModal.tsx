@@ -29,11 +29,13 @@ export default function ImageCropModal({
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
-  const baseScaleRef = useRef(1); // display scale at zoom=1 (image "covers" viewport)
+  // Display scale at zoom=1 (image "covers" viewport). State, not a ref — it
+  // sizes the <img> during render.
+  const [baseScale, setBaseScale] = useState(1);
   const revokeRef = useRef<() => void>(() => {});
   const drag = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
 
-  const scaleFor = useCallback((z: number) => baseScaleRef.current * z, []);
+  const scaleFor = useCallback((z: number) => baseScale * z, [baseScale]);
 
   const clamp = useCallback((o: { x: number; y: number }, scale: number, image: HTMLImageElement) => {
     const w = image.naturalWidth * scale;
@@ -53,7 +55,7 @@ export default function ImageCropModal({
         if (!alive) { revoke(); return; }
         revokeRef.current = revoke;
         const base = VIEWPORT / Math.min(image.naturalWidth, image.naturalHeight);
-        baseScaleRef.current = base;
+        setBaseScale(base);
         setImg(image);
         setZoom(1);
         setOffset({
